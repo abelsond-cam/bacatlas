@@ -25,3 +25,13 @@ deploy/dump/
 # Python build artefacts (the PyPI stub)
 packaging/*/dist/
 packaging/*/*.egg-info/
+
+# ⛔ Credentials — NEVER in a repo, not even a private one. A token dropped in the working tree of a
+# SHARED checkout is one `git add -A` away from the history, and history is not a place you can delete
+# from. Real credentials live in ~/.pypirc (mode 600) or the login keychain.
+.pypirc
+*token*.txt
+*_token
+*.pem
+*.key
+secrets.*
