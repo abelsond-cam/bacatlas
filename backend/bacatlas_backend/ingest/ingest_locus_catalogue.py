@@ -23,7 +23,7 @@ from dataclasses import dataclass, field
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from bacatlas_backend.ingest.artifact_locator import REPRESENTATIONS, CatalogueArtifacts
+from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.catalogue_frames import (
     OFFSETS,
     SIMILARITY_COLUMNS,

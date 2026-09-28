@@ -28,7 +28,18 @@ import GeneTrack from "./GeneTrack.vue";
 import IntergenicSlot from "./IntergenicSlot.vue";
 import NeighbourGeneSlot from "./NeighbourGeneSlot.vue";
 
-vi.mock("@/api/client", () => ({ fetchLocus: vi.fn(async () => ({ ok: false, kind: "network", detail: "x" })) }));
+// ⚠ A PARTIAL mock, like every other suite that mocks this module. `anchorQuery` must stay real:
+// it is the one place the anchor's kind becomes a query parameter, and a stub would hide a projected
+// genome being fetched as `anchor=` — which 404s and reads on the page as "this genome has nothing here".
+// ⛔ This was a TOTAL mock until 2026-09-28, which made every other export throw on access. The hover
+// test below then exploded inside `cache.prefetch` on its first line, every run — and still PASSED,
+// because it only asserts that `prefetchNeighbour` was CALLED. The whole body of that prefetch was dead
+// under this suite. The unhandled rejection was the only thing saying so.
+const fetchLocus = vi.hoisted(() => vi.fn(async () => ({ ok: false, kind: "network", detail: "x" })));
+vi.mock("@/api/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/api/client")>()),
+  fetchLocus,
+}));
 
 const NEIGHBOUR: NeighbourDisplayRow = {
   label: "77",
@@ -362,7 +373,14 @@ describe("the whole track", () => {
     const wrapper = mountTrack();
     const track = useTrackDisplayStore();
     const prefetch = vi.spyOn(track, "prefetchNeighbour");
+    fetchLocus.mockClear();
     await wrapper.find(".slot:not(.focal):not(.gap):not(.joint)").trigger("pointerenter");
     expect(prefetch).toHaveBeenCalledWith("ecoli", "n0");
+    // ⛔ The assertion above says the hover handler FIRED. It passed for five days while the prefetch
+    // it fires threw on its own first line — the store reads `anchorQuery`, which a total mock had
+    // replaced with a throwing proxy. Nothing caught it, because `prefetchNeighbour` discards the
+    // promise with `void` by design. So assert the prefetch REACHED the network too: this is the line
+    // that would have gone red, and the whole body of `locusDetailCacheStore.prefetch` depends on it.
+    expect(fetchLocus).toHaveBeenCalledWith("ecoli", "n0", {});
   });
 });

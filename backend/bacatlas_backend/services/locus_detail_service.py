@@ -25,10 +25,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 
-from sqlalchemy import and_, or_, select, tuple_
-from sqlalchemy.orm import Session, aliased
+from sqlalchemy import or_, select, tuple_
+from sqlalchemy.orm import Session
 
-from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation
+from bacatlas_backend.models.enumerations import AnnotationKind
 from bacatlas_backend.models.intergenic_gap import IntergenicGap
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry, LocusUnirefFamilyCrosstab

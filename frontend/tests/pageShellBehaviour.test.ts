@@ -98,6 +98,13 @@ beforeEach(() => {
     }),
   );
   api.fetchLocus.mockImplementation(async (_species: string, label: string) => success(detail(label)));
+  // ⛔ App's watcher fires `void own.loadPlacedGenomes(…)` as soon as the species list resolves, and the
+  // promise is deliberately discarded there — so an unarmed mock returns `undefined`, `result.ok` throws,
+  // and the only trace is an unhandled rejection with no assertion to catch it. Six of them, one per
+  // `mount(App)` test, red in CI since 2026-09-23.
+  // ⚠ Empty `genomes` keeps these tests' meaning: they assert on the hash, the history and which
+  // catalogue was fetched, never on placed genomes.
+  api.fetchProjectedGenomes.mockResolvedValue(success({ species_key: "ecoli", genomes: [], caveat: "" }));
 });
 afterEach(() => vi.useRealTimers());
 

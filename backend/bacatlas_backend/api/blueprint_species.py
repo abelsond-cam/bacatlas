@@ -19,7 +19,6 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import select
 
-from bacatlas_backend.models.enumerations import EmbeddingRepresentation
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.serialisers.locus_serialiser import (
