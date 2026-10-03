@@ -238,14 +238,18 @@ def test_a_valid_header_with_no_rows_is_refused(tmp_path):
 # ========================================================================== the walk, four states
 @pytest.fixture
 def walk_inputs():
-    """Three unlabelled kp nodes: one reachable, one whose only donor is unannotated, one off the map."""
+    """Three unlabelled kp nodes: one reachable, one whose only donor is unannotated, one unreached."""
     recipient_ids = {"1098": (101, 7), "2811": (102, 3), "9999": (103, 5)}
     donor_ids = {"E1": (1, 10), "E2": (2, 4)}
     donor_levels = {1: _cog("COG0001", "E")}  # E2 (locus 2) carries nothing
     return recipient_ids, donor_ids, donor_levels
 
 
+LABELS = {101: "1098", 102: "2811", 103: "9999", 1: "E1", 2: "E2"}
+
+
 def _rows(*specs):
+    """Map rows, with every rule carrying the same cosine and rank unless a test says otherwise."""
     return [
         {
             "recipient_node": r,
@@ -262,22 +266,33 @@ def _rows(*specs):
     ]
 
 
+def _walk(rows, *, rule, recipient_ids, donor_ids, donor_levels, recipient_levels, kind=COG):
+    """The map -> candidates -> walk path, as `main` wires it."""
+    return xs.walk(
+        xs.candidates_from_map(rows, rule=rule, recipient_ids=recipient_ids, donor_ids=donor_ids),
+        recipient_ids=recipient_ids,
+        donor_levels=donor_levels,
+        recipient_levels=recipient_levels,
+        kind=kind,
+        label_of=LABELS,
+    )
+
+
 def test_the_four_states_sum_to_the_unlabelled_total(walk_inputs):
     """⛔ `nuna/CLAUDE.md` §2 — 'no annotated donor' and 'donor agreed' must never read the same."""
     recipient_ids, donor_ids, donor_levels = walk_inputs
-    reach = xs.walk(
+    reach = _walk(
         _rows(("1098", "E2", 0.995, 1), ("1098", "E1", 0.991, 2), ("2811", "E2", 0.995, 1)),
         rule="cross",
         recipient_ids=recipient_ids,
         donor_ids=donor_ids,
         donor_levels=donor_levels,
         recipient_levels={},
-        kind=COG,
     )
     assert reach["unlabelled"] == 3
     assert reach["state"]["labelled"] == [1, 7], "1098 walks past the unannotated E2 to E1"
     assert reach["state"]["no_annotated_donor"] == [1, 3], "2811's only candidate carries nothing"
-    assert reach["state"]["absent_from_map"] == [1, 5], "9999 has no row at all"
+    assert reach["state"]["no_candidate_at_all"] == [1, 5], "9999 has no row at all"
     assert reach["state"]["too_remote_to_call"] == [0, 0]
     assert sum(nodes for nodes, _genes in reach["state"].values()) == 3
 
@@ -285,14 +300,13 @@ def test_the_four_states_sum_to_the_unlabelled_total(walk_inputs):
 def test_a_donor_below_the_floor_is_reached_but_NOT_called(walk_inputs):
     """⛔ 'Definitely too remote to call' (David) — the donor is found and no label is taken from it."""
     recipient_ids, donor_ids, donor_levels = walk_inputs
-    reach = xs.walk(
+    reach = _walk(
         _rows(("1098", "E1", 0.85, 1)),
         rule="cross",
         recipient_ids=recipient_ids,
         donor_ids=donor_ids,
         donor_levels=donor_levels,
         recipient_levels={},
-        kind=COG,
     )
     assert reach["state"]["too_remote_to_call"] == [1, 7]
     assert reach["state"]["labelled"] == [0, 0]
@@ -302,14 +316,13 @@ def test_a_donor_below_the_floor_is_reached_but_NOT_called(walk_inputs):
 def test_a_node_that_already_carries_the_vocabulary_is_not_in_the_denominator(walk_inputs):
     """The two mechanisms are disjoint: a node with its own call is never offered a neighbour's."""
     recipient_ids, donor_ids, donor_levels = walk_inputs
-    reach = xs.walk(
+    reach = _walk(
         _rows(("1098", "E1", 0.995, 1), ("2811", "E1", 0.995, 1), ("9999", "E1", 0.995, 1)),
         rule="cross",
         recipient_ids=recipient_ids,
         donor_ids=donor_ids,
         donor_levels=donor_levels,
         recipient_levels={101: _cog("COG0007", "K")},
-        kind=COG,
     )
     assert reach["unlabelled"] == 2, "101 (node 1098) carries its own COG and drops out"
     assert reach["state"]["labelled"] == [2, 8]
@@ -352,11 +365,9 @@ def test_the_rule_chooses_which_donor_the_walk_takes(walk_inputs):
             "rank_cross_max": 2,
         },
     ]
-    common = dict(
-        recipient_ids=recipient_ids, donor_ids=donor_ids, donor_levels=donor_levels, recipient_levels={}, kind=COG
-    )
-    by_median = xs.walk(rows, rule="cross", **common)
-    by_max = xs.walk(rows, rule="cross_max", **common)
+    common = dict(recipient_ids=recipient_ids, donor_ids=donor_ids, donor_levels=donor_levels, recipient_levels={})
+    by_median = _walk(rows, rule="cross", **common)
+    by_max = _walk(rows, rule="cross_max", **common)
 
     assert by_median["state"]["labelled"][0] == 1 and by_max["state"]["labelled"][0] == 1
     # the median takes E2 at 0.995 — the top tier; the max takes E1 at 0.985 — one tier down
@@ -370,14 +381,107 @@ def test_a_dash_padded_donor_quotes_no_deeper_than_it_states(walk_inputs):
     recipient_ids, donor_ids, _levels = walk_inputs
     #: a donor with COG categories but no orthogroup accession can only supply the L1 rung
     donor_levels = {1: {2: frozenset(), 1: frozenset({"E"})}}
-    reach = xs.walk(
+    reach = _walk(
         _rows(("1098", "E1", 0.995, 1)),
         rule="cross",
         recipient_ids=recipient_ids,
         donor_ids=donor_ids,
         donor_levels=donor_levels,
         recipient_levels={},
-        kind=COG,
     )
     assert reach["state"]["labelled"][0] == 1
     assert list(reach["by_tier"]) == [(">= 0.99", 1)], "the >= 0.99 tier permits L2; the donor has only L1"
+
+
+def test_the_two_reach_columns_must_describe_the_SAME_nodes(walk_inputs, capsys):
+    """⛔ Two columns over different populations is a comparison between two different things.
+
+    The cross-species reach and the within-species baseline are the SAME unlabelled nodes asked two
+    questions — one of a donor catalogue, one of their own neighbours. If the totals differ, one of
+    them was built from a different `recipient_levels` and the difference between the columns means
+    nothing. ⚠ `nuna/CLAUDE.md` §2: a comparison asserts its own coverage BEFORE it reports one.
+    """
+    recipient_ids, donor_ids, donor_levels = walk_inputs
+    rows = _rows(("1098", "E1", 0.995, 1), ("2811", "E1", 0.995, 1), ("9999", "E1", 0.995, 1))
+    full = _walk(
+        rows,
+        rule="cross",
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        donor_levels=donor_levels,
+        recipient_levels={},
+    )
+    # a baseline built as though one recipient node already had a call — 2 unlabelled, not 3
+    short = _walk(
+        rows,
+        rule="cross",
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        donor_levels=donor_levels,
+        recipient_levels={101: _cog("COG0007", "K")},
+    )
+    assert full["unlabelled"] == 3 and short["unlabelled"] == 2
+    with pytest.raises(SystemExit, match="describe different populations"):
+        xs.report_reach(full, full, short, COG, rule="cross", recipient="kp", donor="ecoli")
+    # and the matching set reports without complaint
+    xs.report_reach(full, full, full, COG, rule="cross", recipient="kp", donor="ecoli")
+    assert "worked cases" in capsys.readouterr().out
+
+
+def test_the_within_species_graph_feeds_the_SAME_walk_as_the_map(walk_inputs):
+    """⭐ One implementation, two donor sets — the two columns cannot differ by a definition.
+
+    `candidates_from_database` returns the same `{recipient_locus_id: [(rank, donor_id, cosine)]}`
+    shape as `candidates_from_map`, so the within-species baseline is measured by the same tiers,
+    the same `quotable_level` fallback and the same four states. Quoting it from the write-up instead
+    is what lets a baseline decay silently while still reading plausibly.
+    """
+    recipient_ids, _donor_ids, _donor_levels = walk_inputs
+    #: kp node 102 is its own donor pool's neighbour here — the within-species shape, by hand
+    within = {101: [(1, 102, 0.993)], 102: [(1, 101, 0.993)]}
+    reach = xs.walk(
+        within,
+        recipient_ids=recipient_ids,
+        donor_levels={102: _cog("COG0042", "J")},  # only 102 carries a call
+        recipient_levels={},
+        kind=COG,
+        label_of=LABELS,
+    )
+    assert reach["state"]["labelled"] == [1, 7], "101 takes 102's call"
+    assert reach["state"]["no_annotated_donor"] == [1, 3], "102's only neighbour (101) carries nothing"
+    assert reach["state"]["no_candidate_at_all"] == [1, 5], "103 is in no neighbour list"
+    assert list(reach["by_tier"]) == [(">= 0.99", 2)]
+
+
+def test_a_longer_candidate_list_reaches_more_donors_WHATEVER_the_embedding_does(walk_inputs):
+    """⛔⛔ The list-length confound, and the truncation that removes it.
+
+    The stored within-species graph holds **five** neighbours per locus (checked against the
+    database: ranks 1-5, 4.77 on average); the cross-species map holds up to `cap`, ~23. A walk
+    allowed 23 ranks finds an annotated donor more often than one allowed 5 for a reason that has
+    nothing to do with the embedding — so the reach is reported at its own depth AND truncated to
+    the baseline's, and only the two columns sharing a depth are comparable.
+
+    Here the only annotated donor sits at rank 3: visible at full depth, invisible at depth 2.
+    """
+    recipient_ids, donor_ids, donor_levels = walk_inputs
+    rows = _rows(("1098", "E2", 0.995, 1), ("1098", "E2", 0.994, 2), ("1098", "E1", 0.993, 3))
+    mapped = xs.candidates_from_map(rows, rule="cross", recipient_ids=recipient_ids, donor_ids=donor_ids)
+    shared = dict(recipient_ids=recipient_ids, donor_levels=donor_levels, recipient_levels={}, kind=COG)
+
+    deep = xs.walk(mapped, **shared)
+    shallow = xs.walk(mapped, max_rank=2, **shared)
+    assert deep["state"]["labelled"][0] == 1, "rank 3 carries the only call, and full depth sees it"
+    assert shallow["state"]["labelled"][0] == 0, "truncated to 2 ranks, the same walk reaches nothing"
+    assert shallow["state"]["no_annotated_donor"][0] == 1
+    # the depth each column was allowed is reported, so a reader is never guessing which is which
+    assert deep["depth_p50"] == 3.0 and shallow["depth_p50"] == 2.0
+    assert deep["max_rank"] is None and shallow["max_rank"] == 2
+
+
+def test_candidates_sharing_a_rank_are_refused(walk_inputs):
+    """⛔ With ties in the rank, `sorted` orders by DONOR ID and the walk takes the wrong donor."""
+    recipient_ids, donor_ids, donor_levels = walk_inputs
+    duplicated = {101: [(1, 2, 0.999), (1, 1, 0.991)]}  # both at rank 1
+    with pytest.raises(SystemExit, match="distinct ranks"):
+        xs.walk(duplicated, recipient_ids=recipient_ids, donor_levels=donor_levels, recipient_levels={}, kind=COG)

@@ -286,45 +286,108 @@ def transfer_gate(cross_cells, within_cells, kind: AnnotationKind, *, recipient:
 
 
 # ================================================================ SECTION 2 — is it WORTHWHILE?
+def candidates_from_map(rows: list[dict], *, rule: str, recipient_ids, donor_ids) -> dict:
+    """The cross-species map as `recipient_locus_id -> [(rank, donor_locus_id, cosine)]` under one rule."""
+    out = defaultdict(list)
+    for row in rows:
+        recipient_id = recipient_ids[row["recipient_node"]][0]
+        out[recipient_id].append((row[f"rank_{rule}"], donor_ids[row["donor_node"]][0], row[rule]))
+    return out
+
+
+def candidates_from_database(session: Session, catalogue: str) -> dict:
+    """The stored WITHIN-species neighbour graph, in the same shape — the third column, computed.
+
+    ⭐ **The within-species ladder's reach is measured by the same `walk`, not quoted from the
+    write-up.** It is the thing the cross-species reach has to be read against, and a number lifted
+    out of a document keeps reading plausibly long after the catalogue moves underneath it. Feeding
+    both through one implementation also means the two columns cannot differ by a definition: same
+    tiers, same `quotable_level` fallback, same four states — only the donor set changes.
+    """
+    out = defaultdict(list)
+    for locus_id, rank, neighbour_id, cosine in session.execute(
+        text("""
+            select n.locus_id, n.rank, n.neighbour_locus_id, n.cross_similarity
+              from locus_nearest_locus n
+              join locus l on l.locus_id = n.locus_id
+              join pangenome p on p.pangenome_id = l.pangenome_id
+             where p.catalogue_key = :catalogue and n.representation = 'ESM'
+               and n.cross_similarity is not null
+        """),
+        {"catalogue": catalogue},
+    ).all():
+        out[locus_id].append((rank, neighbour_id, cosine))
+    return out
+
+
 def walk(
-    rows: list[dict], *, rule: str, recipient_ids, donor_ids, donor_levels, recipient_levels, kind: AnnotationKind
+    candidates: dict,
+    *,
+    recipient_ids,
+    donor_levels,
+    recipient_levels,
+    kind: AnnotationKind,
+    label_of: dict | None = None,
+    max_rank: int | None = None,
 ) -> dict:
     """Walk each unlabelled recipient node's donors by rank until one carries the vocabulary.
 
     ⛔ **Four states, counted separately, and they must sum to the unlabelled node total.** A node
     with no annotated donor and a node whose donor agreed are both "no disagreement" in a naive
-    tally, and that is the failure `nuna/CLAUDE.md` §2 exists to forbid. *Absent from the map* is
+    tally, and that is the failure `nuna/CLAUDE.md` §2 exists to forbid. *No candidate at all* is
     kept apart from *no annotated donor among its candidates* because they mean different things:
-    the first is a gene set the embedding alignment dropped, the second is the dark set.
-    """
-    candidates = defaultdict(list)
-    for row in rows:
-        candidates[row["recipient_node"]].append(row)
+    the first is a node the neighbour structure never reached, the second is the dark set.
 
-    unlabelled = [label for label, (locus_id, _m) in recipient_ids.items() if locus_id not in recipient_levels]
-    state = {"absent_from_map": [0, 0], "no_annotated_donor": [0, 0], "too_remote_to_call": [0, 0], "labelled": [0, 0]}
+    ⚠ `candidates` is keyed on **locus_id**, not on node label, so the cross-species map and the
+    stored within-species graph feed the same function. `label_of` only decorates the worked
+    examples; nothing is measured through it.
+
+    ⛔⛔ **`max_rank` exists because the two donor lists are DIFFERENT LENGTHS, and that alone would
+    decide the comparison.** `locus_nearest_locus` stores **5** neighbours per locus (checked: ranks
+    1-5, 4.77 on average, 0 duplicates) because the page shows five; the cross-species map carries
+    up to `cap`, ~23 on average. A walk that may descend 23 ranks reaches an annotated donor more
+    often than one that may descend 5 **whatever the embedding is doing** — so the reach is reported
+    at its own depth *and* truncated to the baseline's, and the depth is named in every header.
+    Reporting only the untruncated number would have flattered cross-species transfer for free.
+
+    ⛔ The ranks within a locus must be distinct, or `sorted` silently falls back to ordering by
+    donor id and the walk takes the lowest-numbered locus rather than the nearest one.
+    """
+    unlabelled = [(locus_id, genes) for locus_id, genes in recipient_ids.values() if locus_id not in recipient_levels]
+    state = {
+        "no_candidate_at_all": [0, 0],
+        "no_annotated_donor": [0, 0],
+        "too_remote_to_call": [0, 0],
+        "labelled": [0, 0],
+    }
     by_tier: dict[tuple[str, int], list[int]] = defaultdict(lambda: [0, 0])
     examples: list[tuple] = []
 
-    for label in unlabelled:
-        genes = recipient_ids[label][1]
-        mine = candidates.get(label)
+    for locus_id, genes in unlabelled:
+        mine = candidates.get(locus_id)
+        if mine and len({rank for rank, _donor, _cosine in mine}) != len(mine):
+            raise SystemExit(
+                f"FATAL: locus {locus_id} has {len(mine)} candidates sharing "
+                f"{len({r for r, _d, _c in mine})} distinct ranks — `sorted` would then order them by "
+                "donor id, and the walk would take the lowest-numbered donor rather than the nearest"
+            )
+        if max_rank is not None and mine:
+            mine = [candidate for candidate in mine if candidate[0] <= max_rank]
         if not mine:
-            state["absent_from_map"][0] += 1
-            state["absent_from_map"][1] += genes
+            state["no_candidate_at_all"][0] += 1
+            state["no_candidate_at_all"][1] += genes
             continue
         found = None
-        for row in sorted(mine, key=lambda r: r[f"rank_{rule}"]):
-            donor_id = donor_ids.get(row["donor_node"], (None, 0))[0]
-            if donor_id is not None and donor_id in donor_levels:
-                found = (row, donor_id)
+        for _rank, donor_id, cosine in sorted(mine):
+            if donor_id in donor_levels:
+                found = (donor_id, cosine)
                 break
         if found is None:
             state["no_annotated_donor"][0] += 1
             state["no_annotated_donor"][1] += genes
             continue
-        row, donor_id = found
-        tier = tier_for(row[rule])
+        donor_id, cosine = found
+        tier = tier_for(cosine)
         if tier == NOT_CALLED:
             state["too_remote_to_call"][0] += 1
             state["too_remote_to_call"][1] += genes
@@ -338,10 +401,19 @@ def walk(
         state["labelled"][1] += genes
         by_tier[(tier, level)][0] += 1
         by_tier[(tier, level)][1] += genes
-        # ⭐ a handful of worked cases, because a table of counts is not something David can check.
-        # The within-species result became credible when it could be read on gumC and fimA by name.
+        # ⭐ a handful of worked cases, because a table of counts is not something that can be
+        # checked by eye. The within-species result became credible read on gumC and fimA by name.
         if len(examples) < EXAMPLES:
-            examples.append((label, row["donor_node"], tier, LEVEL_LABEL[kind][level], row[rule]))
+            names = label_of or {}
+            examples.append(
+                (
+                    names.get(locus_id, str(locus_id)),
+                    names.get(donor_id, str(donor_id)),
+                    tier,
+                    LEVEL_LABEL[kind][level],
+                    cosine,
+                )
+            )
 
     total = sum(count for count, _genes in state.values())
     if total != len(unlabelled):
@@ -349,19 +421,62 @@ def walk(
             f"FATAL: the four states sum to {total:,} but there are {len(unlabelled):,} unlabelled "
             f"{kind.value} nodes — a node has been counted twice or not at all"
         )
-    return {"unlabelled": len(unlabelled), "state": state, "by_tier": dict(by_tier), "examples": examples}
+    return {
+        "unlabelled": len(unlabelled),
+        "state": state,
+        "by_tier": dict(by_tier),
+        "examples": examples,
+        "max_rank": max_rank,
+        "depth_p50": _median_depth(candidates, max_rank),
+    }
 
 
-def report_reach(reach: dict, kind: AnnotationKind, *, rule: str, recipient: str, donor: str) -> None:
-    """What the transfer would actually add, in nodes AND genes, with every state visible."""
+def _median_depth(candidates: dict, max_rank: int | None) -> float:
+    """How many donors the walk was actually allowed to see, per locus — the comparison's own scale."""
+    depths = sorted(
+        len(mine) if max_rank is None else len([c for c in mine if c[0] <= max_rank]) for mine in candidates.values()
+    )
+    return float(depths[len(depths) // 2]) if depths else float("nan")
+
+
+def report_reach(
+    reach: dict, matched: dict, baseline: dict, kind: AnnotationKind, *, rule: str, recipient: str, donor: str
+) -> None:
+    """What the transfer would add, in nodes AND genes, at its own depth and at the baseline's.
+
+    ⛔ **Three columns, because the middle one is the only fair one.** `locus_nearest_locus` stores
+    five neighbours per locus and the cross-species map carries ~23, so the untruncated reach is
+    partly a longer-list effect rather than an embedding effect. The depth each column was allowed
+    is printed in its header; the two that share a depth are the comparison.
+
+    ⚠ **Additive, never a replacement** — the two donor sets differ and a node can be reached by
+    both, so the columns are not to be subtracted from one another.
+    """
+    for column in (reach, matched, baseline):
+        if column["unlabelled"] != reach["unlabelled"]:
+            raise SystemExit(
+                f"FATAL: the columns describe different populations ({column['unlabelled']:,} vs "
+                f"{reach['unlabelled']:,} unlabelled nodes). They must be the same nodes asked "
+                "different questions, or the comparison is between two things."
+            )
     print(f"\n  {kind.value} · ranked by '{rule}' — what a {donor}->{recipient} transfer would reach")
-    print(f"     {'state':<34}{'nodes':>9}{'genes':>11}{'% of unlabelled nodes':>23}")
-    unlabelled = reach["unlabelled"] or 1
-    for name, (nodes, genes) in reach["state"].items():
-        print(f"     {name.replace('_', ' '):<34}{nodes:>9,}{genes:>11,}{nodes / unlabelled:>22.1%}")
-    print(f"     {'TOTAL unlabelled':<34}{reach['unlabelled']:>9,}")
+    heads = [
+        (f"{donor}->{recipient}", f"all {reach['depth_p50']:.0f}", reach),
+        (f"{donor}->{recipient}", f"top {matched['max_rank']}", matched),
+        (f"within-{recipient}", f"all {baseline['depth_p50']:.0f}", baseline),
+    ]
+    print(f"     {'state':<28}" + "".join(f"{name:>16}" for name, _depth, _c in heads))
+    print(f"     {'donors the walk may see':<28}" + "".join(f"{depth:>16}" for _n, depth, _c in heads))
+    for name in reach["state"]:
+        print(
+            f"     {name.replace('_', ' '):<28}"
+            + "".join(f"{column['state'][name][0]:>9,}/{column['state'][name][1]:<6,}" for _n, _d, column in heads)
+        )
+    print(f"     {'TOTAL unlabelled nodes':<28}{reach['unlabelled']:>16,}")
+    print("     cells are nodes/genes. ⚠ ADDITIVE to the within-species gain, never a replacement;")
+    print("     ⛔ and the two columns that share a depth are the only ones comparable to each other.")
     if reach["by_tier"]:
-        print("\n     labelled, by the tier that earned it:")
+        print("\n     labelled cross-species (full depth), by the tier that earned it:")
         print(f"     {'tier':<11}{'rung':<18}{'nodes':>9}{'genes':>11}")
         for tier, _low, _high in TIERS:
             for level in sorted(LEVEL_LABEL[kind], reverse=True):
@@ -372,7 +487,6 @@ def report_reach(reach: dict, kind: AnnotationKind, *, rule: str, recipient: str
         print("\n     worked cases — read a few by hand before trusting the totals:")
         for node, donor_node, tier, rung, cosine in reach["examples"]:
             print(f"       {recipient} {node:<10} <- {donor} {donor_node:<10} {cosine:.4f}  {tier:<11}{rung}")
-    print("     ⚠ ADDITIVE to the within-species gains already of record, never a replacement.")
 
 
 def main() -> None:
@@ -427,9 +541,16 @@ def main() -> None:
                 f"(e.g. {sorted(unknown)[:5]}) — the map and the database describe different models"
             )
         within = within_species_edges(database, recipient_catalogue)
+        within_graph = candidates_from_database(database, recipient_catalogue)
+        label_of = {locus_id: label for label, (locus_id, _g) in {**donor_ids, **recipient_ids}.items()}
+        # ⛔ measured, not assumed: the cross-species reach is truncated to this before it is
+        # compared, because a longer candidate list reaches an annotated donor more often whatever
+        # the embedding is doing. `locus_nearest_locus` stores five because the page shows five.
+        baseline_depth = max((len(v) for v in within_graph.values()), default=0)
         print(
-            f"  within-{arguments.recipient} baseline: {len(within):,} stored ESM neighbour edges, "
-            "recomputed from the database on every run"
+            f"  within-{arguments.recipient} baseline: {len(within):,} stored ESM neighbour edges over "
+            f"{len(within_graph):,} loci, at most {baseline_depth} per locus — recomputed from the "
+            "database on every run, and the depth the cross-species reach is truncated to"
         )
 
         for kind in KINDS:
@@ -444,6 +565,15 @@ def main() -> None:
             # ⭐ recomputed, never transcribed — the column the cross-species one is judged against
             within_cells = tally_cells(recipient_levels, within, kind)
 
+            # the recipient's OWN graph, through the SAME walk — the column the reach is read against
+            baseline = walk(
+                within_graph,
+                recipient_ids=recipient_ids,
+                donor_levels=recipient_levels,
+                recipient_levels=recipient_levels,
+                kind=kind,
+                label_of=label_of,
+            )
             for rule in arguments.rules:
                 edges = [
                     (recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0], row[rule])
@@ -457,16 +587,20 @@ def main() -> None:
                 print("\n     DOES THE LADDER TRANSFER? the quoted rung only, as a difference:")
                 for note in transfer_gate(cross_cells, within_cells, kind, recipient=arguments.recipient):
                     print(note)
+                mapped = candidates_from_map(rows, rule=rule, recipient_ids=recipient_ids, donor_ids=donor_ids)
+                shared = dict(
+                    recipient_ids=recipient_ids,
+                    donor_levels=donor_levels,
+                    recipient_levels=recipient_levels,
+                    kind=kind,
+                    label_of=label_of,
+                )
                 report_reach(
-                    walk(
-                        rows,
-                        rule=rule,
-                        recipient_ids=recipient_ids,
-                        donor_ids=donor_ids,
-                        donor_levels=donor_levels,
-                        recipient_levels=recipient_levels,
-                        kind=kind,
-                    ),
+                    walk(mapped, **shared),
+                    # ⛔ truncated to the depth the stored within-species graph actually has, or the
+                    # comparison is a list-length effect wearing an embedding's clothes
+                    walk(mapped, max_rank=baseline_depth, **shared),
+                    baseline,
                     kind,
                     rule=rule,
                     recipient=arguments.recipient,
