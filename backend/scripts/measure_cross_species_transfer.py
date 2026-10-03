@@ -187,8 +187,20 @@ def claims(session: Session, catalogue: str, kind: AnnotationKind):
     return levels, locus_count
 
 
-def within_species_edges(session: Session, catalogue: str) -> list[tuple[int, int, float]]:
-    """Every stored ESM neighbour edge of one catalogue — the within-species column, recomputed.
+def representation_of(provenance: dict) -> str:
+    """Which embedding the map was built from, as `locus_nearest_locus.representation` spells it.
+
+    ⛔ **The within-species baseline must be this and not a default.** `locus_nearest_locus` stores
+    both (ESM 323,754 rows, BACFORMER 329,684), so the wrong one is always available and always
+    plausible — a Bacformer map judged against an ESM baseline is two geometries in one table with
+    nothing in the output to say so. `within_species_edges` and `candidates_from_database` therefore
+    take `representation` with **no default**, so forgetting it is a TypeError rather than a number.
+    """
+    return (provenance.get("rep") or "esm").upper()
+
+
+def within_species_edges(session: Session, catalogue: str, *, representation: str) -> list[tuple[int, int, float]]:
+    """Every stored neighbour edge of one catalogue, in ONE representation — the within-species column.
 
     ⭐ **Every rank, not rank 1 only**, matching `compute_calibration`: 65 % of assignments come from
     ranks 2-5, and at fixed cosine the rank effect was <= 0.3 pp in the strong tiers and flipped sign
@@ -202,10 +214,10 @@ def within_species_edges(session: Session, catalogue: str) -> list[tuple[int, in
                   from locus_nearest_locus n
                   join locus l on l.locus_id = n.locus_id
                   join pangenome p on p.pangenome_id = l.pangenome_id
-                 where p.catalogue_key = :catalogue and n.representation = 'ESM'
+                 where p.catalogue_key = :catalogue and n.representation = :representation
                    and n.cross_similarity is not null
             """),
-            {"catalogue": catalogue},
+            {"catalogue": catalogue, "representation": representation},
         ).all()
     ]
 
@@ -297,7 +309,7 @@ def candidates_from_map(rows: list[dict], *, rule: str, recipient_ids, donor_ids
     return out
 
 
-def candidates_from_database(session: Session, catalogue: str) -> dict:
+def candidates_from_database(session: Session, catalogue: str, *, representation: str) -> dict:
     """The stored WITHIN-species neighbour graph, in the same shape — the third column, computed.
 
     ⭐ **The within-species ladder's reach is measured by the same `walk`, not quoted from the
@@ -313,10 +325,10 @@ def candidates_from_database(session: Session, catalogue: str) -> dict:
               from locus_nearest_locus n
               join locus l on l.locus_id = n.locus_id
               join pangenome p on p.pangenome_id = l.pangenome_id
-             where p.catalogue_key = :catalogue and n.representation = 'ESM'
+             where p.catalogue_key = :catalogue and n.representation = :representation
                and n.cross_similarity is not null
         """),
-        {"catalogue": catalogue},
+        {"catalogue": catalogue, "representation": representation},
     ).all():
         out[locus_id].append((rank, neighbour_id, cosine))
     return out
@@ -910,6 +922,98 @@ def uniref_first_then_esm(
             print(f"       {recipient} {node:<8} <- {donor} {donor_node:<8} {shared}/{node_genes}")
 
 
+# ================================= SECTION 5 — PREVALENCE MATCH as a reliability axis (David's ask)
+#: Ordered, so "how far apart are these two bands" is a number rather than a category comparison.
+#: ⛔ The order is the published `prevalence_band` enum's own, not invented here.
+BAND_ORDER = ("RARE", "CLOUD", "SHELL", "SOFT_CORE", "CORE")
+
+
+def prevalence_bands(session: Session, catalogue: str) -> dict[int, str]:
+    """Per locus, its published prevalence band."""
+    return {
+        locus_id: band
+        for locus_id, band in session.execute(
+            text("""
+                select l.locus_id, l.prevalence_band
+                  from locus l join pangenome p using (pangenome_id)
+                 where p.catalogue_key = :catalogue and l.prevalence_band is not null
+            """),
+            {"catalogue": catalogue},
+        ).all()
+    }
+
+
+def prevalence_match(
+    rows,
+    *,
+    recipient_ids,
+    donor_ids,
+    recipient_bands,
+    donor_bands,
+    recipient_sets,
+    donor_sets,
+    both,
+    donor_levels,
+    kind: AnnotationKind,
+    rule: str,
+    floor: float,
+) -> None:
+    """⭐ Does a PREVALENCE mismatch predict a wrong transfer? (David, 2026-10-03)
+
+    **The case that raised it:** kp node 1111 is `iraM`, a **100-gene CORE** node, and the donor it
+    took `fimD`/COG3188 from is *E. coli* node 11294 — a **2-gene CLOUD** node. David: *"If the donor
+    is cloud and the recipient is core, then it isn't the right match! That is another axis to
+    consider."* A core gene's cross-species counterpart should also be core; a 2-gene accessory node
+    standing in for a 100-gene core one is a mismatch on its face, independent of any similarity.
+
+    Reported as **band distance** on the ordered scale, signed from the recipient's point of view, so
+    0 is a match and −3 means the donor is three bands rarer. ⚠ Measured on recipient nodes that
+    already carry the vocabulary, like every other agreement figure here, and restricted to the tiers
+    the ladder stands behind — a filter is only interesting where the calls are otherwise trusted.
+    """
+    index = {band: position for position, band in enumerate(BAND_ORDER)}
+    tally: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    unbridged: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    ladder = sorted(LEVEL_LABEL[kind], reverse=True)
+    for row in rows:
+        if int(row[f"rank_{rule}"]) != 1 or row[rule] < floor:
+            continue
+        r_id, d_id = recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0]
+        mine, theirs = both.get(r_id), both.get(d_id)
+        if mine is None or theirs is None or d_id not in donor_levels:
+            continue
+        r_band, d_band = recipient_bands.get(r_id), donor_bands.get(d_id)
+        if r_band not in index or d_band not in index:
+            continue
+        distance = index[d_band] - index[r_band]
+        level = next((lv for lv in ladder if mine[lv] and theirs[lv]), None)
+        if level is None:
+            continue
+        agree = bool(mine[level] & theirs[level])
+        tally[distance][0] += 1
+        tally[distance][1] += agree
+        if bridge_state(recipient_sets.get(r_id), donor_sets.get(d_id)) == "not_bridged":
+            unbridged[distance][0] += 1
+            unbridged[distance][1] += agree
+
+    print(f"\n  {kind.value} — PREVALENCE MATCH at '{rule}' >= {floor} (rank-1 pairs, deepest shared rung)")
+    print(f"     {'donor band vs recipient':<26}{'all pairs':>20}{'unbridged only':>20}")
+    for distance in sorted(tally):
+        label = (
+            "same band"
+            if distance == 0
+            else f"donor {abs(distance)} band{'s' if abs(distance) > 1 else ''} "
+            f"{'rarer' if distance < 0 else 'commoner'}"
+        )
+        cells = []
+        for source in (tally, unbridged):
+            pairs, agreeing = source[distance]
+            cells.append(f"{agreeing / pairs:.1%} n={pairs:,}" if pairs >= MIN_PAIRS else f"n={pairs:,}")
+        print(f"     {label:<26}{cells[0]:>20}{cells[1]:>20}")
+    print("     ⭐ a monotone fall away from 'same band' would make this a usable filter; a flat")
+    print("        column would mean prevalence carries no information the similarity does not.")
+
+
 def main() -> None:
     """Section 1 (reliable?) then Section 2 (worthwhile?), for every vocabulary and every rule."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -928,6 +1032,7 @@ def main() -> None:
     rows, provenance = read_map(arguments.map, donor=arguments.donor, recipient=arguments.recipient)
     donor_catalogue, recipient_catalogue = CATALOGUE[arguments.donor], CATALOGUE[arguments.recipient]
     print(f"cross-species transfer: {arguments.recipient} asks, {arguments.donor} answers")
+    print(f"  representation: {(provenance.get('rep') or 'esm').upper()} (from the map's provenance)")
     print(f"  map: {arguments.map}")
     print(
         f"  {len(rows):,} shortlisted pairs | "
@@ -961,8 +1066,18 @@ def main() -> None:
                 f"FATAL: {len(unknown)} node labels in the map are in neither catalogue "
                 f"(e.g. {sorted(unknown)[:5]}) — the map and the database describe different models"
             )
-        within = within_species_edges(database, recipient_catalogue)
-        within_graph = candidates_from_database(database, recipient_catalogue)
+        # ⛔ The within-species baseline MUST be the same representation as the map, or a Bacformer
+        # map is being judged against an ESM baseline — two different geometries in one table, and
+        # nothing in the output would say so. `locus_nearest_locus` stores both (ESM 323,754 rows,
+        # BACFORMER 329,684), so the wrong one is always available and always plausible.
+        representation = representation_of(provenance)
+        within = within_species_edges(database, recipient_catalogue, representation=representation)
+        within_graph = candidates_from_database(database, recipient_catalogue, representation=representation)
+        if not within:
+            sys.exit(
+                f"FATAL: no stored {representation} neighbour edges for {recipient_catalogue} — the "
+                "map's representation has no within-species baseline in this database"
+            )
         # ⛔ Merge on locus_id, NOT on node label. The two catalogues share the label namespace —
         # both run '0', '1', '10', … — so `{**donor_ids, **recipient_ids}` lets the recipient's
         # labels overwrite the donor's and every donor locus_id falls out of the map. The symptom was
@@ -998,8 +1113,12 @@ def main() -> None:
             "donor": uniref50_gene_counts(database, donor_catalogue),
             "recipient": uniref50_gene_counts(database, recipient_catalogue),
         }
+        bands = {
+            "donor": prevalence_bands(database, donor_catalogue),
+            "recipient": prevalence_bands(database, recipient_catalogue),
+        }
         print(
-            f"  within-{arguments.recipient} baseline: {len(within):,} stored ESM neighbour edges over "
+            f"  within-{arguments.recipient} baseline: {len(within):,} stored {representation} edges over "
             f"{len(within_graph):,} loci, at most {baseline_depth} per locus — recomputed from the "
             "database on every run, and the depth the cross-species reach is truncated to"
         )
@@ -1101,6 +1220,24 @@ def main() -> None:
                     recipient=arguments.recipient,
                     donor=arguments.donor,
                 )
+                # ⛔ BOTH floors, and the lower one is the real test. At >= 0.98 agreement is
+                # already 99 %, so a filter has no headroom to show value in — a flat column there
+                # says nothing. A filter earns its keep in the region where calls are actually wrong.
+                for floor in (0.98, 0.90):
+                    prevalence_match(
+                        rows,
+                        recipient_ids=recipient_ids,
+                        donor_ids=donor_ids,
+                        recipient_bands=bands["recipient"],
+                        donor_bands=bands["donor"],
+                        recipient_sets=gene_level["recipient"],
+                        donor_sets=gene_level["donor"],
+                        both=both,
+                        donor_levels=donor_levels,
+                        kind=kind,
+                        rule=rule,
+                        floor=floor,
+                    )
                 uniref_first_then_esm(
                     recipient_ids=recipient_ids,
                     donor_ids=donor_ids,

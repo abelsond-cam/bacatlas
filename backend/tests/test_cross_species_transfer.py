@@ -690,3 +690,128 @@ def test_the_arms_are_exclusive_and_sum_to_the_unlabelled_total(capsys):
     assert cells("no bridge available")[0] == "1", "node b, via ESM only — a is NOT counted twice"
     assert cells("neither")[0] == "1", "node c is below the ESM floor and has no bridge"
     assert [line for line in lines if "TOTAL unlabelled" in line][0].split()[-1] == "3"
+
+
+# ================================================ PREVALENCE MATCH as a reliability axis (David's ask)
+def test_the_representation_follows_the_map_and_has_no_default():
+    """⛔ `locus_nearest_locus` stores BOTH representations, so the wrong one is always available.
+
+    A Bacformer map judged against an ESM within-species baseline is two geometries in one table with
+    nothing in the output to say so. The resolution is pinned here, and the two loaders take
+    `representation` with **no default** so forgetting it is a TypeError rather than a number.
+    """
+    import inspect
+
+    assert xs.representation_of({"rep": "bacformer"}) == "BACFORMER"
+    assert xs.representation_of({"rep": "esm"}) == "ESM"
+    assert xs.representation_of({}) == "ESM", "an older map with no `rep` key predates Bacformer"
+    for loader in (xs.within_species_edges, xs.candidates_from_database):
+        parameter = inspect.signature(loader).parameters["representation"]
+        assert parameter.default is inspect.Parameter.empty, (
+            f"{loader.__name__} must not default its representation — a forgotten argument would "
+            "silently compare a Bacformer map against an ESM baseline"
+        )
+
+
+def test_the_band_distance_sign_is_from_the_RECIPIENTS_point_of_view(capsys):
+    """⛔ The sign is load-bearing and it is the opposite of the intuition that raised the question.
+
+    David's case was a CLOUD donor labelling a CORE recipient — *"if the donor is cloud and the
+    recipient is core, then it isn't the right match"* — which this reports as the donor being
+    **rarer**. The measurement then showed the *other* direction (donor commoner than the recipient)
+    to be the worse one, so a flipped sign would invert the finding and the recommendation with it.
+
+    ⚠ The first version of this test asserted only that both labels appeared, which a flipped sign
+    satisfies by swapping them. It takes cells above the pair floor whose **agreement differs** for
+    the sign to be observable: here every donor-rarer pair agrees and every donor-commoner pair does
+    not, so a flip swaps 100 % with 0 %.
+    """
+    recipient_ids, donor_ids, rows = {}, {}, []
+    recipient_bands, donor_bands, levels, donor_levels = {}, {}, {}, {}
+    for i in range(40):
+        # CLOUD donor -> CORE recipient ("donor 3 bands rarer"), and they AGREE
+        r, d = 1000 + i, 2000 + i
+        recipient_ids[f"core{i}"] = (r, 100)
+        donor_ids[f"Ecloud{i}"] = (d, 4)
+        recipient_bands[r], donor_bands[d] = "CORE", "CLOUD"
+        levels[r] = levels[d] = _cog("COG0001", "E")
+        donor_levels[d] = levels[d]
+        # CORE donor -> CLOUD recipient ("donor 3 bands commoner"), and they DISAGREE
+        r2, d2 = 3000 + i, 4000 + i
+        recipient_ids[f"cloud{i}"] = (r2, 5)
+        donor_ids[f"Ecore{i}"] = (d2, 100)
+        recipient_bands[r2], donor_bands[d2] = "CLOUD", "CORE"
+        levels[r2] = _cog("COG0002", "C")
+        levels[d2] = _cog("COG0009", "S")
+        donor_levels[d2] = levels[d2]
+        for recipient, donor in ((f"core{i}", f"Ecloud{i}"), (f"cloud{i}", f"Ecore{i}")):
+            rows.append(
+                {
+                    "recipient_node": recipient,
+                    "donor_node": donor,
+                    "recipient_genes": 0,
+                    "cross": 0.99,
+                    "cross_p75": 0.99,
+                    "cross_max": 0.99,
+                    "rank_cross": 1,
+                    "rank_cross_p75": 1,
+                    "rank_cross_max": 1,
+                }
+            )
+
+    xs.prevalence_match(
+        rows,
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        recipient_bands=recipient_bands,
+        donor_bands=donor_bands,
+        recipient_sets={},
+        donor_sets={},
+        both=levels,
+        donor_levels=donor_levels,
+        kind=COG,
+        rule="cross",
+        floor=0.98,
+    )
+    lines = capsys.readouterr().out.splitlines()
+    rarer = [line for line in lines if "3 bands rarer" in line][0]
+    commoner = [line for line in lines if "3 bands commoner" in line][0]
+    assert "100.0% n=40" in rarer, f"donor-rarer pairs all agree; got {rarer!r}"
+    assert "0.0% n=40" in commoner, f"donor-commoner pairs all disagree; got {commoner!r}"
+
+
+def test_the_band_order_is_the_published_enums_own(capsys):
+    """⛔ RARE < CLOUD < SHELL < SOFT_CORE < CORE. A reordering silently rescales every distance."""
+    assert xs.BAND_ORDER == ("RARE", "CLOUD", "SHELL", "SOFT_CORE", "CORE")
+    #: a band the enum does not name must be skipped, not coerced to a position
+    recipient_ids = {"a": (101, 10)}
+    rows = [
+        {
+            "recipient_node": "a",
+            "donor_node": "E1",
+            "recipient_genes": 10,
+            "cross": 0.99,
+            "cross_p75": 0.99,
+            "cross_max": 0.99,
+            "rank_cross": 1,
+            "rank_cross_p75": 1,
+            "rank_cross_max": 1,
+        }
+    ]
+    levels = {101: _cog("COG0001", "E"), 1: _cog("COG0001", "E")}
+    xs.prevalence_match(
+        rows,
+        recipient_ids=recipient_ids,
+        donor_ids={"E1": (1, 10)},
+        recipient_bands={101: "NOT_A_BAND"},
+        donor_bands={1: "CORE"},
+        recipient_sets={},
+        donor_sets={},
+        both=levels,
+        donor_levels={1: levels[1]},
+        kind=COG,
+        rule="cross",
+        floor=0.98,
+    )
+    body = [line for line in capsys.readouterr().out.splitlines() if "n=" in line]
+    assert not body, "an unrecognised band is skipped rather than given a position"
