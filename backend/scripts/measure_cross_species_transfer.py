@@ -44,7 +44,7 @@ import csv
 import json
 import os
 import sys
-from collections import defaultdict
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from sqlalchemy import create_engine, text
@@ -362,8 +362,11 @@ def walk(
         "too_remote_to_call": [0, 0],
         "labelled": [0, 0],
     }
-    by_tier: dict[tuple[str, int], list[int]] = defaultdict(lambda: [0, 0])
-    examples: list[tuple] = []
+    #: ⭐ every call the walk actually took: `(recipient_id, donor_id, tier, level, genes)`. The
+    #: by-tier table and the worked examples are DERIVED from it rather than tallied beside it, so
+    #: they cannot disagree — and Stage 4 stratifies this list instead of walking a second time.
+    taken: list[tuple[int, int, str, int, int]] = []
+    cosine_of: dict[tuple[int, int], float] = {}
 
     for locus_id, genes in unlabelled:
         mine = candidates.get(locus_id)
@@ -389,6 +392,7 @@ def walk(
             state["no_annotated_donor"][1] += genes
             continue
         donor_id, cosine = found
+        cosine_of[(locus_id, donor_id)] = cosine
         tier = tier_for(cosine)
         if tier == NOT_CALLED:
             state["too_remote_to_call"][0] += 1
@@ -401,21 +405,7 @@ def walk(
             continue
         state["labelled"][0] += 1
         state["labelled"][1] += genes
-        by_tier[(tier, level)][0] += 1
-        by_tier[(tier, level)][1] += genes
-        # ⭐ a handful of worked cases, because a table of counts is not something that can be
-        # checked by eye. The within-species result became credible read on gumC and fimA by name.
-        if len(examples) < EXAMPLES:
-            names = label_of or {}
-            examples.append(
-                (
-                    names.get(locus_id, str(locus_id)),
-                    names.get(donor_id, str(donor_id)),
-                    tier,
-                    LEVEL_LABEL[kind][level],
-                    cosine,
-                )
-            )
+        taken.append((locus_id, donor_id, tier, level, genes))
 
     total = sum(count for count, _genes in state.values())
     if total != len(unlabelled):
@@ -423,11 +413,23 @@ def walk(
             f"FATAL: the four states sum to {total:,} but there are {len(unlabelled):,} unlabelled "
             f"{kind.value} nodes — a node has been counted twice or not at all"
         )
+    by_tier: dict[tuple[str, int], list[int]] = defaultdict(lambda: [0, 0])
+    for _r, _d, tier, level, genes in taken:
+        by_tier[(tier, level)][0] += 1
+        by_tier[(tier, level)][1] += genes
+    # ⭐ a handful of worked cases, because a table of counts is not something that can be checked by
+    # eye. The within-species result became credible read on gumC and fimA by name.
+    names = label_of or {}
+    examples = [
+        (names.get(r, str(r)), names.get(d, str(d)), tier, LEVEL_LABEL[kind][level], cosine_of[(r, d)])
+        for r, d, tier, level, _g in taken[:EXAMPLES]
+    ]
     return {
         "unlabelled": len(unlabelled),
         "state": state,
         "by_tier": dict(by_tier),
         "examples": examples,
+        "taken": taken,
         "max_rank": max_rank,
         "depth_p50": _median_depth(candidates, max_rank),
     }
@@ -491,6 +493,235 @@ def report_reach(
             print(f"       {recipient} {node:<10} <- {donor} {donor_node:<10} {cosine:.4f}  {tier:<11}{rung}")
 
 
+# ============================================= SECTION 3 — WHY? the UniRef50 bridge (Stage 4)
+#: ⛔ **THREE states, never two.** *not bridged* and *not measurable* are different claims, and
+#: conflating them is the mistake `nuna/CLAUDE.md` retired the label `no_homology` for: it meant
+#: *not measured*, not *nothing found*. A pair where either node carries no UniRef50 accession at
+#: all has not been shown to lack a bridge — it has not been asked.
+BRIDGE_STATES = ("bridged", "not_bridged", "unmeasurable")
+
+
+def uniref50_sets(session: Session, catalogue: str) -> dict[int, frozenset[str]]:
+    """Per locus, the set of UniRef50 accessions **its genes** carry — the gene-level bridge.
+
+    ⛔ Gene level, not `locus_uniref_family_crosstab`, which keeps only the top 8 families per locus
+    (`rank_within_locus` maxes at 7). A bridge is an *intersection*, so the single family that links
+    two nodes can be a rare one in either of them — exactly what a cap drops. `capped_uniref50_sets`
+    exists beside this to put a number on what the cap would have hidden, rather than an argument.
+    """
+    out: dict[int, set[str]] = defaultdict(set)
+    for locus_id, accession in session.execute(
+        text("""
+            select distinct m.locus_id, f.uniref50_accession
+              from gene_locus_membership m
+              join locus l on l.locus_id = m.locus_id
+              join pangenome p on p.pangenome_id = l.pangenome_id
+              join gene_functional_annotation f
+                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
+             where p.catalogue_key = :catalogue and f.uniref50_accession is not null
+        """),
+        {"catalogue": catalogue},
+    ).all():
+        out[locus_id].add(accession)
+    return {locus_id: frozenset(values) for locus_id, values in out.items()}
+
+
+def capped_uniref50_sets(session: Session, catalogue: str) -> dict[int, frozenset[str]]:
+    """The same sets as the published crosstab carries them — top 8 families per locus."""
+    out: dict[int, set[str]] = defaultdict(set)
+    for locus_id, accession in session.execute(
+        text("""
+            select c.locus_id, c.uniref50_accession
+              from locus_uniref_family_crosstab c
+              join locus l on l.locus_id = c.locus_id
+              join pangenome p on p.pangenome_id = l.pangenome_id
+             where p.catalogue_key = :catalogue
+        """),
+        {"catalogue": catalogue},
+    ).all():
+        out[locus_id].add(accession)
+    return {locus_id: frozenset(values) for locus_id, values in out.items()}
+
+
+def bridge_state(recipient: frozenset[str] | None, donor: frozenset[str] | None) -> str:
+    """`bridged` | `not_bridged` | `unmeasurable` — see `BRIDGE_STATES`."""
+    if not recipient or not donor:
+        return "unmeasurable"
+    return "bridged" if (recipient & donor) else "not_bridged"
+
+
+def report_cap_cost(rows, *, recipient_ids, donor_ids, gene_level, capped) -> None:
+    """How many pairs the 8-capped crosstab would have called differently — a number, not a claim."""
+    moved: Counter[tuple[str, str]] = Counter()
+    for row in rows:
+        r_id, d_id = recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0]
+        fine = bridge_state(gene_level["recipient"].get(r_id), gene_level["donor"].get(d_id))
+        coarse = bridge_state(capped["recipient"].get(r_id), capped["donor"].get(d_id))
+        moved[(fine, coarse)] += 1
+    disagreeing = sum(n for (fine, coarse), n in moved.items() if fine != coarse)
+    total = sum(moved.values())
+    print(f"\n  what the 8-capped crosstab would have hidden, over all {total:,} shortlisted pairs:")
+    print(f"     {disagreeing:,} pairs ({disagreeing / total:.2%}) get a different bridge state")
+    for (fine, coarse), n in sorted(moved.items(), key=lambda kv: -kv[1]):
+        flag = "   <- the cap's error" if fine != coarse else ""
+        print(f"     gene-level {fine:<13} capped {coarse:<13}{n:>9,}{flag}")
+
+
+def bridge_reliability(
+    rows,
+    *,
+    recipient_ids,
+    donor_ids,
+    recipient_sets,
+    donor_sets,
+    both,
+    donor_levels,
+    kind: AnnotationKind,
+    rule: str,
+    recipient: str,
+    donor: str,
+) -> None:
+    """⭐ Agreement by tier, SPLIT by whether a UniRef50 family bridges the pair.
+
+    **This is the question Stage 4 exists for.** If the ladder only holds where UniRef50 already
+    bridges the two nodes, cross-species ESM transfer adds nothing a sequence search would not have
+    found. If it holds in the **not bridged** stratum, that is Nuna's founding claim measured —
+    divergent orthologues and HGT islands that an identity threshold cannot see.
+
+    ⚠ The chance baseline stays the **whole donor catalogue** in both strata: the comparator is still
+    *"a random annotated donor node"*, which is the alternative to using this donor, and it does not
+    become a different question because this particular donor happens to share a family.
+    """
+    split: dict[str, list] = {state: [] for state in BRIDGE_STATES}
+    for row in rows:
+        r_id, d_id = recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0]
+        split[bridge_state(recipient_sets.get(r_id), donor_sets.get(d_id))].append((r_id, d_id, row[rule]))
+    cells = {state: tally_cells(both, edges, kind, donor_pool=donor_levels) for state, edges in split.items()}
+    print(f"\n  {kind.value} · ranked by '{rule}' — agreement SPLIT by the UniRef50 bridge")
+    print(f"     {'tier':<11}{'rung':<18}" + "".join(f"{state:>22}" for state in BRIDGE_STATES))
+    for tier, _low, _high in TIERS:
+        level = QUOTED_LEVEL[kind].get(tier)
+        if level is None:
+            continue
+        line = f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}"
+        for state in BRIDGE_STATES:
+            line += f"{rate(cells[state].get((tier, level))):>22}"
+        print(line)
+    print("     ⭐ 'not_bridged' is the interesting column: ESM reaching where 50 % identity does not.")
+    print("     ⛔ 'unmeasurable' = one side carries NO UniRef50 at all — not asked, not answered.")
+
+
+def bridge_reach(
+    reach: dict, *, recipient_sets, donor_sets, kind: AnnotationKind, label_of: dict, recipient: str, donor: str
+) -> None:
+    """⭐ The labelled nodes, split by bridge state — how much of the reach sequence identity misses.
+
+    Stratifies the walk's OWN record of what it took, so this cannot drift from the §5 totals.
+    """
+    rows: dict[tuple[str, str], list[int]] = defaultdict(lambda: [0, 0])
+    unbridged_examples = []
+    for recipient_id, donor_id, tier, _level, genes in reach["taken"]:
+        state = bridge_state(recipient_sets.get(recipient_id), donor_sets.get(donor_id))
+        rows[(tier, state)][0] += 1
+        rows[(tier, state)][1] += genes
+        if state == "not_bridged" and tier in (">= 0.99", "0.98-0.99") and len(unbridged_examples) < EXAMPLES:
+            unbridged_examples.append(
+                (label_of.get(recipient_id, recipient_id), label_of.get(donor_id, donor_id), tier)
+            )
+    print(f"\n  {kind.value} — the reach, split by the UniRef50 bridge (nodes/genes)")
+    print(f"     {'tier':<11}" + "".join(f"{state:>22}" for state in BRIDGE_STATES))
+    totals: dict[str, list[int]] = {state: [0, 0] for state in BRIDGE_STATES}
+    for tier, _low, _high in TIERS:
+        line = f"     {tier:<11}"
+        for state in BRIDGE_STATES:
+            nodes, genes = rows.get((tier, state), [0, 0])
+            totals[state][0] += nodes
+            totals[state][1] += genes
+            line += f"{nodes:>12,}/{genes:<9,}"
+        print(line)
+    print(f"     {'TOTAL':<11}" + "".join(f"{totals[s][0]:>12,}/{totals[s][1]:<9,}" for s in BRIDGE_STATES))
+    high = {
+        s: [sum(rows.get((t, s), [0, 0])[i] for t in (">= 0.99", "0.98-0.99")) for i in (0, 1)] for s in BRIDGE_STATES
+    }
+    print(
+        f"     {'>= 0.98':<11}"
+        + "".join(f"{high[s][0]:>12,}/{high[s][1]:<9,}" for s in BRIDGE_STATES)
+        + "   <- the tiers the ladder stands behind"
+    )
+    if unbridged_examples:
+        print("     worked cases with NO UniRef50 bridge, at >= 0.98 — the ones worth reading by hand:")
+        for node, donor_node, tier in unbridged_examples:
+            print(f"       {recipient} {node:<10} <- {donor} {donor_node:<10} {tier}")
+
+
+def modal_symbols(session: Session, catalogue: str) -> dict[int, str]:
+    """Per locus, its modal Bakta gene symbol — the independent axis the bridge control needs."""
+    return {
+        locus_id: symbol
+        for locus_id, symbol in session.execute(
+            text("""
+                select l.locus_id, a.term_value
+                  from locus l join pangenome p using (pangenome_id)
+                  join locus_annotation_entry a on a.locus_id = l.locus_id
+                 where p.catalogue_key = :catalogue
+                   and a.annotation_kind = 'GENE_SYMBOL' and a.rank_within_locus = 0
+            """),
+            {"catalogue": catalogue},
+        ).all()
+    }
+
+
+def bridge_symbol_control(
+    rows,
+    *,
+    recipient_ids,
+    donor_ids,
+    recipient_sets,
+    donor_sets,
+    symbols,
+    rule: str,
+    floor: float = 0.98,
+) -> None:
+    """⭐ Is `not_bridged` remote homology, or UniRef50 ASSIGNMENT noise? The control that asks.
+
+    ⛔ **The distinction decides the headline.** `yjeT`/`yjeT`, `priB`/`priB` and `purT`/`purT` all read
+    as *not bridged* while carrying the same Bakta symbol and sitting in different UniRef50 clusters
+    (ecoli `UniRef50_P39771` against kp `UniRef50_P46927` for `purT`). Either they are genuinely below
+    50 % identity — Nuna's founding claim — or UniRef50 put two true orthologues in different clusters,
+    which would make the unbridged count an artifact of the bridge rather than a property of ESM.
+
+    Bakta `GENE_SYMBOL` is a **third** axis, independent of both UniRef50 and the vocabulary being
+    transferred, and it is **one-directional evidence**: symbol *agreement* is evidence the two nodes
+    are the same gene; symbol *disagreement* is NOT evidence against it, because the two species'
+    symbol vocabularies differ — which is why `nuna/CLAUDE.md` calls Bakta symbols the wrong
+    cross-species *currency*. It is used here only in the direction it supports.
+
+    ⚠ **The denominator is pairs where BOTH nodes are named**, reported beside the rate, because the
+    unbridged set is named far less often than the bridged one — so the rate rests on a subset that
+    may be the easier part of it.
+    """
+    tally: dict[str, list[int]] = {state: [0, 0, 0] for state in BRIDGE_STATES}
+    for row in rows:
+        if int(row[f"rank_{rule}"]) != 1 or row[rule] < floor:
+            continue
+        r_id, d_id = recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0]
+        state = bridge_state(recipient_sets.get(r_id), donor_sets.get(d_id))
+        recipient_symbol, donor_symbol = symbols["recipient"].get(r_id), symbols["donor"].get(d_id)
+        tally[state][0] += 1
+        if recipient_symbol and donor_symbol:
+            tally[state][1] += 1
+            tally[state][2] += recipient_symbol == donor_symbol
+    print(f"\n  CONTROL — do the pairs share a Bakta SYMBOL? (rank-1 pairs at '{rule}' >= {floor})")
+    print(f"     {'bridge state':<16}{'pairs':>9}{'both named':>12}{'same symbol':>13}{'agreement':>12}")
+    for state in BRIDGE_STATES:
+        pairs, named, same = tally[state]
+        print(f"     {state:<16}{pairs:>9,}{named:>12,}{same:>13,}{(f'{same / named:.1%}' if named else '—'):>12}")
+    print("     ⛔ ONE-DIRECTIONAL: agreement is evidence of orthology; disagreement is not evidence")
+    print("        against it, because the two species' symbol vocabularies differ.")
+    print("     ⚠ A high unbridged rate means UniRef50 SEPARATED true orthologues — it does not say")
+    print("        whether they are below 50 % identity. Only measured identity answers that.")
+
+
 def main() -> None:
     """Section 1 (reliable?) then Section 2 (worthwhile?), for every vocabulary and every rule."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -544,16 +775,61 @@ def main() -> None:
             )
         within = within_species_edges(database, recipient_catalogue)
         within_graph = candidates_from_database(database, recipient_catalogue)
-        label_of = {locus_id: label for label, (locus_id, _g) in {**donor_ids, **recipient_ids}.items()}
+        # ⛔ Merge on locus_id, NOT on node label. The two catalogues share the label namespace —
+        # both run '0', '1', '10', … — so `{**donor_ids, **recipient_ids}` lets the recipient's
+        # labels overwrite the donor's and every donor locus_id falls out of the map. The symptom was
+        # the donor column of the worked cases printing raw locus ids (`ecoli 304133`) instead of node
+        # labels, which looked like a formatting choice rather than a lost lookup. locus_id IS
+        # globally unique (checked: ecoli 302532-320062, kp 320063-335732, 0 shared), so keying on it
+        # is safe where keying on the label is not.
+        label_of = {locus_id: label for label, (locus_id, _g) in donor_ids.items()}
+        label_of.update({locus_id: label for label, (locus_id, _g) in recipient_ids.items()})
+        if len(label_of) != len(donor_ids) + len(recipient_ids):
+            sys.exit(
+                f"FATAL: {len(donor_ids) + len(recipient_ids) - len(label_of)} locus_ids are shared "
+                "between the two catalogues — the merged claims dict and this label map both collide"
+            )
         # ⛔ measured, not assumed: the cross-species reach is truncated to this before it is
         # compared, because a longer candidate list reaches an annotated donor more often whatever
         # the embedding is doing. `locus_nearest_locus` stores five because the page shows five.
         baseline_depth = max((len(v) for v in within_graph.values()), default=0)
+        # Stage 4 — the UniRef50 bridge, at GENE level. Loaded once; it does not vary by vocabulary.
+        gene_level = {
+            "donor": uniref50_sets(database, donor_catalogue),
+            "recipient": uniref50_sets(database, recipient_catalogue),
+        }
+        capped = {
+            "donor": capped_uniref50_sets(database, donor_catalogue),
+            "recipient": capped_uniref50_sets(database, recipient_catalogue),
+        }
+        symbols = {
+            "donor": modal_symbols(database, donor_catalogue),
+            "recipient": modal_symbols(database, recipient_catalogue),
+        }
         print(
             f"  within-{arguments.recipient} baseline: {len(within):,} stored ESM neighbour edges over "
             f"{len(within_graph):,} loci, at most {baseline_depth} per locus — recomputed from the "
             "database on every run, and the depth the cross-species reach is truncated to"
         )
+
+        for side in ("donor", "recipient"):
+            catalogue = donor_catalogue if side == "donor" else recipient_catalogue
+            with_any = len(gene_level[side])
+            print(
+                f"  UniRef50 ({side}, {catalogue}): {with_any:,} loci carry at least one accession at "
+                f"gene level, {len(capped[side]):,} in the 8-capped crosstab"
+            )
+        report_cap_cost(rows, recipient_ids=recipient_ids, donor_ids=donor_ids, gene_level=gene_level, capped=capped)
+        for rule in arguments.rules:
+            bridge_symbol_control(
+                rows,
+                recipient_ids=recipient_ids,
+                donor_ids=donor_ids,
+                recipient_sets=gene_level["recipient"],
+                donor_sets=gene_level["donor"],
+                symbols=symbols,
+                rule=rule,
+            )
 
         for kind in KINDS:
             donor_levels, donor_loci = claims(database, donor_catalogue, kind)
@@ -597,14 +873,39 @@ def main() -> None:
                     kind=kind,
                     label_of=label_of,
                 )
+                reach = walk(mapped, **shared)
                 report_reach(
-                    walk(mapped, **shared),
+                    reach,
                     # ⛔ truncated to the depth the stored within-species graph actually has, or the
                     # comparison is a list-length effect wearing an embedding's clothes
                     walk(mapped, max_rank=baseline_depth, **shared),
                     baseline,
                     kind,
                     rule=rule,
+                    recipient=arguments.recipient,
+                    donor=arguments.donor,
+                )
+                # ⭐ Stage 4 — WHY. Runs last and is read last: it explains a reach that §5 has
+                # already established, and its numbers were kept out of §3 and §5 for that reason.
+                bridge_reliability(
+                    rows,
+                    recipient_ids=recipient_ids,
+                    donor_ids=donor_ids,
+                    recipient_sets=gene_level["recipient"],
+                    donor_sets=gene_level["donor"],
+                    both=both,
+                    donor_levels=donor_levels,
+                    kind=kind,
+                    rule=rule,
+                    recipient=arguments.recipient,
+                    donor=arguments.donor,
+                )
+                bridge_reach(
+                    reach,
+                    recipient_sets=gene_level["recipient"],
+                    donor_sets=gene_level["donor"],
+                    kind=kind,
+                    label_of=label_of,
                     recipient=arguments.recipient,
                     donor=arguments.donor,
                 )

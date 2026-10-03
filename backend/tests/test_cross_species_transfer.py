@@ -485,3 +485,121 @@ def test_candidates_sharing_a_rank_are_refused(walk_inputs):
     duplicated = {101: [(1, 2, 0.999), (1, 1, 0.991)]}  # both at rank 1
     with pytest.raises(SystemExit, match="distinct ranks"):
         xs.walk(duplicated, recipient_ids=recipient_ids, donor_levels=donor_levels, recipient_levels={}, kind=COG)
+
+
+# ========================================================= the UniRef50 bridge (Stage 4), three states
+def test_the_bridge_has_THREE_states_and_not_bridged_is_not_the_same_as_not_asked():
+    """⛔ `not_bridged` and `unmeasurable` are different claims, and conflating them is the mistake
+    `nuna/CLAUDE.md` retired the label `no_homology` for: it meant *not measured*, not *nothing found*.
+
+    A pair where either node carries no UniRef50 accession has not been shown to lack a bridge — it
+    has not been asked. Counting it as "ESM reached where sequence identity could not" would inflate
+    the one number Stage 4 exists to produce.
+    """
+    assert xs.bridge_state(frozenset({"A", "B"}), frozenset({"B", "C"})) == "bridged"
+    assert xs.bridge_state(frozenset({"A"}), frozenset({"Z"})) == "not_bridged"
+    # either side missing, or empty, is NOT a negative result
+    assert xs.bridge_state(None, frozenset({"Z"})) == "unmeasurable"
+    assert xs.bridge_state(frozenset({"A"}), None) == "unmeasurable"
+    assert xs.bridge_state(frozenset(), frozenset({"Z"})) == "unmeasurable"
+    assert xs.bridge_state(None, None) == "unmeasurable"
+    assert set(xs.BRIDGE_STATES) == {"bridged", "not_bridged", "unmeasurable"}
+
+
+def test_a_bridge_is_an_intersection_so_one_rare_family_is_enough(walk_inputs):
+    """⛔ Why the bridge is built at GENE level and not from the 8-capped crosstab.
+
+    The single family linking two nodes can be a rare one in either of them, and a cap keeps only the
+    commonest eight. Here the two nodes share exactly one family, which is each one's *least* common
+    — gene level calls it bridged, a top-1 view calls it not bridged, and those are opposite answers
+    to the question Stage 4 asks.
+    """
+    recipient_full = frozenset({"UniRef50_MAIN_K", "UniRef50_RARE_SHARED"})
+    donor_full = frozenset({"UniRef50_MAIN_E", "UniRef50_RARE_SHARED"})
+    assert xs.bridge_state(recipient_full, donor_full) == "bridged"
+    # the same pair as a cap that kept only each node's commonest family would have seen it
+    assert xs.bridge_state(frozenset({"UniRef50_MAIN_K"}), frozenset({"UniRef50_MAIN_E"})) == "not_bridged"
+
+
+def test_the_reach_is_stratified_from_the_walks_OWN_record(walk_inputs, capsys):
+    """⭐ `bridge_reach` splits `reach["taken"]`, so it cannot drift from the §5 totals.
+
+    Two labelled kp nodes, one bridged and one not; the split must sum back to what the walk said.
+    """
+    recipient_ids, donor_ids, _unused = walk_inputs
+    donor_levels = {1: _cog("COG0001", "E"), 2: _cog("COG0002", "C")}
+    rows = _rows(("1098", "E1", 0.995, 1), ("2811", "E2", 0.9925, 1))
+    reach = _walk(
+        rows,
+        rule="cross",
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        donor_levels=donor_levels,
+        recipient_levels={},
+    )
+    assert reach["state"]["labelled"] == [2, 10], "7 genes + 3 genes"
+
+    xs.bridge_reach(
+        reach,
+        #: kp 1098 (locus 101) shares a family with ecoli E1 (locus 1); kp 2811 (102) shares none with E2 (2)
+        recipient_sets={101: frozenset({"U_SHARED"}), 102: frozenset({"U_KP_ONLY"})},
+        donor_sets={1: frozenset({"U_SHARED"}), 2: frozenset({"U_EC_ONLY"})},
+        kind=COG,
+        label_of=LABELS,
+        recipient="kp",
+        donor="ecoli",
+    )
+    printed = capsys.readouterr().out
+    assert "bridged" in printed and "not_bridged" in printed and "unmeasurable" in printed
+    # one node/7 genes bridged and one node/3 genes not, and the >= 0.98 row carries both
+    assert "1/7" in printed.replace(" ", "") or "1/7 " in printed
+    assert "the tiers the ladder stands behind" in printed
+    assert "NO UniRef50 bridge" in printed, "an unbridged case at >= 0.98 must be offered for reading"
+
+
+def test_an_unmeasurable_pair_is_never_counted_as_unbridged_in_the_reach(walk_inputs, capsys):
+    """⛔ The inflation this guards: a donor with no UniRef50 at all is not evidence of remote homology."""
+    recipient_ids, donor_ids, _unused = walk_inputs
+    donor_levels = {1: _cog("COG0001", "E")}
+    reach = _walk(
+        _rows(("1098", "E1", 0.995, 1)),
+        rule="cross",
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        donor_levels=donor_levels,
+        recipient_levels={},
+    )
+    xs.bridge_reach(
+        reach,
+        recipient_sets={101: frozenset({"U_KP"})},
+        donor_sets={},  # donor has none
+        kind=COG,
+        label_of=LABELS,
+        recipient="kp",
+        donor="ecoli",
+    )
+    printed = capsys.readouterr().out
+    total_line = [line for line in printed.splitlines() if line.strip().startswith("TOTAL")][0]
+    # the one node lands in the LAST column (unmeasurable), not the middle one (not_bridged)
+    bridged, not_bridged, unmeasurable = (cell for cell in total_line.split()[1:4])
+    assert bridged.startswith("0/") and not_bridged.startswith("0/") and unmeasurable.startswith("1/")
+
+
+def test_the_two_catalogues_SHARE_the_node_label_namespace_so_the_label_map_keys_on_locus_id():
+    """⛔ The bug this caught: both catalogues run node labels '0', '1', '10', … .
+
+    `{**donor_ids, **recipient_ids}` merges on the LABEL, so the recipient's entries overwrite the
+    donor's and every donor locus_id falls out of the reverse map — the symptom being the donor
+    column of the worked cases printing raw locus ids, which reads as a formatting choice rather than
+    a lost lookup. locus_id is globally unique, so the merge has to key on that.
+    """
+    donor_ids = {"0": (302532, 10), "1": (302533, 4)}
+    recipient_ids = {"0": (320063, 7), "1": (320064, 3)}  # ⬅ the SAME labels
+
+    wrong = {locus_id: label for label, (locus_id, _g) in {**donor_ids, **recipient_ids}.items()}
+    assert len(wrong) == 2 and 302532 not in wrong, "the label merge loses the donor catalogue entirely"
+
+    right = {locus_id: label for label, (locus_id, _g) in donor_ids.items()}
+    right.update({locus_id: label for label, (locus_id, _g) in recipient_ids.items()})
+    assert len(right) == 4
+    assert right[302532] == "0" and right[320063] == "0", "both catalogues keep their own label '0'"
