@@ -1,4 +1,4 @@
-"""Every number in `nuna/docs/model_evaluation/COG_function_inference.md`, from the live database.
+"""Every number in `nuna/docs/model_evaluation/function_inference.md`, from the live database.
 
 Run from `backend/` with `BACATLAS_DATABASE_URL` set and both `*-nuna4` catalogues loaded:
 
@@ -30,25 +30,37 @@ from bacatlas_backend.instruments.annotation_transfer import (
     cog_levels,
     ec_levels,
     quotable_level,
+    single_rung,
     tally_cells,
     tier_for,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind
 
 CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
-KINDS = (AnnotationKind.COG_ORTHOGROUP, AnnotationKind.EC_NUMBER)
+#: ⭐ All four vocabularies, not the two this file was named for. GO and KEGG were measured for the
+#: first time on 2026-10-03 after David asked why they were missing; GO turns out to cover MORE genes
+#: than COG in *E. coli* (351,559 against 313,617), so leaving it out understated the model's reach.
+KINDS = (AnnotationKind.COG_ORTHOGROUP, AnnotationKind.GENE_ONTOLOGY_SLIM,
+         AnnotationKind.KEGG_ORTHOLOGY, AnnotationKind.EC_NUMBER)
 BARS = (0.95, 0.90, 0.80)
-COUNT_COLUMN = {AnnotationKind.EC_NUMBER: "ec_annotated_member_count",
-                AnnotationKind.COG_ORTHOGROUP: "cog_annotated_member_count"}
-GENE_PREDICATE = {AnnotationKind.EC_NUMBER: "f.ec_numbers is not null",
-                  AnnotationKind.COG_ORTHOGROUP: "f.cog_id is not null"}
+#: ⛔ The annotated-member count is COUNTED from the gene rows rather than read from the matching
+#: `locus.*_annotated_member_count` column, because GO has no such column — it has three, one per
+#: namespace, and a gene annotated in two of them would be counted twice by their sum. Verified
+#: against the columns that do exist: 0 mismatching nodes out of 17,531 and 15,670 on COG, EC and
+#: KEGG, so the two routes agree wherever both are available.
+GENE_PREDICATE = {
+    AnnotationKind.EC_NUMBER: "f.ec_numbers is not null",
+    AnnotationKind.COG_ORTHOGROUP: "f.cog_id is not null",
+    AnnotationKind.GENE_ONTOLOGY_SLIM: "f.gene_ontology_terms is not null",
+    AnnotationKind.KEGG_ORTHOLOGY: "f.kegg_orthology_id is not null",
+}
 
 
 def load(session: Session, catalogue: str, kind: AnnotationKind):
     """Per node: member and annotated gene counts, prevalence band, folded top call, neighbours."""
     rows = session.execute(
-        text(f"""
-            select l.locus_id, l.member_gene_count, l.{COUNT_COLUMN[kind]}, l.prevalence_band,
+        text("""
+            select l.locus_id, l.member_gene_count, l.prevalence_band,
                    a.term_value, l.modal_cog_categories
               from locus l join pangenome p using (pangenome_id)
               left join locus_annotation_entry a
@@ -58,13 +70,26 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
         """),
         {"kind": kind.name, "catalogue": catalogue},
     ).all()
-    members, bands, levels = {}, {}, {}
-    for locus_id, n_members, n_annotated, band, term, categories in rows:
-        members[locus_id] = (n_members, n_annotated or 0)
+    # ⛔ GROUPED, because rank 0 is not unique per locus: `top_go_slim` ranks within
+    # (locus, NAMESPACE), so a GO-bearing locus has three rank-0 rows and indexing by locus in the
+    # loop would keep whichever namespace arrived last.
+    stated = defaultdict(list)
+    members, bands, categories_by_locus = {}, {}, {}
+    for locus_id, n_members, band, term, categories in rows:
+        members[locus_id] = (n_members, 0)
         bands[locus_id] = band
-        folded = (ec_levels(term) if (kind is AnnotationKind.EC_NUMBER and term)
-                  else cog_levels(term, categories) if kind is not AnnotationKind.EC_NUMBER
-                  else None)
+        categories_by_locus[locus_id] = categories
+        if term is not None:
+            stated[locus_id].append(term)
+    levels = {}
+    for locus_id in members:
+        said = stated.get(locus_id, [])
+        if kind is AnnotationKind.EC_NUMBER:
+            folded = ec_levels(said[0]) if said else None
+        elif kind is AnnotationKind.COG_ORTHOGROUP:
+            folded = cog_levels(said[0] if said else None, categories_by_locus[locus_id])
+        else:
+            folded = single_rung(said)
         if folded and any(folded.values()):
             levels[locus_id] = folded
 
@@ -84,7 +109,7 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
     for locus_id, rank, neighbour_id, cosine in edges:
         neighbours[locus_id].append((rank, neighbour_id, cosine))
 
-    gene_calls = dict(session.execute(
+    gene_calls: dict[int, int] = dict(session.execute(
         text(f"""
             select m.locus_id, count(*)
               from gene_locus_membership m
@@ -97,6 +122,8 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
         """),
         {"catalogue": catalogue},
     ).all())
+    #: now that the per-gene count is in hand, it IS the annotated-member count for every axis
+    members = {lid: (n, gene_calls.get(lid, 0)) for lid, (n, _) in members.items()}
     return members, bands, levels, neighbours, gene_calls
 
 
@@ -157,7 +184,7 @@ def within_node(grouped, kind: AnnotationKind) -> None:
               f"{checkable:>11,}{(f'{100 * unanimous / checkable:.1f}%' if checkable else '—'):>11}"
               f"{(f'{sum(support) / len(support):.3f}' if support else '—'):>9}")
         if kind is not AnnotationKind.EC_NUMBER:
-            break       # the gene-level COG id is the only rung genes carry individually
+            break       # one rung per gene for COG, GO and KEGG; only EC has a ladder in the string
 
 
 def _prefix(code: str, level: int) -> str | None:

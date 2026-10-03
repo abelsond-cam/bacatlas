@@ -58,10 +58,11 @@ function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
         candidate: null,
       })),
     },
-    calibration: {
-      cog_orthogroup: ladder("cog_orthogroup"),
-      ec_number: ladder("ec_number"),
-    },
+    // ⛔ Derived from INFERENCE_KINDS, never a hand-written pair: adding a vocabulary must not
+    // require editing fixtures, and a Record missing a key fails the build rather than the test.
+    calibration: Object.fromEntries(
+      INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
+    ) as FunctionResponse["calibration"],
   };
 }
 

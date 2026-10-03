@@ -452,6 +452,134 @@
       "locus_count": 15670,
       "min_pairs": 30,
       "representation": "esm"
+     },
+     "gene_ontology_slim": {
+      "annotated_locus_count": 3221,
+      "annotation_kind": "gene_ontology_slim",
+      "cells": [
+       {
+        "agreement": 0.9339152119700748,
+        "chance": 0.1146214432861938,
+        "interval_high": 0.9491237618405037,
+        "interval_low": 0.9145695495993624,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 8.147822826120052,
+        "pairs": 802,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9135802469135802,
+        "chance": 0.11428251923420982,
+        "interval_high": 0.9354305408497228,
+        "interval_low": 0.8852429176723788,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 7.9940506477748805,
+        "pairs": 486,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.8744186046511628,
+        "chance": 0.1367364822572097,
+        "interval_high": 0.8977961403814058,
+        "interval_low": 0.8466074243715324,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 6.394918095130808,
+        "pairs": 645,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6244796003330558,
+        "chance": 0.14557253013792829,
+        "interval_high": 0.6514298926104214,
+        "interval_low": 0.5967355093810107,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 4.28981758949555,
+        "pairs": 1201,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.4674988224211022,
+        "chance": 0.13153073554064862,
+        "interval_high": 0.4825292315178073,
+        "interval_low": 0.4525271715255437,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 3.5542933786500805,
+        "pairs": 4246,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "kegg_orthology": {
+      "annotated_locus_count": 1212,
+      "annotation_kind": "kegg_orthology",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.005758385016778826,
+        "interval_high": 1.0,
+        "interval_low": 0.9799751461622506,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 173.65980167810807,
+        "pairs": 188,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8758620689655172,
+        "chance": 0.0043737008456960665,
+        "interval_high": 0.9200161579475072,
+        "interval_low": 0.812305988549171,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 200.25651041666646,
+        "pairs": 145,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.7235294117647059,
+        "chance": 0.00296789235925584,
+        "interval_high": 0.7852592802466724,
+        "interval_low": 0.6519203131302868,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 243.78559738134214,
+        "pairs": 170,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.5317919075144508,
+        "chance": 0.003231457306100631,
+        "interval_high": 0.6046496948887806,
+        "interval_low": 0.45755286378519655,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 164.56720827178717,
+        "pairs": 173,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.24324324324324326,
+        "chance": 0.0016738456044814458,
+        "interval_high": 0.28352222168943403,
+        "interval_low": 0.2070330441953415,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 145.31999999999974,
+        "pairs": 481,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
      }
     },
     "coverage": {
@@ -500,6 +628,32 @@
         "member_gene_count": 100,
         "name": "Purine-nucleoside phosphorylase",
         "term": "COG0813"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 100,
+        "checkable": true,
+        "gene_count": 100,
+        "member_gene_count": 100,
+        "name": "transferase activity",
+        "term": "GO:0016740"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "kegg_orthology",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 1,
+        "checkable": false,
+        "gene_count": 1,
+        "member_gene_count": 100,
+        "name": null,
+        "term": "K03784"
        },
        "walk": []
       }
@@ -1736,6 +1890,134 @@
       "locus_count": 15670,
       "min_pairs": 30,
       "representation": "esm"
+     },
+     "gene_ontology_slim": {
+      "annotated_locus_count": 3221,
+      "annotation_kind": "gene_ontology_slim",
+      "cells": [
+       {
+        "agreement": 0.9339152119700748,
+        "chance": 0.1146214432861938,
+        "interval_high": 0.9491237618405037,
+        "interval_low": 0.9145695495993624,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 8.147822826120052,
+        "pairs": 802,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9135802469135802,
+        "chance": 0.11428251923420982,
+        "interval_high": 0.9354305408497228,
+        "interval_low": 0.8852429176723788,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 7.9940506477748805,
+        "pairs": 486,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.8744186046511628,
+        "chance": 0.1367364822572097,
+        "interval_high": 0.8977961403814058,
+        "interval_low": 0.8466074243715324,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 6.394918095130808,
+        "pairs": 645,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6244796003330558,
+        "chance": 0.14557253013792829,
+        "interval_high": 0.6514298926104214,
+        "interval_low": 0.5967355093810107,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 4.28981758949555,
+        "pairs": 1201,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.4674988224211022,
+        "chance": 0.13153073554064862,
+        "interval_high": 0.4825292315178073,
+        "interval_low": 0.4525271715255437,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 3.5542933786500805,
+        "pairs": 4246,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "kegg_orthology": {
+      "annotated_locus_count": 1212,
+      "annotation_kind": "kegg_orthology",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.005758385016778826,
+        "interval_high": 1.0,
+        "interval_low": 0.9799751461622506,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 173.65980167810807,
+        "pairs": 188,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8758620689655172,
+        "chance": 0.0043737008456960665,
+        "interval_high": 0.9200161579475072,
+        "interval_low": 0.812305988549171,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 200.25651041666646,
+        "pairs": 145,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.7235294117647059,
+        "chance": 0.00296789235925584,
+        "interval_high": 0.7852592802466724,
+        "interval_low": 0.6519203131302868,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 243.78559738134214,
+        "pairs": 170,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.5317919075144508,
+        "chance": 0.003231457306100631,
+        "interval_high": 0.6046496948887806,
+        "interval_low": 0.45755286378519655,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 164.56720827178717,
+        "pairs": 173,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.24324324324324326,
+        "chance": 0.0016738456044814458,
+        "interval_high": 0.28352222168943403,
+        "interval_low": 0.2070330441953415,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 145.31999999999974,
+        "pairs": 481,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
      }
     },
     "coverage": {
@@ -1884,6 +2166,71 @@
         },
         {
          "carries_annotation": true,
+         "catalogue_ordinal": 1888,
+         "cosine": 0.986962,
+         "display_name": "zapD",
+         "node_label": "1888",
+         "rank": 5,
+         "tier": "0.98-0.99"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 100,
+        "checkable": true,
+        "gene_count": 100,
+        "member_gene_count": 100,
+        "name": "nucleic acid binding",
+        "term": "GO:0003676"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "kegg_orthology",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 5015,
+         "cosine": 0.990384,
+         "display_name": "AcaB",
+         "node_label": "5015",
+         "rank": 1,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 12821,
+         "cosine": 0.988743,
+         "display_name": "locus 12821",
+         "node_label": "12821",
+         "rank": 2,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 13937,
+         "cosine": 0.987176,
+         "display_name": "locus 13937",
+         "node_label": "13937",
+         "rank": 3,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 4497,
+         "cosine": 0.987155,
+         "display_name": "locus 4497",
+         "node_label": "4497",
+         "rank": 4,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
          "catalogue_ordinal": 1888,
          "cosine": 0.986962,
          "display_name": "zapD",
@@ -3361,6 +3708,134 @@
       "locus_count": 15670,
       "min_pairs": 30,
       "representation": "esm"
+     },
+     "gene_ontology_slim": {
+      "annotated_locus_count": 3221,
+      "annotation_kind": "gene_ontology_slim",
+      "cells": [
+       {
+        "agreement": 0.9339152119700748,
+        "chance": 0.1146214432861938,
+        "interval_high": 0.9491237618405037,
+        "interval_low": 0.9145695495993624,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 8.147822826120052,
+        "pairs": 802,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9135802469135802,
+        "chance": 0.11428251923420982,
+        "interval_high": 0.9354305408497228,
+        "interval_low": 0.8852429176723788,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 7.9940506477748805,
+        "pairs": 486,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.8744186046511628,
+        "chance": 0.1367364822572097,
+        "interval_high": 0.8977961403814058,
+        "interval_low": 0.8466074243715324,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 6.394918095130808,
+        "pairs": 645,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6244796003330558,
+        "chance": 0.14557253013792829,
+        "interval_high": 0.6514298926104214,
+        "interval_low": 0.5967355093810107,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 4.28981758949555,
+        "pairs": 1201,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.4674988224211022,
+        "chance": 0.13153073554064862,
+        "interval_high": 0.4825292315178073,
+        "interval_low": 0.4525271715255437,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 3.5542933786500805,
+        "pairs": 4246,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "kegg_orthology": {
+      "annotated_locus_count": 1212,
+      "annotation_kind": "kegg_orthology",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.005758385016778826,
+        "interval_high": 1.0,
+        "interval_low": 0.9799751461622506,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 173.65980167810807,
+        "pairs": 188,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8758620689655172,
+        "chance": 0.0043737008456960665,
+        "interval_high": 0.9200161579475072,
+        "interval_low": 0.812305988549171,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 200.25651041666646,
+        "pairs": 145,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.7235294117647059,
+        "chance": 0.00296789235925584,
+        "interval_high": 0.7852592802466724,
+        "interval_low": 0.6519203131302868,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 243.78559738134214,
+        "pairs": 170,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.5317919075144508,
+        "chance": 0.003231457306100631,
+        "interval_high": 0.6046496948887806,
+        "interval_low": 0.45755286378519655,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 164.56720827178717,
+        "pairs": 173,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.24324324324324326,
+        "chance": 0.0016738456044814458,
+        "interval_high": 0.28352222168943403,
+        "interval_low": 0.2070330441953415,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 145.31999999999974,
+        "pairs": 481,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
      }
     },
     "coverage": {
@@ -3411,6 +3886,101 @@
         "term": "COG3344"
        },
        "walk": []
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 76,
+        "checkable": true,
+        "gene_count": 76,
+        "member_gene_count": 76,
+        "name": "nucleotidyltransferase activity",
+        "term": "GO:0016779"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "kegg_orthology",
+       "candidate": {
+        "calibration": {
+         "agreement": 1.0,
+         "chance": 0.005758385016778826,
+         "interval_high": 1.0,
+         "interval_low": 0.9799751461622506,
+         "level": 1,
+         "level_label": "KEGG orthology",
+         "lift": 173.65980167810807,
+         "pairs": 188,
+         "tier": ">= 0.99"
+        },
+        "cosine": 0.993196,
+        "donor": {
+         "annotated_gene_count": 15,
+         "catalogue_ordinal": 6247,
+         "checkable": true,
+         "display_name": "ltrA",
+         "gene_count": 15,
+         "member_gene_count": 16,
+         "name": null,
+         "node_label": "6247",
+         "term": "K00986"
+        },
+        "level": 1,
+        "rank": 2,
+        "tier": ">= 0.99",
+        "value": [
+         "K00986"
+        ]
+       },
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 11688,
+         "cosine": 0.998175,
+         "display_name": "ltrA",
+         "node_label": "11688",
+         "rank": 1,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 6247,
+         "cosine": 0.993196,
+         "display_name": "ltrA",
+         "node_label": "6247",
+         "rank": 2,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 15096,
+         "cosine": 0.97122,
+         "display_name": "ltrA",
+         "node_label": "15096",
+         "rank": 3,
+         "tier": "0.97-0.98"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 12683,
+         "cosine": 0.962688,
+         "display_name": "ltrA",
+         "node_label": "12683",
+         "rank": 4,
+         "tier": "0.96-0.97"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 14184,
+         "cosine": 0.959458,
+         "display_name": "locus 14184",
+         "node_label": "14184",
+         "rank": 5,
+         "tier": "0.90-0.96"
+        }
+       ]
       }
      ]
     }
@@ -6114,6 +6684,134 @@
       "locus_count": 15670,
       "min_pairs": 30,
       "representation": "esm"
+     },
+     "gene_ontology_slim": {
+      "annotated_locus_count": 3221,
+      "annotation_kind": "gene_ontology_slim",
+      "cells": [
+       {
+        "agreement": 0.9339152119700748,
+        "chance": 0.1146214432861938,
+        "interval_high": 0.9491237618405037,
+        "interval_low": 0.9145695495993624,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 8.147822826120052,
+        "pairs": 802,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9135802469135802,
+        "chance": 0.11428251923420982,
+        "interval_high": 0.9354305408497228,
+        "interval_low": 0.8852429176723788,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 7.9940506477748805,
+        "pairs": 486,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.8744186046511628,
+        "chance": 0.1367364822572097,
+        "interval_high": 0.8977961403814058,
+        "interval_low": 0.8466074243715324,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 6.394918095130808,
+        "pairs": 645,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6244796003330558,
+        "chance": 0.14557253013792829,
+        "interval_high": 0.6514298926104214,
+        "interval_low": 0.5967355093810107,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 4.28981758949555,
+        "pairs": 1201,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.4674988224211022,
+        "chance": 0.13153073554064862,
+        "interval_high": 0.4825292315178073,
+        "interval_low": 0.4525271715255437,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 3.5542933786500805,
+        "pairs": 4246,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "kegg_orthology": {
+      "annotated_locus_count": 1212,
+      "annotation_kind": "kegg_orthology",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.005758385016778826,
+        "interval_high": 1.0,
+        "interval_low": 0.9799751461622506,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 173.65980167810807,
+        "pairs": 188,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8758620689655172,
+        "chance": 0.0043737008456960665,
+        "interval_high": 0.9200161579475072,
+        "interval_low": 0.812305988549171,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 200.25651041666646,
+        "pairs": 145,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.7235294117647059,
+        "chance": 0.00296789235925584,
+        "interval_high": 0.7852592802466724,
+        "interval_low": 0.6519203131302868,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 243.78559738134214,
+        "pairs": 170,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.5317919075144508,
+        "chance": 0.003231457306100631,
+        "interval_high": 0.6046496948887806,
+        "interval_low": 0.45755286378519655,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 164.56720827178717,
+        "pairs": 173,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.24324324324324326,
+        "chance": 0.0016738456044814458,
+        "interval_high": 0.28352222168943403,
+        "interval_low": 0.2070330441953415,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 145.31999999999974,
+        "pairs": 481,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
      }
     },
     "coverage": {
@@ -6226,6 +6924,53 @@
         },
         {
          "carries_annotation": true,
+         "catalogue_ordinal": 15643,
+         "cosine": 0.907776,
+         "display_name": "tuf",
+         "node_label": "15643",
+         "rank": 3,
+         "tier": "0.90-0.96"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 112,
+        "checkable": true,
+        "gene_count": 112,
+        "member_gene_count": 112,
+        "name": "molecular_function",
+        "term": "GO:0003674"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "kegg_orthology",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 5548,
+         "cosine": 0.961414,
+         "display_name": "tuf",
+         "node_label": "5548",
+         "rank": 1,
+         "tier": "0.96-0.97"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 15650,
+         "cosine": 0.960758,
+         "display_name": "tuf",
+         "node_label": "15650",
+         "rank": 2,
+         "tier": "0.96-0.97"
+        },
+        {
+         "carries_annotation": false,
          "catalogue_ordinal": 15643,
          "cosine": 0.907776,
          "display_name": "tuf",
@@ -7356,6 +8101,134 @@
       "locus_count": 15670,
       "min_pairs": 30,
       "representation": "esm"
+     },
+     "gene_ontology_slim": {
+      "annotated_locus_count": 3221,
+      "annotation_kind": "gene_ontology_slim",
+      "cells": [
+       {
+        "agreement": 0.9339152119700748,
+        "chance": 0.1146214432861938,
+        "interval_high": 0.9491237618405037,
+        "interval_low": 0.9145695495993624,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 8.147822826120052,
+        "pairs": 802,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9135802469135802,
+        "chance": 0.11428251923420982,
+        "interval_high": 0.9354305408497228,
+        "interval_low": 0.8852429176723788,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 7.9940506477748805,
+        "pairs": 486,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.8744186046511628,
+        "chance": 0.1367364822572097,
+        "interval_high": 0.8977961403814058,
+        "interval_low": 0.8466074243715324,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 6.394918095130808,
+        "pairs": 645,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6244796003330558,
+        "chance": 0.14557253013792829,
+        "interval_high": 0.6514298926104214,
+        "interval_low": 0.5967355093810107,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 4.28981758949555,
+        "pairs": 1201,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.4674988224211022,
+        "chance": 0.13153073554064862,
+        "interval_high": 0.4825292315178073,
+        "interval_low": 0.4525271715255437,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 3.5542933786500805,
+        "pairs": 4246,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "kegg_orthology": {
+      "annotated_locus_count": 1212,
+      "annotation_kind": "kegg_orthology",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.005758385016778826,
+        "interval_high": 1.0,
+        "interval_low": 0.9799751461622506,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 173.65980167810807,
+        "pairs": 188,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8758620689655172,
+        "chance": 0.0043737008456960665,
+        "interval_high": 0.9200161579475072,
+        "interval_low": 0.812305988549171,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 200.25651041666646,
+        "pairs": 145,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.7235294117647059,
+        "chance": 0.00296789235925584,
+        "interval_high": 0.7852592802466724,
+        "interval_low": 0.6519203131302868,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 243.78559738134214,
+        "pairs": 170,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.5317919075144508,
+        "chance": 0.003231457306100631,
+        "interval_high": 0.6046496948887806,
+        "interval_low": 0.45755286378519655,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 164.56720827178717,
+        "pairs": 173,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.24324324324324326,
+        "chance": 0.0016738456044814458,
+        "interval_high": 0.28352222168943403,
+        "interval_low": 0.2070330441953415,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 145.31999999999974,
+        "pairs": 481,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 15670,
+      "min_pairs": 30,
+      "representation": "esm"
      }
     },
     "coverage": {
@@ -7433,6 +8306,140 @@
       },
       {
        "annotation_kind": "cog_orthogroup",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 6064,
+         "cosine": 0.987368,
+         "display_name": "repB",
+         "node_label": "6064",
+         "rank": 1,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 15580,
+         "cosine": 0.985861,
+         "display_name": "tap",
+         "node_label": "15580",
+         "rank": 2,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 3426,
+         "cosine": 0.982414,
+         "display_name": "locus 3426",
+         "node_label": "3426",
+         "rank": 3,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 6621,
+         "cosine": 0.977531,
+         "display_name": "tap",
+         "node_label": "6621",
+         "rank": 4,
+         "tier": "0.97-0.98"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 11314,
+         "cosine": 0.973616,
+         "display_name": "locus 11314",
+         "node_label": "11314",
+         "rank": 5,
+         "tier": "0.97-0.98"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "candidate": {
+        "calibration": {
+         "agreement": 0.9135802469135802,
+         "chance": 0.11428251923420982,
+         "interval_high": 0.9354305408497228,
+         "interval_low": 0.8852429176723788,
+         "level": 1,
+         "level_label": "GO slim term",
+         "lift": 7.9940506477748805,
+         "pairs": 486,
+         "tier": "0.98-0.99"
+        },
+        "cosine": 0.985861,
+        "donor": {
+         "annotated_gene_count": 17,
+         "catalogue_ordinal": 15580,
+         "checkable": true,
+         "display_name": "tap",
+         "gene_count": 9,
+         "member_gene_count": 18,
+         "name": "biological_process",
+         "node_label": "15580",
+         "term": "GO:0008150"
+        },
+        "level": 1,
+        "rank": 2,
+        "tier": "0.98-0.99",
+        "value": [
+         "GO:0008150"
+        ]
+       },
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 6064,
+         "cosine": 0.987368,
+         "display_name": "repB",
+         "node_label": "6064",
+         "rank": 1,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 15580,
+         "cosine": 0.985861,
+         "display_name": "tap",
+         "node_label": "15580",
+         "rank": 2,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 3426,
+         "cosine": 0.982414,
+         "display_name": "locus 3426",
+         "node_label": "3426",
+         "rank": 3,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 6621,
+         "cosine": 0.977531,
+         "display_name": "tap",
+         "node_label": "6621",
+         "rank": 4,
+         "tier": "0.97-0.98"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 11314,
+         "cosine": 0.973616,
+         "display_name": "locus 11314",
+         "node_label": "11314",
+         "rank": 5,
+         "tier": "0.97-0.98"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "kegg_orthology",
        "candidate": null,
        "own": null,
        "walk": [

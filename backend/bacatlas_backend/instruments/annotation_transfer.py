@@ -1,6 +1,6 @@
 """Inferring a function for a node that has none — the ladder, and the rate the reader judges it by.
 
-Two mechanisms, and the page must never blur them (`nuna/docs/model_evaluation/COG_function_inference.md`):
+Two mechanisms, and the page must never blur them (`nuna/docs/model_evaluation/function_inference.md`):
 
 * **internal inference** — some of the node's own genes carry a call, so the modal call covers the
   rest. Measured at 99.5 % / 99.9 % within-node unanimity; this is where the lift is.
@@ -53,16 +53,29 @@ NOT_CALLED = "< 0.90"
 
 #: The deepest level each tier may quote. EC levels are field counts (4 = `2.7.10.1`, 1 = `2.-.-.-`);
 #: COG's two rungs are 2 = the orthogroup accession, 1 = its functional-category letters.
+#: ⚠ **GO and KEGG have ONE rung each, and that is a measurement rather than an omission.** A KEGG
+#: orthology id carries no hierarchy in the string, and the hierarchy above it (pathways, modules) is
+#: not in this database. GO terms are already folded onto `goslim_metagenomics` before they are
+#: stored, which is itself the coarsening — below that there is nothing shallower to fall back to
+#: except the namespace, and both sides almost always state all three, so a namespace rung would
+#: agree by construction. A graded middle for GO needs the GO DAG, which is `function_inference`
+#: §9's deferred work.
 QUOTED_LEVEL: dict[AnnotationKind, dict[str, int]] = {
     AnnotationKind.EC_NUMBER: {">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1,
                               "0.96-0.97": 1, "0.90-0.96": 1},
     AnnotationKind.COG_ORTHOGROUP: {">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1,
                                    "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.GENE_ONTOLOGY_SLIM: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1,
+                                        "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.KEGG_ORTHOLOGY: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1,
+                                    "0.96-0.97": 1, "0.90-0.96": 1},
 }
 LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
     AnnotationKind.EC_NUMBER: {4: "full EC code", 3: "EC sub-subclass", 2: "EC subclass",
                               1: "EC class"},
     AnnotationKind.COG_ORTHOGROUP: {2: "COG orthogroup", 1: "COG category"},
+    AnnotationKind.GENE_ONTOLOGY_SLIM: {1: "GO slim term"},
+    AnnotationKind.KEGG_ORTHOLOGY: {1: "KEGG orthology"},
 }
 #: Below this a cell reports its pair count and NO rate. A rate off 7 pairs is not a rate.
 MIN_PAIRS = 30
@@ -107,6 +120,17 @@ def cog_levels(term_value: str | None, categories: list[str] | None) -> dict[int
         2: frozenset([term_value]) if term_value else frozenset(),
         1: frozenset(categories or ()),
     }
+
+
+def single_rung(terms: list[str]) -> dict[int, frozenset[str]]:
+    """One rung, holding every term this node states — the shape GO and KEGG both take.
+
+    ⚠ A SET, because a node's GO claim is up to three terms, one per namespace: `top_go_slim` ranks
+    within (locus, namespace), so a locus has three rank-0 rows and reading only one of them would
+    discard two thirds of what it says. Agreement is overlap, exactly as for a multi-letter COG
+    category set.
+    """
+    return {1: frozenset(term for term in terms if term)}
 
 
 @dataclass(frozen=True)
@@ -195,9 +219,14 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
 
     ⚠ The top-rank entry is already a **modal vote over the node's member genes**
     (`export_payload.top_counts`), with `member_gene_count` as its support — not one gene's call.
+
+    ⛔ **Rows are GROUPED before folding, because rank 0 is not unique per locus.** `top_go_slim`
+    ranks within (locus, NAMESPACE), so a GO-bearing locus has three rank-0 rows. An earlier version
+    indexed by locus in the loop and silently kept whichever namespace came last — two thirds of
+    every GO claim discarded, with nothing to show for it but a slightly lower agreement rate.
     """
     rows = session.execute(
-        select(Locus.locus_id, Locus.member_gene_count, Locus.modal_cog_categories,
+        select(Locus.locus_id, Locus.modal_cog_categories,
                LocusAnnotationEntry.term_value, LocusAnnotationEntry.term_name,
                LocusAnnotationEntry.member_gene_count)
         .join(
@@ -209,19 +238,29 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
         )
         .where(Locus.pangenome_id == pangenome_id)
     ).all()
+
+    stated: dict[int, list[tuple[str, str | None, int]]] = defaultdict(list)
+    categories: dict[int, list[str] | None] = {}
+    for locus_id, cog_categories, term, term_name, support in rows:
+        categories[locus_id] = cog_categories
+        if term is not None:
+            stated[locus_id].append((term, term_name, support))
+
     levels: dict[int, dict[int, frozenset[str]]] = {}
     terms: dict[int, tuple[str, str | None, int]] = {}
-    locus_count = 0
-    for locus_id, _members, categories, term, term_name, support in rows:
-        locus_count += 1
-        folded = (ec_levels(term) if (kind is AnnotationKind.EC_NUMBER and term)
-                  else cog_levels(term, categories) if kind is not AnnotationKind.EC_NUMBER
-                  else None)
+    for locus_id in categories:
+        said = stated.get(locus_id, [])
+        if kind is AnnotationKind.EC_NUMBER:
+            folded = ec_levels(said[0][0]) if said else None
+        elif kind is AnnotationKind.COG_ORTHOGROUP:
+            folded = cog_levels(said[0][0] if said else None, categories[locus_id])
+        else:
+            folded = single_rung([term for term, _name, _support in said])
         if folded and any(folded.values()):
             levels[locus_id] = folded
-            if term is not None:
-                terms[locus_id] = (term, term_name, support)
-    return levels, terms, locus_count
+            if said:
+                terms[locus_id] = said[0]
+    return levels, terms, len(categories)
 
 
 def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int):

@@ -4,7 +4,7 @@
 `test_api_endpoints.py`. The measurement is a property of the catalogue, so a fixture cannot stand in
 for it: the whole point of this module is that the rate the page shows is **recomputed from the
 loaded data** rather than copied out of
-`nuna/docs/model_evaluation/COG_function_inference.md`.
+`nuna/docs/model_evaluation/function_inference.md`.
 """
 
 from __future__ import annotations

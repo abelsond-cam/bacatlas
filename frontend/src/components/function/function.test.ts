@@ -58,10 +58,11 @@ function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
         candidate: null,
       })),
     },
-    calibration: {
-      cog_orthogroup: ladder("cog_orthogroup"),
-      ec_number: ladder("ec_number"),
-    },
+    // ⛔ Derived from INFERENCE_KINDS, never a hand-written pair: adding a vocabulary must not
+    // require editing fixtures, and a Record missing a key fails the build rather than the test.
+    calibration: Object.fromEntries(
+      INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
+    ) as FunctionResponse["calibration"],
   };
 }
 
@@ -252,9 +253,17 @@ describe("⛔ all three namespaces, or one line — never three empty cards", ()
         }),
       }),
     });
-    const headings = tab.findAll(".sub-head").map((node) => node.text());
-    expect(headings.filter((heading) => heading.startsWith("GO"))).toEqual(["GO"]);
+    // ⚠ TWO GO headings is correct, and the distinction is the point: one card reports what the
+    // locus's own genes say (and here, that none of them say anything), the other offers what a
+    // neighbour suggests. The guarantee being held is that the COVERAGE side collapses to one line
+    // rather than three empty namespace cards — so filter to the cards outside `.infer`.
+    const coverageHeadings = tab
+      .findAll(".card:not(.infer) .sub-head")
+      .map((node) => node.text());
+    expect(coverageHeadings.filter((heading) => heading.startsWith("GO"))).toEqual(["GO"]);
     expect(tab.text()).toContain("None of these 100 genes carries a GO term");
+    // and the inferred card is the other one, clearly marked as such
+    expect(tab.find(".infer .infer-tag").text()).toBe("inferred");
   });
 
   it("⛔ files each term under ITS OWN namespace, not by position", () => {
@@ -433,8 +442,13 @@ function withInference(entry: VocabularyInference): FunctionResponse {
       ),
     },
     calibration: {
-      cog_orthogroup: { ...ladder("cog_orthogroup"), cells: [cell(), cell({ tier: "0.90-0.96", agreement: 0.336, pairs: 8525, lift: 4.9 })] },
-      ec_number: ladder("ec_number"),
+      ...(Object.fromEntries(
+        INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
+      ) as FunctionResponse["calibration"]),
+      cog_orthogroup: {
+        ...ladder("cog_orthogroup"),
+        cells: [cell(), cell({ tier: "0.90-0.96", agreement: 0.336, pairs: 8525, lift: 4.9 })],
+      },
     },
   });
 }

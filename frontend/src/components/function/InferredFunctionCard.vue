@@ -10,7 +10,7 @@
  *
  * ⭐ **Every rate shown here was measured on the loaded catalogue**, by
  * `instruments/annotation_transfer.py`, which is also the code
- * `nuna/docs/model_evaluation/COG_function_inference.md` reports from. Not a constant lifted out of
+ * `nuna/docs/model_evaluation/function_inference.md` reports from. Not a constant lifted out of
  * the write-up: that would keep reading plausibly long after the catalogue moved underneath it.
  *
  * ⛔ **Three states, and only one of them is a suggestion.**

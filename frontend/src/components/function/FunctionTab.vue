@@ -31,6 +31,8 @@ import InferredFunctionCard from "./InferredFunctionCard.vue";
 /** How each inferable vocabulary is named to a reader — never the enum value. */
 const VOCABULARY_LABELS: Readonly<Record<InferenceKind, string>> = {
   cog_orthogroup: "COG",
+  gene_ontology_slim: "GO",
+  kegg_orthology: "KEGG",
   ec_number: "EC number",
 };
 

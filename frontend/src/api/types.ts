@@ -508,7 +508,12 @@ export interface ArrangementPageResponse {
  * A string here would let a typo compile — the defect that hid 4,544 loci's EC numbers behind the
  * key `enzyme_commission` for as long as `annotations` was a `Record<string, …>`.
  */
-export const INFERENCE_KINDS = ["cog_orthogroup", "ec_number"] as const;
+export const INFERENCE_KINDS = [
+  "cog_orthogroup",
+  "gene_ontology_slim",
+  "kegg_orthology",
+  "ec_number",
+] as const;
 export type InferenceKind = (typeof INFERENCE_KINDS)[number];
 
 /** One (similarity tier, depth) cell of the measured ladder. */

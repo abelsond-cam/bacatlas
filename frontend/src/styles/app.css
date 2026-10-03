@@ -3650,7 +3650,7 @@ td.fam-sym {
 
 /* ── inferred function, 2026-10-03 ──────────────────────────────────────────────────────────────
    A node with no COG or EC of its own can be given a candidate from its nearest ESM neighbour, at a
-   depth its similarity earns (nuna `docs/model_evaluation/COG_function_inference.md`).
+   depth its similarity earns (nuna `docs/model_evaluation/function_inference.md`).
 
    ⛔ The visual job of this block is ONE thing: a suggestion must not be mistakable for an
    annotation. So it is a dashed card — every other card on the tab has a solid rule — it carries an

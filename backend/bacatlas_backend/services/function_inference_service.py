@@ -1,7 +1,7 @@
 """The Function tab's inference block — what this node's function rests on, and how sure that is.
 
 Two mechanisms, reported separately because they are not equally trustworthy and the page must never
-let them read alike (`nuna/docs/model_evaluation/COG_function_inference.md`):
+let them read alike (`nuna/docs/model_evaluation/function_inference.md`):
 
 * **its own genes.** The node's call is already a modal vote over its member genes, and `checkable`
   says whether that vote had more than one voter. ⛔ A node with exactly ONE annotated gene is
@@ -20,7 +20,9 @@ assignments come from rank 1, so that is the common case rather than the excepti
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from collections import defaultdict
+
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
@@ -31,6 +33,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     compute_calibration,
     ec_levels,
     quotable_level,
+    single_rung,
     tier_for,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation
@@ -46,12 +49,42 @@ from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 #: another's — the trap `gene_sequence_service.clear_parsed_genome_cache` exists for.
 _CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibration] = {}
 
-#: Which column counts the genes carrying a call. ⚠ Verified equal to a `COUNT(*)` over
-#: `gene_functional_annotation` for all 4,993 *E. coli* COG nodes, so the join is not needed.
-ANNOTATED_COUNT_ATTRIBUTE = {
-    AnnotationKind.COG_ORTHOGROUP: "cog_annotated_member_count",
-    AnnotationKind.EC_NUMBER: "ec_annotated_member_count",
+#: ⛔ **Counted from the gene rows, not read from `locus.*_annotated_member_count`.** Those columns
+#: exist for COG, EC and KEGG but NOT for GO: GO has three, one per namespace, and summing them
+#: double counts every gene annotated in more than one. One bounded statement over at most six loci
+#: (the focal node and its five neighbours) gives all four axes on the same definition.
+#: ⚠ Verified against the three columns that do exist: 0 mismatching nodes out of 17,531 and 15,670.
+ANNOTATED_COUNT_PREDICATE = {
+    AnnotationKind.COG_ORTHOGROUP: "f.cog_id is not null",
+    AnnotationKind.GENE_ONTOLOGY_SLIM: "f.gene_ontology_terms is not null",
+    AnnotationKind.EC_NUMBER: "f.ec_numbers is not null",
+    AnnotationKind.KEGG_ORTHOLOGY: "f.kegg_orthology_id is not null",
 }
+
+
+def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
+    """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`."""
+    if not locus_ids:
+        return {}
+    columns = ", ".join(
+        f"count(*) filter (where {predicate}) as {kind.name.lower()}"
+        for kind, predicate in ANNOTATED_COUNT_PREDICATE.items()
+    )
+    rows = session.execute(
+        text(f"""
+            select m.locus_id, {columns}
+              from gene_locus_membership m
+              left join gene_functional_annotation f
+                     on f.genome_id = m.genome_id and f.flat_index = m.flat_index
+             where m.locus_id = any(:locus_ids)
+             group by m.locus_id
+        """),
+        {"locus_ids": list(locus_ids)},
+    ).all()
+    return {
+        row.locus_id: {kind: getattr(row, kind.name.lower()) for kind in ANNOTATED_COUNT_PREDICATE}
+        for row in rows
+    }
 
 
 def clear_calibration_cache() -> None:
@@ -78,14 +111,25 @@ def calibration_for(
     return _CALIBRATIONS[key]
 
 
-def _fold(annotation_kind: AnnotationKind, term: str | None, categories: list[str] | None):
+def _fold(annotation_kind: AnnotationKind, terms: list[str], categories: list[str] | None):
+    """A node's stated terms folded onto the ladder for its vocabulary.
+
+    ⚠ `terms` is a LIST because rank 0 is not unique per locus: `top_go_slim` ranks within
+    (locus, namespace), so a GO-bearing node states up to three rank-0 terms and reading one would
+    discard the rest.
+    """
     if annotation_kind is AnnotationKind.EC_NUMBER:
-        return ec_levels(term) if term else None
-    return cog_levels(term, categories)
+        return ec_levels(terms[0]) if terms else None
+    if annotation_kind is AnnotationKind.COG_ORTHOGROUP:
+        return cog_levels(terms[0] if terms else None, categories)
+    return single_rung(terms)
 
 
-def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, AnnotationKind], tuple]:
-    """Every supported vocabulary's rank-0 entry for every locus in one statement."""
+def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, AnnotationKind], list]:
+    """Every supported vocabulary's rank-0 entries for every locus, in one statement.
+
+    ⛔ A LIST per (locus, kind), not a single row — see `_fold`.
+    """
     if not locus_ids:
         return {}
     rows = session.execute(
@@ -101,7 +145,10 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.rank_within_locus == 0,
         )
     ).all()
-    return {(locus_id, kind): (term, name, support) for locus_id, kind, term, name, support in rows}
+    grouped: dict[tuple[int, AnnotationKind], list] = defaultdict(list)
+    for locus_id, kind, term, name, support in rows:
+        grouped[(locus_id, kind)].append((term, name, support))
+    return grouped
 
 
 def load_inference(
@@ -122,12 +169,6 @@ def load_inference(
             Locus.display_name,
             Locus.member_gene_count,
             Locus.modal_cog_categories,
-            # ⛔ The donor's OWN support, by the same column the focal node uses — so `checkable`
-            # means one thing on this card, not two. Measured: node 5217's nearest COG donor carries
-            # `COG4733 on 1/1 genes`, i.e. the suggestion rests on a donor that was never checked
-            # either, and a card that showed it like any other donor would hide that entirely.
-            Locus.cog_annotated_member_count,
-            Locus.ec_annotated_member_count,
         )
         .join(Locus, Locus.locus_id == LocusNearestLocus.neighbour_locus_id)
         .where(
@@ -137,14 +178,14 @@ def load_inference(
         .order_by(LocusNearestLocus.rank)
     ).all()
 
-    entries = _top_entries(
-        session, {locus.locus_id, *(row.locus_id for row in neighbours)}
-    )
+    touched = {locus.locus_id, *(row.locus_id for row in neighbours)}
+    entries = _top_entries(session, touched)
+    annotated_counts = _annotated_counts(session, touched)
     vocabularies = []
     for annotation_kind in SUPPORTED_KINDS:
-        own_term, own_name, own_support = entries.get((locus.locus_id, annotation_kind),
-                                                      (None, None, None))
-        annotated = getattr(locus, ANNOTATED_COUNT_ATTRIBUTE[annotation_kind]) or 0
+        said = entries.get((locus.locus_id, annotation_kind), [])
+        own_term, own_name, own_support = said[0] if said else (None, None, None)
+        annotated = annotated_counts.get(locus.locus_id, {}).get(annotation_kind, 0)
         own = None
         if own_term is not None:
             own = {
@@ -163,7 +204,8 @@ def load_inference(
                 # ⚠ Only ever offered where the node has NO call of its own — a suggestion beside a
                 # real annotation would compete with it.
                 **(
-                    _walk(annotation_kind, neighbours, entries, session, pangenome_id, representation)
+                    _walk(annotation_kind, neighbours, entries, annotated_counts,
+                          session, pangenome_id, representation)
                     if own is None
                     else {"walk": [], "candidate": None}
                 ),
@@ -176,6 +218,7 @@ def _walk(
     annotation_kind: AnnotationKind,
     neighbours,
     entries,
+    annotated_counts,
     session: Session,
     pangenome_id: int,
     representation: EmbeddingRepresentation,
@@ -183,7 +226,8 @@ def _walk(
     """Outward along the ranks until one neighbour carries the vocabulary; report every step."""
     walk, candidate = [], None
     for row in neighbours:
-        term, name, support = entries.get((row.locus_id, annotation_kind), (None, None, None))
+        said = entries.get((row.locus_id, annotation_kind), [])
+        term, name, support = said[0] if said else (None, None, None)
         tier = tier_for(row.cross_similarity)
         walk.append(
             {
@@ -201,10 +245,8 @@ def _walk(
         #: ⛔ The first donor found ends the walk even when its tier is `NOT_CALLED`: a nearer
         #: neighbour that carries nothing cannot be skipped over in favour of a FURTHER one that
         #: does, or the cosine the rate is read from would no longer be the walk's own.
-        donor_annotated = (row.cog_annotated_member_count
-                           if annotation_kind is AnnotationKind.COG_ORTHOGROUP
-                           else row.ec_annotated_member_count) or 0
-        folded = _fold(annotation_kind, term, row.modal_cog_categories)
+        donor_annotated = annotated_counts.get(row.locus_id, {}).get(annotation_kind, 0)
+        folded = _fold(annotation_kind, [t for t, _n, _s in said], row.modal_cog_categories)
         level = quotable_level(annotation_kind, tier, folded) if (folded and tier != NOT_CALLED) else None
         cell = (
             calibration_for(
