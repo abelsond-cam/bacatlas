@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open BacAtlas on this machine</title>
+    <meta name="robots" content="noindex" />
+    <!--
+      A findable door to the LOCAL app, because the local app's own address is not memorable.
+
+      ⚠ This page cannot work for a visitor. `127.0.0.1` is whatever machine the browser is on, so
+      this opens BacAtlas only for someone already running the stack — and it says so rather than
+      leaving them at a connection error wondering what broke.
+
+      ⛔ **An HTTPS page navigating to `http://127.0.0.1` is not mixed content.** Mixed content is
+      about SUBRESOURCES; a top-level navigation to an insecure URL is ordinary and no browser blocks
+      it. The health probe below is a subresource, which is why it is allowed to fail: `127.0.0.1` is
+      a "potentially trustworthy" origin so it is exempt from mixed-content blocking, but Chrome's
+      Private Network Access rules may still refuse a public page's request to a local address. The
+      page therefore treats a failed probe as "cannot tell", never as "not running".
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --paper: #f4f6fb;
+        --panel: #fff;
+        --ink: #0b1220;
+        --ink-2: #3a4658;
+        --rule: #dfe5ef;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --paper: #0b1220;
+          --panel: #141c2b;
+          --ink: #e6ecf5;
+          --ink-2: #a9b6c9;
+          --rule: #27324a;
+        }
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        margin: 0;
+        padding: 48px 16px;
+        background: var(--paper);
+        color: var(--ink);
+        font:
+          15px/1.55 ui-sans-serif,
+          -apple-system,
+          "Segoe UI",
+          Roboto,
+          sans-serif;
+        display: flex;
+        justify-content: center;
+      }
+      main {
+        width: 100%;
+        max-width: 560px;
+        background: var(--panel);
+        border: 1px solid var(--rule);
+        border-radius: 6px;
+        padding: 28px;
+      }
+      h1 {
+        margin: 0 0 4px;
+        font-size: 20px;
+        letter-spacing: -0.01em;
+      }
+      p {
+        margin: 0 0 14px;
+        color: var(--ink-2);
+      }
+      a.open {
+        display: block;
+        margin: 20px 0 8px;
+        padding: 14px 18px;
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+        background: var(--paper);
+        color: var(--ink);
+        font-size: 17px;
+        font-weight: 600;
+        text-decoration: none;
+        text-align: center;
+      }
+      a.open:hover {
+        border-color: var(--ink-2);
+      }
+      code,
+      kbd {
+        font:
+          13px/1.5 ui-monospace,
+          SFMono-Regular,
+          Menlo,
+          monospace;
+      }
+      pre {
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        overflow-x: auto;
+        background: var(--paper);
+        border: 1px solid var(--rule);
+        border-radius: 4px;
+      }
+      .status {
+        margin: 0 0 14px;
+        font-size: 13px;
+      }
+      details {
+        margin-top: 18px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      summary {
+        cursor: pointer;
+      }
+      .foot {
+        margin: 22px 0 0;
+        padding-top: 14px;
+        border-top: 1px solid var(--rule);
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>BacAtlas, on this machine</h1>
+      <p class="status" id="status">Checking whether it is running…</p>
+
+      <a class="open" id="open" href="http://127.0.0.1:8080/">Open http://127.0.0.1:8080/</a>
+
+      <p>
+        This is the live application — the current catalogues, served from a database on your own
+        computer. It is not hosted anywhere; this page is only a door to it, so the address does not
+        have to be remembered.
+      </p>
+
+      <details id="howto">
+        <summary>Not running?</summary>
+        <p>Start it once and it stays up across reboots — the containers restart themselves.</p>
+        <pre><code>cd ~/developer/bacatlas &amp;&amp; docker compose up -d</code></pre>
+        <p>To pick up newly built code, add <code>--build</code>.</p>
+      </details>
+
+      <p class="foot">
+        Looking for the published pages instead? They are static snapshots and go stale:
+        <a href="../">BacAtlas</a>.
+      </p>
+    </main>
+
+    <script>
+      // ⚠ A probe that CANNOT distinguish "not running" from "not allowed to ask". Chrome's Private
+      // Network Access can refuse this request from a public page, so a rejection means only that
+      // the answer is unknown — the page opens the door either way and never claims the stack is down.
+      const status = document.getElementById("status");
+      const controller = new AbortController();
+      const giveUp = setTimeout(() => controller.abort(), 1500);
+
+      fetch("http://127.0.0.1:8080/api/v1/health", { mode: "no-cors", signal: controller.signal })
+        .then(() => {
+          clearTimeout(giveUp);
+          status.textContent = "It is running — opening it now.";
+          // Top-level navigation, not a subresource: allowed from HTTPS, in every browser.
+          window.location.replace("http://127.0.0.1:8080/");
+        })
+        .catch(() => {
+          clearTimeout(giveUp);
+          status.textContent =
+            "Could not reach it from here — either it is not running, or the browser would not let this page ask. Try the button.";
+          document.getElementById("howto").open = true;
+        });
+    </script>
+  </body>
+</html>
