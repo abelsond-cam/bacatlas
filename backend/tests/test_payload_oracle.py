@@ -15,7 +15,8 @@ from pathlib import Path
 
 import pytest
 
-from tests.payload_oracle import CONTIG_END, COS6_PAIRS, NOWHERE, OFFSETS, load_catalogue
+from tests.known_parity_exceptions import RETIRED_TIER
+from tests.payload_oracle import CONTIG_END, OFFSETS, _b64_int16, _b64_int32, load_catalogue
 
 CATALOGUE_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -31,8 +32,16 @@ def ecoli():
 
 
 def test_the_catalogue_is_the_one_the_live_page_serves(ecoli):
-    """Pin what this oracle actually is, so a re-export cannot silently change the baseline."""
-    assert ecoli.schema_version == 14
+    """Pin what this oracle actually is, so a re-export cannot silently change the baseline.
+
+    ⭐ **Re-baselined 14 → 16 on 2026-10-03, and this test fired exactly as designed.** Both pages
+    were re-exported at schema 16 and republished; the schema-14 files are archived at
+    `~/developer/nuna/data/browser/retired_schema14/*.schema14.json`. ⚠ The pin was the ONLY thing
+    that noticed — and when it moved it also exposed that the rebuild's own
+    `INGESTED_PAYLOAD_SCHEMA` had read 14 since the 2026-09-25 re-ingest made the rows schema 16.
+    Two stale numbers agreeing is why neither was visible until one of them moved.
+    """
+    assert ecoli.schema_version == 16
     assert ecoli.meta["model_label"] == "ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL"
     assert ecoli.meta["n_genomes"] == 100
     assert ecoli.n_loci == 17_531
@@ -193,74 +202,68 @@ def test_the_joint_and_the_marginal_are_consistent_in_the_direction_that_holds(e
     assert checked > 30_000, f"only {checked:,} occupant rows checked"
 
 
-def test_a_dropped_map_neighbour_takes_its_slot_with_it(ecoli):
-    """⛔ Slots are not ranks. A `-1` removes the slot; the survivors keep their original indices.
+def test_an_ABSENT_nearest_locus_drops_its_slot_and_is_not_a_similarity_of_zero(ecoli):
+    """⛔ The rule the retired `map_reps` tests could only check SYNTHETICALLY, now on live data.
 
-    ⚠ **This catalogue contains no dropped neighbour**, checked over all 17,531 loci in both
-    representations — every locus has all five. So the rule is exercised here only synthetically,
-    and that is recorded rather than left as a pass that examined nothing: a suite that "passes"
-    because the case does not occur has proved nothing about the case.
+    Those three tests asserted `dropped_seen == 0` and `absent == {bacformer: 0, esm: 0}` — they
+    recorded a non-occurrence, and said so honestly. The rule moved to `sim.near_i` when the medoid
+    geometry was withdrawn on 2026-09-24, and there it **happens**: thousands of loci have fewer than
+    `k` neighbours in the catalogue.
+
+    ⚠ **And the hazard is sharper than it was.** `near_v` at a dropped slot is `0`, while Bacformer's
+    real cross-locus medians go NEGATIVE — so a consumer that reads the value without consulting
+    `near_i` reads an absent neighbour as *more similar* than a real one. That is the `gaps.vi` trap
+    again, in the one block schema 16 added and nothing had tested.
     """
-    dropped_seen = 0
-    checked = 0
+    absent = {}
     for representation in ("bacformer", "esm"):
-        for i in range(ecoli.n_loci):
-            slots = ecoli.map_neighbour_slots(representation, i)
-            indices = [slot for slot, _ in slots]
-            assert indices == sorted(indices)
-            assert all(1 <= slot <= 5 for slot in indices)
-            if len(slots) < 5:
-                dropped_seen += 1
-            checked += 1
+        block = ecoli.sim_block(representation)
+        k, scale = block["k"], block["cos_scale"]
+        assert k == 5
+        gone = 0
+        for index in range(ecoli.n_loci):
+            neighbours = ecoli.sim_neighbours(representation, index)
+            slots = [slot for slot, _, _ in neighbours]
+            assert slots == sorted(slots), "slots must stay in rank order"
+            assert all(0 <= slot < k for slot in slots)
+            assert len({target for _, target, _ in neighbours}) == len(neighbours), "a repeated neighbour"
+            assert all(0 <= target < ecoli.n_loci for _, target, _ in neighbours), "an out-of-catalogue index"
+            assert all(-1.0001 <= cosine <= 1.0001 for _, _, cosine in neighbours)
+            gone += k - len(neighbours)
+        absent[representation] = gone
+        # ⛔ The rule is EXERCISED, not merely stated: if this ever reaches 0 the test has gone back
+        # to proving nothing and should be re-pointed at whatever block carries the sentinel then.
+        assert gone > 0, f"{representation} has no absent slot — this test is synthetic again"
 
-    assert checked == 2 * ecoli.n_loci
-    assert dropped_seen == 0, (
-        f"{dropped_seen:,} loci now carry a dropped map neighbour where the published catalogue had "
-        "none — the real path is live and this test should assert against it, not synthetically"
-    )
-    # The synthetic case, so the rule is nonetheless covered.
-    from tests.payload_oracle import COS6_PAIRS as _pairs
+        # ⚠ Every absent slot's VALUE is 0, and 0 is not below the live range.
+        values = [value / scale for value in _b64_int16(block["near_v"])]
+        indices = _b64_int32(block["near_i"])
+        assert {value for value, target in zip(values, indices, strict=True) if target == -1} == {0.0}
+        live = [value for value, target in zip(values, indices, strict=True) if target != -1]
+        assert min(live) < 0.0 if representation == "bacformer" else min(live) > 0.0
 
-    assert len(_pairs) == 15
-
-
-def test_the_cosine_matrix_is_symmetric_with_a_unit_diagonal_on_live_slots(ecoli):
-    """The 15 stored values, in `COS6_PAIRS` order, must resolve to a real 6×6."""
-    checked = 0
-    for representation in ("bacformer", "esm"):
-        for i in range(0, ecoli.n_loci, 23):
-            matrix = ecoli.map_cosine_matrix(representation, i)
-            live = [slot for slot in range(6) if matrix[slot][slot] is not None]
-            for a in live:
-                assert matrix[a][a] == 1.0
-                for b in live:
-                    assert matrix[a][b] == matrix[b][a]
-                    assert -1.0001 <= matrix[a][b] <= 1.0001
-            for slot in set(range(6)) - set(live):
-                assert all(matrix[slot][b] is None for b in range(6)), "a dropped slot carries values"
-            checked += 1
-
-    assert len(COS6_PAIRS) == 15
-    assert checked > 1_400, f"only {checked:,} loci checked"
+    # Recorded so a change in the catalogue is visible rather than absorbed.
+    assert absent == {"bacformer": 1_622, "esm": 3_525}, absent
 
 
-def test_a_locus_with_no_medoid_reads_as_absent_and_not_as_the_origin(ecoli):
-    """`0,0` is the middle of the map, which is a place, so an absent position gets a sentinel.
+def test_the_sim_block_measures_the_same_catalogue_the_tier_column_does(ecoli):
+    """⭐ A three-way cross-check the medoid tests had no way to make.
 
-    ⚠ **Every locus in this catalogue has a medoid in both representations** — 0 of 17,531 use the
-    sentinel. Recorded, not asserted away: the count is what a later catalogue would change.
+    `within` is `null` for exactly the loci with no within-locus pair — the singletons — and the tier
+    is absent for exactly the loci the audit could not place. Those are the same population, and the
+    block DECLARES its own count. All three must agree or the payload is describing two catalogues.
     """
-    absent = {
-        rep: sum(1 for i in range(ecoli.n_loci) if ecoli.map_position(rep, i) is None)
-        for rep in ("bacformer", "esm")
-    }
-    assert absent == {"bacformer": 0, "esm": 0}, (
-        f"the sentinel is now in use ({absent}); the real path is live and should be asserted against"
-    )
-    assert NOWHERE == -32768
-    # `0,0` must not be read as absent, which is the whole reason the sentinel is not the origin.
-    origin_loci = [i for i in range(ecoli.n_loci) if ecoli.map_position("esm", i) == (0, 0)]
-    assert all(ecoli.map_position("esm", i) is not None for i in origin_loci)
+    for representation in ("bacformer", "esm"):
+        block = ecoli.sim_block(representation)
+        measurable = [value is not None for value in block["within"]]
+        assert len(measurable) == ecoli.n_loci
+        assert sum(measurable) == block["n_measurable"] == 12_104
+        tiered = [value >= 0 for value in ecoli.nodes["tier"]]
+        assert measurable == tiered, "the sim block and the tier column disagree about which loci exist"
+    # ⚠ The two representations must agree with each other too — one catalogue, measured twice.
+    assert [v is None for v in ecoli.sim_block("esm")["within"]] == [
+        v is None for v in ecoli.sim_block("bacformer")["within"]
+    ]
 
 
 def test_absence_from_the_sparse_variance_index_is_a_MEASURED_ZERO(ecoli):
@@ -355,18 +358,23 @@ def test_an_absent_string_index_is_none_and_never_the_zeroth_string(ecoli):
     assert ecoli.string("sym", ecoli.nodes["name"][unnamed[0]]) is None
 
 
-def test_the_only_tier_difference_from_the_frozen_page_is_the_recorded_one(ecoli):
-    """⛔ Parity is an ALLOWLIST of named loci, never a tolerance.
+def test_the_tier_pool_round_trips_the_audit_artifact_it_was_exported_from(ecoli):
+    """⛔ Parity is an invariant now, not an allowlist — and the PREMISE changed, not just the list.
 
-    The local audit artifacts were regenerated after the pages were published, so they are not the
-    files the pages were built from. This asserts that the whole of that drift is the one recorded
-    exception — and, just as importantly, that it is not LARGER than recorded.
+    This used to say: *"the local audit artifacts were regenerated after the pages were published,
+    so they are not the files the pages were built from"*, and allowed the 2 loci that drift caused.
+    That is no longer true. The pages were **re-exported on 2026-10-03 from these very artifacts**,
+    so the right assertion is that the interned tier pool round-trips the CSV it came from, on every
+    locus — which is a stronger claim than the allowlist it replaces, and one that would fail if a
+    future re-export ever interned the pool against a different audit.
+
+    ⚠ Narrowing the allowlist to an empty set would have left `assert set() == frozenset()`, green
+    forever. The denominator is asserted first for the same reason: a comparison that examined
+    nothing also finds nothing differing.
     """
     import csv
     import os
     from pathlib import Path
-
-    from tests.known_parity_exceptions import AUDIT_TIER_RETIREMENT
 
     data_root = Path(os.environ.get("BACATLAS_NUNA_DATA_ROOT", "~/developer/nuna/data")).expanduser()
     label = "ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL"
@@ -391,8 +399,8 @@ def test_the_only_tier_difference_from_the_frozen_page_is_the_recorded_one(ecoli
             differing[label_text] = (tiers[index], current[label_text])
 
     assert compared == 12_104, f"only {compared:,} loci carried a tier on both sides"
-    assert set(differing) == AUDIT_TIER_RETIREMENT.node_labels, (
-        f"tier differences outside the recorded exception: {differing}"
-    )
-    for frozen, now in differing.values():
-        assert (frozen, now) == (AUDIT_TIER_RETIREMENT.frozen_value, AUDIT_TIER_RETIREMENT.current_value)
+    assert differing == {}, f"the page's tier disagrees with the audit on {len(differing)} loci: {differing}"
+    # ⭐ And the retired name is in neither the pool nor the artifact — the retirement as an
+    # invariant rather than as a tolerated difference.
+    assert RETIRED_TIER not in tiers
+    assert RETIRED_TIER not in set(current.values())

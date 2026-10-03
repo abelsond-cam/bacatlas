@@ -35,7 +35,7 @@ from bacatlas_backend.models.locus_arrangement import LocusArrangement
 from bacatlas_backend.models.locus_offset_occupant import LocusOffsetOccupant
 from bacatlas_backend.models.pangenome import Pangenome
 from tests.conftest import NUNA_DATA_ROOT, PUBLISHED_SITE_CATALOGUE_DIR
-from tests.known_parity_exceptions import exceptions_for, symbol_fold_for
+from tests.known_parity_exceptions import RETIRED_TIER, exceptions_for, symbol_fold_for
 from tests.payload_oracle import OFFSETS, load_catalogue
 
 #: The `lists.<key>` → `AnnotationKind` map, so one comparison serves all seven vocabularies.
@@ -203,26 +203,40 @@ def test_T5_the_modal_cog_category_is_a_SET_and_rejoins_to_the_payload_string(pa
     assert multi > 0, "no locus has a multi-letter category set — the array would be untested"
 
 
-def test_T5_the_only_tier_difference_is_the_named_allowlist_and_it_is_exactly_two_loci(parity):
-    """⛔ A named exception, never a tolerance. The 2026-09-04 audit re-run retired `no_homology`.
+#: How many loci carry a tier at all, per species — the denominator this comparison runs over, so
+#: "they all agree" is a claim about a measured population and not about an empty one.
+TIER_BEARING_LOCI = {"ecoli": 12_104, "kp": 11_272}
 
-    ⚠ Scoped to the species the allowlist names, and BOTH species moved: jobs 34897030/34897031
-    re-ran the pair together, so *E. coli* has 2 loci and kp has 6. The set is asserted exactly —
-    a locus moving outside it is a new difference wearing an old label.
+
+def test_T5_the_tier_column_matches_the_catalogue_on_EVERY_locus(parity):
+    """⭐ Replaced `…the_only_tier_difference_is_the_named_allowlist…` on 2026-10-03.
+
+    It recorded that the 2026-09-04 audit re-run retired `no_homology` while the published pages
+    predated it, so 2 ecoli / 6 kp loci read `no_homology` on the page and `synteny_only` in the
+    database. **Both pages were re-exported at schema 16 on 2026-10-03**, so the allowlist is empty.
+
+    ⛔ **Rewritten as a positive gate rather than narrowed to an empty allowlist.** Narrowing would
+    have left this asserting `set() == frozenset()` and the loop below dead — green forever, gating
+    nothing, which is the "tolerance" `known_parity_exceptions`' own docstring exists to forbid. The
+    retirement is now an INVARIANT to hold, not a difference to tolerate.
     """
     catalogue, _, loci, _, entry = parity
-    exception = exceptions_for(entry.species_key, "collapse_tier")
-    assert exception is not None, f"{entry.species_key} has no recorded tier exception"
-    expected_moves = exception.node_labels
     moved = [
-        locus.node_label
+        (locus.node_label, locus.collapse_tier, catalogue.string("tier", catalogue.nodes["tier"][index]))
         for index, locus in enumerate(loci)
         if not _same(locus.collapse_tier, catalogue.string("tier", catalogue.nodes["tier"][index]))
     ]
-    assert set(moved) == expected_moves
-    for locus in loci:
-        if locus.node_label in expected_moves:
-            assert locus.collapse_tier == exception.current_value
+    assert moved == [], f"{len(moved)} loci disagree on tier: {moved[:5]}"
+    # ⛔ Coverage BEFORE the agreement is reported. `_same` treats None leniently and a comparison
+    # over an all-None column also finds nothing moved, so both sides state their measured count.
+    assert sum(1 for locus in loci if locus.collapse_tier is not None) == TIER_BEARING_LOCI[entry.species_key]
+    assert sum(1 for value in catalogue.nodes["tier"] if value >= 0) == TIER_BEARING_LOCI[entry.species_key]
+    # ⭐ And the retired name is in neither the pool nor the database — the needle `RETIRED_TIER` is
+    # kept in the registry for.
+    assert RETIRED_TIER not in catalogue.raw["strings"]["tier"]
+    assert RETIRED_TIER not in {locus.collapse_tier for locus in loci}
+    # ⚠ A re-added tolerance has to be deliberate: there is no recorded exception for this column now.
+    assert exceptions_for(entry.species_key, "collapse_tier") is None
 
 
 def test_T5_the_annotation_lists_match_row_for_row_in_every_vocabulary(parity):

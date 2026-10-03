@@ -31,9 +31,9 @@ from bacatlas_backend.ingest.derive_locus_ranking import (
     build_interest_inputs,
     interest_score,
     landing_index,
-    midrank_percentiles,
     pfam_concordance,
     ranking,
+    similarity_index,
 )
 from tests.conftest import PUBLISHED_SITE_CATALOGUE_DIR
 from tests.payload_oracle import load_catalogue
@@ -189,43 +189,49 @@ def test_negative_does_NOT_mean_barred_and_both_counts_are_measured(scored_ecoli
     assert sum(1 for score in scores if score < 0 and score != BARRED_SENTINEL) == 912
 
 
-def _measurable(catalogue, intra: str, near: str) -> list[float | None]:
-    """The published catalogue's separations, ranked with the helper the ingest now uses.
+def _measurable(catalogue, representation: str) -> tuple[list[float | None], int]:
+    """The published catalogue's separation percentiles, ranked with the helper the ingest uses.
 
-    ⛔ **The MEASURE changed on 2026-09-24; the measurable SET did not.** These columns are the
-    retired medoid geometry, frozen inside the published site catalogue — the parity oracle, which
-    does not move. What is asserted below is a fact about the CATALOGUE (which loci can be measured
-    at all, and therefore what denominator the card prints), and a singleton has no within-locus pair
-    under either construction. So the same 12,104 / 5,427 / 31 hold for `locus_similarity`, and the
-    ingest asserts its own copy of that count against the artifact's declaration.
+    ⛔ **The MEASURE changed on 2026-09-24; the measurable SET did not — and this helper had to be
+    re-pointed on 2026-10-03 to keep saying so.** It used to read `nodes.{esm,bac}_d_{intra,near}`,
+    the retired medoid geometry, and its own docstring called those "frozen inside the published site
+    catalogue — the parity oracle, which does not move". The oracle DID move: both pages were
+    re-exported at schema 16, those four columns no longer exist, and this raised `KeyError:
+    'esm_d_intra'`. The numbers it asserts are unchanged — 12,104 / 5,427 / 5,458 / 31 all hold
+    against the `sim` block, because a singleton has no within-locus pair under either construction.
+
+    ⛔ **`raw["sim"]`, never `raw.get("sim", {})`.** A missing block must raise here. `payload_oracle`
+    already degrades silently on the two it lost (`.get("map_reps", [])`, `.get("null", {})`), and an
+    accessor that returns empty would make `unmeasurable` the empty set — which passes the `<=`
+    subset assertion below trivially. *Not looked at* must not be spellable as *no difference*.
     """
-    separation = [
-        None if a is None or b is None else float(b) - float(a)
-        for a, b in zip(catalogue.nodes[intra], catalogue.nodes[near], strict=True)
-    ]
-    percentile, _ = midrank_percentiles(separation)
-    return percentile
+    block = catalogue.raw["sim"][representation]
+    index = similarity_index(
+        block["within"], block["near"], block["weak_in"], block["weak_out"], block["own"]
+    )
+    return index.separation_percentile, int(block["n_measurable"])
 
 
 def test_the_separation_denominator_is_the_number_the_card_prints(scored_ecoli):
     """*"p12 of 12,104 loci"* — and the 5,427 singletons are NULL, never 0.000."""
     catalogue, _ = scored_ecoli
-    for representation, intra, near in (
-        ("esm", "esm_d_intra", "esm_d_near"),
-        ("bacformer", "bac_d_intra", "bac_d_near"),
-    ):
-        percentile = _measurable(catalogue, intra, near)
+    for representation in ("esm", "bacformer"):
+        percentile, declared = _measurable(catalogue, representation)
         measurable = sum(1 for value in percentile if value is not None)
         assert measurable == 12_104, representation
         assert sum(1 for value in percentile if value is None) == catalogue.n_loci - 12_104
         assert all(0.0 <= value <= 1.0 for value in percentile if value is not None)
+        # ⭐ The block DECLARES its own measurable count; the ranking MEASURES one. Checking the two
+        # against each other is free and is the only thing that catches a payload whose declaration
+        # and whose columns describe different catalogues.
+        assert declared == measurable, representation
 
 
 def test_the_measurable_set_is_the_MEASUREMENT_and_not_the_prevalence_band(scored_ecoli):
     """⚠ `RARE` covers 5,458 loci and only 5,427 are unmeasurable — the extra 31 are paralogues
     inside one genome, which DO have a within-locus pair. Gating on the band would blank all 31."""
     catalogue, _ = scored_ecoli
-    percentile = _measurable(catalogue, "esm_d_intra", "esm_d_near")
+    percentile, _declared = _measurable(catalogue, "esm")
     rare = catalogue.meta["bands"].index("rare")
     unmeasurable = {i for i, value in enumerate(percentile) if value is None}
     rare_loci = {i for i, band in enumerate(catalogue.nodes["band"]) if band == rare}

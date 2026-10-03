@@ -27,46 +27,19 @@ class ParityException:
     reason: str
 
 
-#: ⛔ **The published pages were built on 2026-08-25 at git `41e94f4`; the local audit artifacts were
-#: regenerated on 2026-09-04 to produce the cluster tables that had never been written.** The re-run
-#: overwrote the waterfall CSV and the audit summary, and they are not byte-identical to the ones
-#: the pages were built from.
-#:
-#: The whole of that difference is the retirement of one tier name. `no_homology` **is retired by
-#: decision** — it meant *not measured*, not *nothing found* — so the current code no longer emits
-#: it, and the two loci that carried it sit at `synteny_only`, which is where the evidence always
-#: put them. `synteny_only` names the EVIDENCE, not a mistake.
-#:
-#: Measured over all 12,104 loci that carry a tier: **12,102 identical, 2 differ.** Every other
-#: audit-headline key is identical except the six that are arithmetic consequences of those two
-#: loci (`synteny_only_n_clusters` 8→10, `synteny_only_n_genes` 164→168, `synteny_only_gene_rate`,
-#: and the three `no_homology_*` keys going to zero).
-AUDIT_TIER_RETIREMENT = ParityException(
-    species_key="ecoli",
-    column="collapse_tier",
-    node_labels=frozenset({"10252", "10515"}),
-    frozen_value="no_homology",
-    current_value="synteny_only",
-    reason=(
-        "`no_homology` is retired — it meant *not measured*, not *nothing found*. The published "
-        "page predates the retirement; the current artifacts postdate it. Two loci, both moving to "
-        "`synteny_only`, which is what the evidence always said."
-    ),
-)
-
-#: ⚠ **The same retirement, in kp — SIX loci, not two.** Jobs 34897030/34897031 re-ran both species
-#: in the same pair, so this was always going to be two entries; it was written as one because only
-#: *E. coli* had been measured. Found by running the parity suite over kp, which is the whole reason
-#: the suite is parameterised over both species rather than over the one that was convenient.
-#: Same cause, same direction, same single tier name: **15,664 of 15,670 identical, 6 differ.**
-AUDIT_TIER_RETIREMENT_KP = ParityException(
-    species_key="kp",
-    column="collapse_tier",
-    node_labels=frozenset({"8391", "8467", "9756", "9968", "10070", "10289"}),
-    frozen_value="no_homology",
-    current_value="synteny_only",
-    reason=AUDIT_TIER_RETIREMENT.reason.replace("Two loci", "Six loci"),
-)
+# ⛔ **`AUDIT_TIER_RETIREMENT` and `AUDIT_TIER_RETIREMENT_KP` were DELETED on 2026-10-03, and that is
+# the result they were written to produce.** They recorded that the published pages (2026-08-25, git
+# `41e94f4`) predated the retirement of the tier name `no_homology`, so 2 ecoli and 6 kp loci read
+# `no_homology` on the page and `synteny_only` in the database. Both pages were **re-exported at
+# schema 16 on 2026-10-03** from the current artifacts, so the page and the database now agree on the
+# tier of every locus — 17,531 ecoli and 15,670 kp, with non-null counts matching at 12,104 / 11,272
+# so the agreement is not a None-vs-string comparison quietly passing.
+#
+# ⚠ **They were deleted, not narrowed to `frozenset()`.** An empty exception leaves its test asserting
+# `set() == frozenset()`, which passes forever and gates nothing — precisely the "tolerance" this
+# module's docstring exists to forbid. The tests that consulted them now assert the POSITIVE
+# invariant instead: the tier agrees on every locus, over a stated count, and `RETIRED_TIER` appears
+# in neither the string pool nor the database. `RETIRED_TIER` below is kept as that needle.
 
 # ── the allele-variant symbol fold ──────────────────────────────────────────────────
 @dataclass(frozen=True)
@@ -171,8 +144,6 @@ SYMBOL_FOLD_COLUMN_KP = ParityException(
 
 #: Everything, indexed for a suite to consult.
 KNOWN_PARITY_EXCEPTIONS: tuple[ParityException, ...] = (
-    AUDIT_TIER_RETIREMENT,
-    AUDIT_TIER_RETIREMENT_KP,
     SYMBOL_FOLD_COLUMN_ECOLI,
     SYMBOL_FOLD_COLUMN_KP,
 )
@@ -191,18 +162,30 @@ def exceptions_for(species_key: str, column: str) -> ParityException | None:
 #: reproduce is four blocks, and all four have this one cause. Recorded as an explicit set so the
 #: reproduction suite asserts *these four and no others* rather than counting to four.
 #:
-#: * `nodes.tier`   — the 2 (ecoli) / 6 (kp) loci above, by label.
-#: * `strings.tier` — `no_homology` was the 14th interned string and is now never interned, so the
-#:   pool is one shorter. ⚠ Nothing else moves: it was interned LAST, so no other index shifts —
-#:   which is luck, not design, and is why the suite checks the pool rather than assuming.
-#: * `meta.audit`   — six headline keys, every one an arithmetic consequence of those loci moving.
-#:   `failures` does NOT move: `synteny_only` and `no_homology` are both in `POLICY["failure_tiers"]`,
-#:   so the set of graded failures is identical and only its composition changed.
-#: * `meta.omitted` — the audit re-ran with `--skip-seqid-to-medoid`, which the database records and
-#:   the older payload had no way to say.
-AUDIT_RERUN_PAYLOAD_BLOCKS: frozenset[str] = frozenset(
-    {"nodes.tier", "strings.tier", "meta.audit", "meta.omitted"}
-)
+#: ⛔ **Two of the four went on 2026-10-03 and two did NOT, and the two that stayed are different in
+#: kind from the two that left.**
+#:
+#: Gone, because the re-export at schema 16 made the page and the database agree:
+#: * ~~`nodes.tier`~~   — the 2 (ecoli) / 6 (kp) loci now read `synteny_only` on both sides.
+#: * ~~`strings.tier`~~ — `no_homology` was interned LAST, so dropping it shifted no other index.
+#:   That was luck, not design, which is why the suite checks the pool rather than assuming it.
+#:
+#: Still here, and **neither is a re-export away** — both are things the DATABASE cannot say:
+#: * `meta.audit` — ⛔ **not the six headline keys any more; they stopped moving.** What differs now
+#:   is `sources`, and it is a defect on the database side, not the page's: `payload_serialiser`
+#:   HARD-CODES the list as `[{label}_pfam_concordance.tsv, {label}_audit_summary.json]`, and no
+#:   column anywhere on `pangenome` records which files the audit numbers came from. The 2026-08-25
+#:   export named those two because `{label}_cluster_table.parquet` did not exist yet (it is dated
+#:   2026-09-04); the 2026-10-03 export read the parquet and names three — correctly, since the
+#:   exporter builds the list from files it actually opened. **The ingest read the same three**
+#:   (`catalogue_frames.load_audit_evidence` prefers the parquet), so the literal under-reports the
+#:   ingest's own inputs. ⚠ Until a column stores them, this is a standing gap in the claim that the
+#:   database is a lossless superset of the catalogue — recorded here so it is visible rather than
+#:   papered over by widening the literal to three names, which would hide it again until the audit
+#:   directory next changes. **A schema decision for David, not one to take here.**
+#: * `meta.omitted` — the audit ran with `--skip-seqid-to-medoid`, which the database records and the
+#:   payload still has no way to say. (`seqid_coverage` is NULL on all 17,531 ecoli loci, measured.)
+AUDIT_RERUN_PAYLOAD_BLOCKS: frozenset[str] = frozenset({"meta.audit", "meta.omitted"})
 
 #: ⛔ **The medoid geometry's retirement, 2026-09-24 — a THIRD recorded cause, and a temporary one.**
 #:
@@ -211,36 +194,35 @@ AUDIT_RERUN_PAYLOAD_BLOCKS: frozenset[str] = frozenset(
 #: database no longer has anything to build, and the database carries `sim` that the payload has no
 #: key for. `nodes` differs too, on the four `*_d_*` columns.
 #:
-#: ⚠ **This set must SHRINK TO EMPTY when both species are re-exported at schema 16**, which is the
-#: last step of the rebuild. It is recorded rather than excluded so that the day it stops being true
-#: is a failing test and not a silence — the same reason the other two causes are enumerated instead
-#: of being subtracted from the comparison.
-#: ⚠ These are the difference LINES verbatim, not block names: a block that is absent on one side is
-#: reported as added or removed rather than as changed, and `schema` is deliberately NOT among them
-#: because `INGESTED_PAYLOAD_SCHEMA` pins the rebuild to the schema its rows came from.
-MEDOID_RETIREMENT_PAYLOAD_BLOCKS: frozenset[str] = frozenset(
-    {
-        "REMOVED top-level block 'map_reps'",
-        "REMOVED top-level block 'null'",
-        "ADDED unexpected top-level block 'sim'",
-        "nodes: REMOVED column 'esm_d_intra'",
-        "nodes: REMOVED column 'esm_d_near'",
-        "nodes: REMOVED column 'bac_d_intra'",
-        "nodes: REMOVED column 'bac_d_near'",
-    }
-)
+#: ✅ **EMPTIED 2026-10-03, which is what it was written to do.** Both species were re-exported at
+#: schema 16 and republished, so the payload and the database describe the same world: `map_reps` and
+#: `null` are gone from both, the four `*_d_*` columns are gone from both, and `sim` is present in
+#: both — **byte-identical**, 30 columns over 175,334 ecoli / 156,724 kp elements.
+#:
+#: ⛔ **Kept as an empty frozenset rather than deleted, and the difference matters.** The reproduction
+#: suite subtracts this set from what it found; an empty set subtracts nothing, so any one of these
+#: seven lines coming back is a FAILURE naming itself. Deleting the constant would delete that guard
+#: along with it. The day one of these blocks reappears is the day a payload and a database have
+#: drifted apart again, and it should look exactly like it did on 2026-09-24.
+#:
+#: ⚠ The entries were difference LINES verbatim, not block names: a block absent on one side is
+#: reported as added or removed rather than as changed.
+#: ⛔ `schema` was NOT among them, and that sentence used to end "because `INGESTED_PAYLOAD_SCHEMA`
+#: pins the rebuild to the schema its rows came from" — which was the excuse that hid a real defect.
+#: The pin had said 14 since the 2026-09-25 re-ingest made the rows schema 16, so the rebuild stamped
+#: a schema-16-shaped payload `"schema": 14` and the frozen schema-14 oracle agreed with it. Two
+#: stale numbers in the same direction. Re-exporting the oracle separated them and `schema` failed
+#: immediately; see `payload_serialiser.INGESTED_PAYLOAD_SCHEMA`.
+MEDOID_RETIREMENT_PAYLOAD_BLOCKS: frozenset[str] = frozenset()
 
-#: The six audit-headline keys that move, and only these six.
-AUDIT_RERUN_HEADLINE_KEYS: frozenset[str] = frozenset(
-    {
-        "synteny_only_n_clusters",
-        "synteny_only_n_genes",
-        "synteny_only_gene_rate",
-        "no_homology_n_clusters",
-        "no_homology_n_genes",
-        "no_homology_gene_rate",
-    }
-)
+#: ✅ **EMPTIED 2026-10-03.** These six were arithmetic consequences of the 2/6 loci that moved tier,
+#: so they went when the tier difference did: all 21 headline keys now hold equal values on both
+#: species. Kept empty for the same reason as `MEDOID_RETIREMENT_PAYLOAD_BLOCKS` — the suite asserts
+#: the moved set EQUALS this, so a key that starts moving again fails by name.
+#:
+#: ⚠ The three `no_homology_*` keys are still EMITTED, at 0, even though the tier name itself is gone
+#: from the pool. A reader looking for the retirement in the headline will not find it there.
+AUDIT_RERUN_HEADLINE_KEYS: frozenset[str] = frozenset()
 
 #: The tier name that no longer exists, and therefore no longer enters the pool.
 RETIRED_TIER = "no_homology"

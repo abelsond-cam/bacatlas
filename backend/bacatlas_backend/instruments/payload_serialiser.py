@@ -46,7 +46,22 @@ from bacatlas_backend.models.locus import Locus
 #: schema-16 payload while carrying schema-14 rows, with the byte-identity test as the sole signal. A
 #: rebuild reproduces a SPECIFIC published artifact, so the number belongs to the artifact. It moves in
 #: the same commit as the re-ingest that changes what is in these tables — never before it.
-INGESTED_PAYLOAD_SCHEMA = 14
+#:
+#: ⛔ **14 → 16 on 2026-10-03, and it was ALREADY WRONG when this was written.** The rule above is
+#: right and was broken in the other direction: migration `858439e8fd7c` (2026-09-24) dropped the four
+#: `*_d_*` medoid columns and the map/null tables and added `locus_similarity`, and the re-ingest that
+#: filled them ran on **2026-09-25** (`pangenome.ingested_at` 08:35 ecoli / 08:42 kp). The pin did not
+#: move with it. So from 2026-09-25 this rebuild emitted a **schema-16-SHAPED payload stamped
+#: `"schema": 14`** — carrying `sim`, omitting `map_reps`, `null` and the four `*_d_*` columns — which
+#: no schema-14 reader could consume.
+#:
+#: ⚠ **Why nothing caught it for eight days.** `test_every_other_block_is_BYTE_IDENTICAL…` compares
+#: `schema` against the oracle, and the oracle was the frozen **schema-14** page: the stale pin and the
+#: stale oracle were wrong in the SAME direction, so they agreed. Two wrongs agreeing is exactly what
+#: that test's own comment claims it is proof against. Nothing else looks: nuna's `diff_payloads` skips
+#: the key outright (`verify_payload_invariance.py:120-121`). Re-exporting the oracle at schema 16 is
+#: what separated them, and it failed immediately — `assert 16 == 14`.
+INGESTED_PAYLOAD_SCHEMA = 16
 
 
 def _payload_constants():

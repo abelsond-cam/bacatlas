@@ -28,7 +28,6 @@ from tests.known_parity_exceptions import (
     AUDIT_RERUN_PAYLOAD_BLOCKS,
     MEDOID_RETIREMENT_PAYLOAD_BLOCKS,
     RETIRED_TIER,
-    exceptions_for,
     symbol_fold_for,
 )
 
@@ -70,24 +69,24 @@ def report(rebuilt):
 def test_the_rebuild_examines_EVERY_block_and_states_what_it_compared(species, report):
     """⛔ "Four differences" over four blocks and over forty read the same. Coverage is the claim."""
     result = report[species]
-    # ⛔ THREE blocks are legitimately not examined, and naming them is the point: `map_reps` and
-    # `null` exist only in the frozen schema-14 payload and `sim` only in the schema-16 rebuild, so
-    # there is nothing to compare either against. ⚠ *Not looked at* and *no difference* are
-    # indistinguishable in an output unless they are made different, which is why this is an
-    # enumerated set and not a shortened one. It empties when both species are re-exported.
-    assert sorted(result.blocks_not_examined) == [
-        "map_reps (only in published)",
-        "null (only in published)",
-        "sim (only in rebuilt)",
-    ], result.render()
+    # ✅ **EMPTY since 2026-10-03, and that is a stronger claim than the list it replaced.** Three
+    # blocks used to be unexaminable: `map_reps` and `null` existed only in the frozen schema-14
+    # payload and `sim` only in the schema-16 rebuild, so neither side had a counterpart. Both pages
+    # were re-exported at schema 16, so every block now exists on both sides and every block is
+    # compared — including `sim`, the one the medoid geometry was replaced BY, which until now had
+    # never been checked against the database at all.
+    # ⚠ *Not looked at* and *no difference* are indistinguishable in an output unless they are made
+    # different. That is why this asserts the empty list rather than dropping the assertion.
+    assert result.blocks_not_examined == [], result.render()
     assert set(result.blocks_compared) == {
-        "schema", "meta", "strings", "nodes", "lists", "arr", "ctx", "gaps",
+        "schema", "meta", "strings", "nodes", "lists", "arr", "ctx", "gaps", "sim",
     }  # fmt: skip
-    # ⚠ 114 → 103: the four `nodes.*_d_*` columns went, and `map_reps`/`null` are no longer compared
-    # column by column. The floor is lowered rather than removed — it is what stops a rebuild that
-    # quietly stopped emitting half the catalogue from reading as agreement.
-    assert result.columns_compared >= 103
-    assert result.elements_compared > 3_400_000
+    # ⚠ 103 → 125: the four `nodes.*_d_*` columns went and `sim`'s 30 arrived, over both
+    # representations. The floor is RAISED with the coverage, never left behind — it is what stops a
+    # rebuild that quietly stopped emitting half the catalogue from reading as agreement, and a floor
+    # that no longer tracks what is actually compared has stopped doing that job.
+    assert result.columns_compared >= 125
+    assert result.elements_compared > 3_500_000
 
 
 @pytest.mark.parametrize("species", SPECIES)
@@ -221,47 +220,87 @@ def test_the_symbol_POOL_loses_only_the_tagged_names(species, rebuilt):
     assert mine - published <= {fold_allele_variant(name) for name in tagged}
 
 
+#: How many loci carry a tier at all, per species — the DENOMINATOR, so "they all agree" is a claim
+#: about a measured population rather than about an empty one. Read from the audit's own waterfall
+#: CSV, which has exactly this many rows with a non-blank `bucket_esm`.
+TIER_BEARING_LOCI = {"ecoli": 12_104, "kp": 11_272}
+
+
 @pytest.mark.parametrize("species", SPECIES)
-def test_nodes_tier_differs_on_exactly_the_loci_the_registry_names(species, rebuilt):
-    published = _published(species)
-    exception = exceptions_for(species, "collapse_tier")
+def test_nodes_tier_AGREES_on_every_locus_now_the_pages_carry_the_current_audit(species, rebuilt):
+    """⭐ This replaced `…differs_on_exactly_the_loci_the_registry_names` on 2026-10-03.
+
+    ⛔ **It is a positive gate on purpose.** The registry entry it used to consult named 2 ecoli / 6
+    kp loci that read `no_homology` on the 2026-08-25 page and `synteny_only` in the database. Both
+    pages were re-exported, so that set is empty — and the lazy fix, narrowing the exception to
+    `frozenset()`, would have left this asserting `set() == frozenset()`: green forever, gating
+    nothing, which is the "tolerance" `known_parity_exceptions`' own docstring exists to forbid.
+    So it asserts what is now TRUE, over a stated denominator.
+    """
+    published, mine = _published(species), rebuilt[species]
+    labels, before, after = published["nodes"]["label"], published["nodes"]["tier"], mine["nodes"]["tier"]
     moved = {
-        published["nodes"]["label"][index]
-        for index, (before, after) in enumerate(
-            zip(published["nodes"]["tier"], rebuilt[species]["nodes"]["tier"], strict=True)
-        )
-        if before != after
+        labels[index]
+        for index, (a, b) in enumerate(zip(before, after, strict=True))
+        if a != b
     }
-    assert moved == exception.node_labels
-    for label in moved:
-        index = published["nodes"]["label"].index(label)
-        assert published["strings"]["tier"][published["nodes"]["tier"][index]] == exception.frozen_value
-        after = rebuilt[species]["nodes"]["tier"][index]
-        assert rebuilt[species]["strings"]["tier"][after] == exception.current_value
+    assert moved == set(), f"the tier moved on {len(moved)} loci: {sorted(moved)[:20]}"
+    # ⛔ Coverage BEFORE the agreement is reported: `-1` is "no tier", and a comparison over an empty
+    # population also finds nothing moved. Both sides must carry the same measured count.
+    assert sum(1 for value in before if value >= 0) == TIER_BEARING_LOCI[species]
+    assert sum(1 for value in after if value >= 0) == TIER_BEARING_LOCI[species]
 
 
 @pytest.mark.parametrize("species", SPECIES)
-def test_strings_tier_differs_ONLY_by_the_retired_name_and_no_index_shifts(species, rebuilt):
-    """⚠ `no_homology` was interned LAST, so dropping it shifts no other index. That is luck rather
-    than design — which is exactly why it is asserted instead of assumed."""
+def test_the_tier_POOLS_are_identical_and_the_retired_name_is_in_neither(species, rebuilt):
+    """⚠ `no_homology` was interned LAST, so dropping it shifted no other index. That was luck rather
+    than design — which is exactly why the pools are compared whole instead of by length."""
     published = _published(species)["strings"]["tier"]
     mine = rebuilt[species]["strings"]["tier"]
-    assert set(published) - set(mine) == {RETIRED_TIER}
-    assert mine == [name for name in published if name != RETIRED_TIER]
+    assert published == mine
+    # ⭐ `RETIRED_TIER` is kept in the registry precisely to be the needle here: the retirement is now
+    # an invariant to hold, not a difference to tolerate.
+    assert RETIRED_TIER not in published
+    assert RETIRED_TIER not in mine
 
 
 @pytest.mark.parametrize("species", SPECIES)
-def test_meta_audit_differs_on_SIX_headline_keys_and_the_graded_lists_do_NOT_move(species, rebuilt):
+def test_meta_audit_headline_is_IDENTICAL_and_the_graded_lists_do_NOT_move(species, rebuilt):
     """⛔⛔ `failures` must not move: `synteny_only` and `no_homology` are BOTH failure tiers, so
     the graded set is identical and only its composition changed. A rebuild that shrank the failure
     list would be quietly reporting a better model than the one that was published."""
     published, mine = _published(species)["meta"]["audit"], rebuilt[species]["meta"]["audit"]
     assert published["label"] == mine["label"]
-    assert published["sources"] == mine["sources"]
     assert published["failures"] == mine["failures"]
     assert published["contested"] == mine["contested"]
+    # ⛔ The KEY SET first, then the values. Iterating `published` alone made a rebuild that DROPPED a
+    # headline key raise loudly but one that ADDED a key pass in silence — and a headline that grew
+    # is exactly as much a divergence as one that shrank.
+    assert set(published["headline"]) == set(mine["headline"])
+    assert len(published["headline"]) == 21
     moved = {key for key in published["headline"] if published["headline"][key] != mine["headline"][key]}
-    assert moved == AUDIT_RERUN_HEADLINE_KEYS
+    assert moved == AUDIT_RERUN_HEADLINE_KEYS, f"headline keys moved: {sorted(moved)}"
+
+
+@pytest.mark.parametrize("species", SPECIES)
+def test_meta_audit_SOURCES_is_the_one_thing_the_database_cannot_say(species, rebuilt):
+    """⛔ A recorded GAP, not a recorded difference — and it is on the database's side.
+
+    `payload_serialiser` hard-codes `sources` as the pfam-concordance and audit-summary filenames,
+    because nothing on `pangenome` records which files the audit numbers were read from. The exporter
+    builds the list from files it actually opened, so the 2026-08-25 export named two (the cluster
+    table did not exist until 2026-09-04) and the 2026-10-03 export names three. The ingest read the
+    same three — `catalogue_frames.load_audit_evidence` prefers the parquet — so the literal
+    UNDER-REPORTS the ingest's own inputs and the module's "lossless superset" claim does not hold
+    for this key.
+
+    ⚠ Asserted rather than widened to three names: widening would make it green again and hide the
+    gap until the audit directory next changes. Storing the real list is a schema decision.
+    """
+    published, mine = _published(species)["meta"]["audit"], rebuilt[species]["meta"]["audit"]
+    assert set(mine["sources"]) < set(published["sources"]), "the rebuild should name FEWER files"
+    missing = set(published["sources"]) - set(mine["sources"])
+    assert {name.rsplit("_", 2)[-1] for name in missing} == {"table.parquet"}, missing
 
 
 @pytest.mark.parametrize("species", SPECIES)

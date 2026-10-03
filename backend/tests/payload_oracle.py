@@ -18,10 +18,16 @@ where                        what it means
 ===========================  ======================================================================
 a `strings.*` index          absent — no symbol, no product, no architecture
 `arr.vec`                    **the contig ends here** — a real observation, not missing data
-`map_reps.near`              a neighbour outside this catalogue: drops its **slot**, not its rank
+`sim.near_i`                 an ABSENT nearest-locus slot — and `near_v` there is **0**, which on
+                             Bacformer is HIGHER than real values that reach −0.0323
 `nodes` float columns        never `-1`; absent is JSON `null` and means *not measured*
-`x`/`y` (`nowhere`)          **`-32768`**, not `-1` at all — `0,0` would be a place on the map
 ===========================  ======================================================================
+
+⚠ **Two rows of that table were about `map_reps`, retired 2026-09-24 with the medoid geometry.** Its
+`near` carried exactly the slot rule above and its `x`/`y` used a `-32768` "nowhere" sentinel because
+`0,0` is a place on a map. The rule did not retire with the block — it moved to `sim.near_i`, where
+it is **live** rather than synthetic: 1,622 Bacformer and 3,525 ESM slots are absent in the published
+*E. coli* catalogue, against 0 dropped `map_reps` neighbours in the catalogue the old tests ran on.
 """
 
 from __future__ import annotations
@@ -38,12 +44,9 @@ from pathlib import Path
 #: The signed offsets, in payload order. `0` is deliberately absent — it is the focal locus.
 OFFSETS = (-5, -4, -3, -2, -1, 1, 2, 3, 4, 5)
 
-#: `catalogue_map.COS6_PAIRS` on one side and `app.js::COS6_PAIRS` on the other. ⛔ Reorder either
-#: alone and every published payload is mislabelled, with a picture that still looks like a picture.
-COS6_PAIRS = tuple((a, b) for a in range(6) for b in range(a + 1, 6))
-
-#: `map_reps.x`/`y` sentinel for a locus with no medoid. Outside the ±32,500 quantisation range.
-NOWHERE = -32768
+#: `sim.near_i` value for a slot with no neighbour. ⛔ Not interchangeable with `near_v == 0`, which
+#: is what that slot's VALUE happens to hold — see `sim_neighbours`.
+NO_NEIGHBOUR = -1
 
 #: `arr.vec` slot value where the contig ends. ⚠ A VALUE, not a wildcard.
 CONTIG_END = -1
@@ -344,55 +347,42 @@ class Catalogue:
             )
         return out
 
-    # ── map_reps ──────────────────────────────────────────────────────────────────────────────
-    @cached_property
-    def _map_entries(self) -> dict[str, dict]:
-        return {entry["rep"]: entry for entry in self.raw.get("map_reps", [])}
+    # ── sim · the set-to-set similarity that replaced the medoid geometry ─────────────────────
+    def sim_block(self, representation: str) -> dict:
+        """One representation's `sim` entry.
 
-    def map_position(self, representation: str, locus_index: int) -> tuple[int, int] | None:
-        """Quantised `(x, y)`, or `None` where the locus has no medoid.
-
-        ⚠ The sentinel is `-32768`, **not** `-1`: `0,0` would be the middle of the map, which is a
-        place, so an absent position gets a value outside the range rather than an origin.
+        ⛔ **`raw["sim"]`, never `raw.get("sim", {})`.** The two accessors this replaced degraded
+        silently — `.get("map_reps", [])` and `.get("null", {})` — so a payload that had lost the
+        block entirely read as a payload with nothing in it, and *not looked at* became
+        indistinguishable from *no difference*. That is the exact failure this module exists to make
+        impossible. A missing block raises.
         """
-        entry = self._map_entries[representation]
-        x = _b64_int16(entry["x"])[locus_index]
-        y = _b64_int16(entry["y"])[locus_index]
-        return None if x == NOWHERE or y == NOWHERE else (x, y)
+        return self.raw["sim"][representation]
 
-    def map_neighbour_slots(self, representation: str, locus_index: int) -> list[tuple[int, int]]:
-        """The surviving `(slot_index, neighbour_locus_index)` pairs.
+    def sim_neighbours(self, representation: str, locus_index: int) -> list[tuple[int, int, float]]:
+        """The surviving `(slot_index, neighbour_locus_index, cosine)` triples, nearest first.
 
-        ⛔ **Slots are not ranks.** A `-1` drops that locus *and its slot*; the surviving slot
-        indices are what address `cos6`. Reading by rank instead draws one locus's distances on
-        another, and the picture still looks like a picture.
+        ⛔ **The slot rule the retired `map_reps.near` carried, now on live data.** `near_i` is `-1`
+        where this locus has fewer than `k` neighbours in the catalogue, and that slot is DROPPED —
+        it is not a neighbour with an unknown similarity.
+
+        ⚠ **And `near_v` at a dropped slot is `0`, which is not a safe default here.** Bacformer's
+        real cross-locus medians reach **−0.0323**, so a consumer that reads `near_v / cos_scale`
+        without consulting `near_i` reads an ABSENT neighbour as *more similar* than a real one. No
+        live slot is currently exactly 0, so absent and measured-zero are distinguishable by luck
+        rather than by construction — which is why this reads `near_i` first and always.
         """
-        entry = self._map_entries[representation]
+        entry = self.sim_block(representation)
         k = entry["k"]
-        near = _b64_int32(entry["near"])[locus_index * k : (locus_index + 1) * k]
-        return [(slot + 1, value) for slot, value in enumerate(near) if value >= 0]
-
-    def map_cosine_matrix(self, representation: str, locus_index: int) -> list[list[float | None]]:
-        """The 6×6 cosine matrix: focal locus at slot 0, its five nearest at 1–5.
-
-        Unit diagonal, symmetric, and `None` in any row/column whose slot was dropped — because a
-        dropped slot is *this locus is not in the catalogue*, not *cosine zero*.
-        """
-        entry = self._map_entries[representation]
         scale = entry["cos_scale"]
-        packed = _b64_int16(entry["cos6"])[locus_index * len(COS6_PAIRS) : (locus_index + 1) * len(COS6_PAIRS)]
-        live = {0, *(slot for slot, _ in self.map_neighbour_slots(representation, locus_index))}
-        matrix: list[list[float | None]] = [[None] * 6 for _ in range(6)]
-        for slot in live:
-            matrix[slot][slot] = 1.0
-        for (a, b), value in zip(COS6_PAIRS, packed, strict=True):
-            if a in live and b in live:
-                matrix[a][b] = matrix[b][a] = value / scale
-        return matrix
-
-    def null_baseline(self, representation: str) -> dict | None:
-        """The random-pair medoid baseline — the axis the geometry card reads its numbers against."""
-        return self.raw.get("null", {}).get(representation)
+        span = slice(locus_index * k, (locus_index + 1) * k)
+        near = _b64_int32(entry["near_i"])[span]
+        values = _b64_int16(entry["near_v"])[span]
+        return [
+            (slot, target, value / scale)
+            for slot, (target, value) in enumerate(zip(near, values, strict=True))
+            if target != NO_NEIGHBOUR
+        ]
 
 
 def load_catalogue(path: str | Path) -> Catalogue:
