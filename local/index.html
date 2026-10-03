@@ -14,10 +14,16 @@
 
       ⛔ **An HTTPS page navigating to `http://127.0.0.1` is not mixed content.** Mixed content is
       about SUBRESOURCES; a top-level navigation to an insecure URL is ordinary and no browser blocks
-      it. The health probe below is a subresource, which is why it is allowed to fail: `127.0.0.1` is
-      a "potentially trustworthy" origin so it is exempt from mixed-content blocking, but Chrome's
-      Private Network Access rules may still refuse a public page's request to a local address. The
-      page therefore treats a failed probe as "cannot tell", never as "not running".
+      it. That is why this works at all.
+
+      ⛔ **But it cannot ASK whether the stack is up, and that is settled rather than uncertain.** The
+      first version of this page probed `/api/v1/health` first. Measured against the live Pages URL
+      with the stack running, Chrome refused it outright — *"Permission was denied for this request
+      to access the `loopback` address space"* — because Private Network Access forbids a public page
+      from addressing a local one, whatever mixed content allows. So the probe could never succeed
+      and its "could not reach it" message was reporting a browser rule as if it were a fact about
+      the stack. It is gone: the page navigates, and handles the failure case by noticing it came
+      straight back.
     -->
     <style>
       :root {
@@ -126,14 +132,14 @@
   <body>
     <main>
       <h1>BacAtlas, on this machine</h1>
-      <p class="status" id="status">Checking whether it is running…</p>
+      <p class="status" id="status">Opening it now…</p>
 
       <a class="open" id="open" href="http://127.0.0.1:8080/">Open http://127.0.0.1:8080/</a>
 
       <p>
         This is the live application — the current catalogues, served from a database on your own
         computer. It is not hosted anywhere; this page is only a door to it, so the address does not
-        have to be remembered.
+        have to be remembered. If it does not open, come back here and the reason will be shown.
       </p>
 
       <details id="howto">
@@ -150,26 +156,45 @@
     </main>
 
     <script>
-      // ⚠ A probe that CANNOT distinguish "not running" from "not allowed to ask". Chrome's Private
-      // Network Access can refuse this request from a public page, so a rejection means only that
-      // the answer is unknown — the page opens the door either way and never claims the stack is down.
-      const status = document.getElementById("status");
-      const controller = new AbortController();
-      const giveUp = setTimeout(() => controller.abort(), 1500);
+      // ⭐ Zero clicks when it is running, and an explanation rather than a browser error when it is
+      // not — without ever asking a question the browser refuses to answer (see the note above).
+      //
+      // ⚠ The whole trick is the BOUNCE. A failed navigation lands on the browser's own
+      // "connection refused" page; pressing back returns here, and a page that simply redirects
+      // again would trap the reader in a loop. A timestamp in `sessionStorage` makes the second
+      // arrival distinguishable from the first, so coming back is what reveals the instructions.
+      const KEY = "bacatlas-door-attempt";
+      const APP = "http://127.0.0.1:8080/";
+      const BOUNCE_WINDOW_MS = 30_000;
 
-      fetch("http://127.0.0.1:8080/api/v1/health", { mode: "no-cors", signal: controller.signal })
-        .then(() => {
-          clearTimeout(giveUp);
-          status.textContent = "It is running — opening it now.";
-          // Top-level navigation, not a subresource: allowed from HTTPS, in every browser.
-          window.location.replace("http://127.0.0.1:8080/");
-        })
-        .catch(() => {
-          clearTimeout(giveUp);
-          status.textContent =
-            "Could not reach it from here — either it is not running, or the browser would not let this page ask. Try the button.";
-          document.getElementById("howto").open = true;
-        });
+      const status = document.getElementById("status");
+      const howto = document.getElementById("howto");
+      let lastAttempt = 0;
+      try {
+        lastAttempt = Number(sessionStorage.getItem(KEY) ?? 0);
+      } catch {
+        // Private browsing, or storage refused. Falling through means it redirects, which is the
+        // behaviour someone arriving for the first time wants anyway.
+      }
+
+      if (lastAttempt && Date.now() - lastAttempt < BOUNCE_WINDOW_MS) {
+        try {
+          sessionStorage.removeItem(KEY);
+        } catch {
+          /* nothing to clean up */
+        }
+        status.textContent =
+          "That did not open, so the application is not running on this machine yet.";
+        howto.open = true;
+      } else {
+        try {
+          sessionStorage.setItem(KEY, String(Date.now()));
+        } catch {
+          /* the redirect below still works; only the bounce message is lost */
+        }
+        // A top-level navigation, not a subresource — allowed from HTTPS in every browser.
+        setTimeout(() => window.location.assign(APP), 400);
+      }
     </script>
   </body>
 </html>
