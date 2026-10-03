@@ -10,8 +10,17 @@ import { defineConfig } from "vite";
 //   VITE_PUBLIC_BASE    where the app is served from (default: `/`)
 // A literal `https://…` or `/bacatlas/…` compiled into a component is exactly the thing that
 // makes the second deployment a rewrite instead of an environment variable.
+// ⭐ **When this bundle was built, compiled into it.** David, 2026-10-03: *"the numbers otherwise
+// change and I can't find the current version without asking each time."* The compose stack serves a
+// BUILT IMAGE, so "the app is up" and "the app is current" are different facts and only the page can
+// tell them apart — an image from last week serves perfectly and looks identical. The footer prints
+// this beside the catalogue's own load time.
+// ⚠ Overridable, so a reproducible build can pass a fixed value instead of a wall clock.
+const BUILD_STAMP = process.env.VITE_BUILD_STAMP ?? new Date().toISOString();
+
 export default defineConfig(({ mode }) => ({
   base: process.env.VITE_PUBLIC_BASE ?? "/",
+  define: { __BUILD_STAMP__: JSON.stringify(BUILD_STAMP) },
   plugins: [vue()],
   resolve: {
     alias: { "@": fileURLToPath(new URL("./src", import.meta.url)) },

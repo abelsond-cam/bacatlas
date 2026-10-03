@@ -939,6 +939,37 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(footer).not.toContain("NaN");
     });
 
+    it("⭐ the footer dates BOTH the catalogue and the bundle, so 'is this current?' is answerable", () => {
+      // David, 2026-10-03: "the numbers otherwise change and I can't find the current version
+      // without asking each time." The compose stack serves a BUILT IMAGE against its own database,
+      // so "the app is up" and "the app is current" are different facts and an image from last week
+      // looks identical to a fresh one. Only the page can tell them apart, and only if it says both.
+      const withIngest = {
+        ...recorded.species,
+        pangenome: { ...recorded.species.pangenome, built_at: null, ingested_at: "2026-09-25T08:35:06.477248+00:00" },
+      };
+      const footer = mount(SiteFooter, { props: { catalogue: withIngest } }).text();
+      // ⛔ `built_at` is NULL on every loaded catalogue, so the row that used to read "built —" has
+      // to fall back to the timestamp that IS populated — and say which one it is showing.
+      expect(footer).toContain("catalogue loaded");
+      expect(footer).toContain("2026-09-25 08:35 UTC");
+      expect(footer).not.toContain("built —");
+      // …and when the bundle itself was built, which no catalogue field can supply.
+      expect(footer).toContain("page built");
+      expect(footer).toContain("2026-01-01 00:00 UTC");
+    });
+
+    it("⚠ prefers `built_at` where it exists — it is the stronger claim than when we loaded it", () => {
+      const withBuilt = {
+        ...recorded.species,
+        pangenome: { ...recorded.species.pangenome, built_at: "2026-08-25", ingested_at: "2026-09-25T08:35:06Z" },
+      };
+      const footer = mount(SiteFooter, { props: { catalogue: withBuilt } }).text();
+      expect(footer).toContain("catalogue built");
+      expect(footer).toContain("2026-08-25");
+      expect(footer).not.toContain("catalogue loaded");
+    });
+
     it("⛔ every search row carries a product field, and every band is one the client knows", () => {
       const hits = recorded.search.ligase.hits;
       expect(hits.length).toBeGreaterThan(5);

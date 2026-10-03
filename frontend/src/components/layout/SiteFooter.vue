@@ -39,10 +39,27 @@ const provenance = computed(() => {
   const pangenome = props.catalogue.pangenome;
   const rows: [string, string][] = props.catalogue.provenance_rows.map(([label, value]) => [label, value]);
   rows.push(["model", pangenome.run_id]);
-  rows.push(["built", pangenome.built_at ?? "—"]);
-  if (pangenome.git_sha) rows.push(["code", pangenome.git_sha]);
+  // ⛔ `built_at` is NULL on every catalogue loaded so far — nothing in `ingest` writes it — so this
+  // row read "built —" and the footer could not answer the one question it exists to answer. The
+  // catalogue's `ingested_at` IS populated and is the honest version of it: when this stack loaded
+  // the data it is serving. `built_at` still wins where it exists, because that is the stronger fact.
+  const catalogueDate = pangenome.built_at ?? shortDate(pangenome.ingested_at);
+  rows.push([pangenome.built_at ? "catalogue built" : "catalogue loaded", catalogueDate ?? "—"]);
+  if (pangenome.git_sha) rows.push(["model code", pangenome.git_sha]);
+  // ⭐ And when THIS bundle was built. The compose stack serves a built image, so "the app is up" and
+  // "the app is current" are different facts, and an image from last week looks identical to a fresh
+  // one. Printing both dates is what makes "is this current?" answerable from the page.
+  rows.push(["page built", shortDate(__BUILD_STAMP__) ?? "—"]);
   return rows;
 });
+
+/** `2026-10-03T08:35:06.477248+00:00` → `2026-10-03 08:35 UTC`; `null` stays `null`. */
+function shortDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value; // ⚠ Say what we were given rather than "Invalid Date".
+  return `${parsed.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
 
 const headline = computed(() =>
   HEADLINE_ROWS.flatMap(([label, key, format]) => {

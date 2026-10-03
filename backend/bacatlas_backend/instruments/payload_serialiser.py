@@ -87,6 +87,22 @@ class CataloguePools:
         return {name: getattr(self, name).values for name in self.__dataclass_fields__}
 
 
+def _built_date(built_at) -> str | None:
+    """``meta.built`` — a plain ``YYYY-MM-DD``, whatever shape the column turns out to hold.
+
+    ⛔ `Pangenome.built_at` is `Mapped[str | None]` over `String(32)`, and this call site read
+    `built_at.date().isoformat()`. That is an `AttributeError` on a `str`, and it has never fired
+    only because the column is NULL on every catalogue loaded so far — nothing in `ingest` writes
+    it. The crash would arrive with the data, which is the worst time for it.
+    """
+    if not built_at:
+        return None
+    if hasattr(built_at, "date"):
+        return built_at.date().isoformat()
+    # ⚠ The leading date of an ISO string, which is what the exporter writes (`2026-10-03`).
+    return str(built_at).split("T")[0].split(" ")[0]
+
+
 def _enum_value(value) -> str | None:
     """An enum's payload spelling, or ``None`` — the DB stores enums, the payload stores strings."""
     return None if value is None else getattr(value, "value", value)
@@ -824,7 +840,11 @@ def meta_block(
         "dset": species.species_key,
         "model_id": pangenome.run_id,
         "model_label": model_label,
-        "built": pangenome.built_at.date().isoformat() if pangenome.built_at else None,
+        # ⚠ `built_at` is `Mapped[str | None]` on a `String(32)` column, so `.date()` on it is an
+        # AttributeError waiting for the day something writes it. It is NULL on all four loaded
+        # catalogues today, which is the only reason this has never fired. Take the leading date of
+        # whatever string is there; a datetime, if one is ever mapped, still answers `.date()`.
+        "built": _built_date(pangenome.built_at),
         "git_sha": pangenome.git_sha,
         "provenance": pangenome.provenance_rows,
         "omitted": pangenome.omitted_sections or {},

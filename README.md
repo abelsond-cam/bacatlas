@@ -115,6 +115,34 @@ the prefix intact**. Nothing in the code names a base or an origin; see `fronten
 **New code.** `git pull && docker compose up -d --build` rebuilds the api and web images and leaves the
 database alone.
 
+### The one durable link — <http://127.0.0.1:8080/>
+
+⭐ **Bookmark that, and leave the stack running.** All three services are `restart: unless-stopped`, so
+they come back with Docker and survive a reboot; the reason the app kept vanishing was simply that the
+stack was never left up, and it then existed only while someone was holding it there.
+
+⛔ **"Up" and "current" are different facts, and only the page can tell them apart.** The stack serves a
+**built image** against **its own database** — not your working tree — so an image from last week serves
+perfectly and looks identical to a fresh one. Two things follow:
+
+```bash
+docker compose up -d --build     # the refresh: rebuild the api and web images, keep the database
+```
+
+and the footer of every page now prints both dates, so the question is answerable without asking anyone:
+
+| footer row | what it dates |
+|---|---|
+| `catalogue loaded` | when **this stack ingested** the data it is serving (`pangenome.ingested_at`) |
+| `model code` | the `nuna` commit the clustering was exported from |
+| `page built` | when **this bundle** was compiled — `__BUILD_STAMP__`, substituted by `vite.config.ts` |
+
+⚠ `catalogue built` appears instead of `catalogue loaded` on any catalogue that has a `built_at`; none
+of the four loaded today does, because nothing in `ingest` writes that column yet.
+
+**A new catalogue, or changed data, is NOT a rebuild** — the database is a volume and `--build` leaves it
+alone deliberately. Re-ingest, or take a fresh dump and `docker compose down -v` as described above.
+
 **What this stack leaves to the host** — each checked in the drill, none decided here:
 
 - **Docker Engine 25 or later** (the healthchecks use `start_interval`).

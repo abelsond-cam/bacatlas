@@ -633,6 +633,12 @@ export interface SpeciesCatalogueResponse {
     readonly gene_count: number;
     readonly locus_count: number;
     readonly built_at: string | null;
+    /**
+     * When this stack INGESTED the catalogue. ⛔ Not the same claim as `built_at`, which is when the
+     * model was exported — and which is NULL on every catalogue loaded so far, because nothing in
+     * `ingest` writes it. This one is populated, so it is what the footer can actually print.
+     */
+    readonly ingested_at: string | null;
     readonly git_sha: string | null;
     readonly exclusivity_form: string;
     /** ⚠ An absent section is NAMED, so an omission is never mistaken for a measured zero. */

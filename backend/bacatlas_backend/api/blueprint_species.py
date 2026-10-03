@@ -192,7 +192,16 @@ def get_species_catalogue(species_key: str):
                     "genome_count": pangenome.genome_count,
                     "gene_count": pangenome.gene_count,
                     "locus_count": pangenome.locus_count,
+                    # ⛔ `built_at` is NULL on all four loaded catalogues — nothing in `ingest`
+                    # writes it — so the footer printed "built —" and the page could not answer
+                    # "is this current?", which is the whole complaint it exists to settle.
+                    # `ingested_at` IS populated (2026-09-25 for the nuna4 pair) and is the honest
+                    # answer to "how old is the catalogue THIS stack is serving": when it was loaded.
+                    # Both ship; the footer prefers whichever it has.
                     "built_at": pangenome.built_at,
+                    "ingested_at": (
+                        pangenome.ingested_at.isoformat() if pangenome.ingested_at else None
+                    ),
                     "git_sha": pangenome.git_sha,
                     "exclusivity_form": pangenome.exclusivity_form.value,
                     # ⚠ An absent section is NAMED. The page prints these rather than showing an

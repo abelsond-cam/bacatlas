@@ -13,3 +13,11 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+/**
+ * When this bundle was built — substituted by `vite.config.ts`'s `define`, so it is a literal in the
+ * output rather than a value read at run time. ⛔ Declared here because a `define` is invisible to
+ * TypeScript otherwise: the identifier compiles, ships, and throws `ReferenceError` in the browser if
+ * the `define` is ever dropped. With this declaration, dropping it is a build failure.
+ */
+declare const __BUILD_STAMP__: string;
