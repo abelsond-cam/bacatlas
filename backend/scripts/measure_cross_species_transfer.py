@@ -276,11 +276,13 @@ def transfer_gate(cross_cells, within_cells, kind: AnnotationKind, *, recipient:
                 f" (cross n={here.pairs if here else 0}, within n={there.pairs if there else 0})"
             )
             continue
-        delta = here.agreement - there.agreement
+        # in percentage POINTS, not as a ratio: 97 % against 90 % is +7 pp, and a reader who sees
+        # "+0.08" cannot tell a 8 pp gap from an 8 % relative one
+        delta_pp = 100 * (here.agreement - there.agreement)
         notes.append(
             f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}{here.agreement:>7.1%} vs "
-            f"{there.agreement:>7.1%} within-{recipient}  →  {delta:+.1f} pp"
-            f"   (n={here.pairs:,} / {there.pairs:,})".replace(f"{delta:+.1f} pp", f"{100 * delta:+.1f} pp")
+            f"{there.agreement:>7.1%} within-{recipient}  →  {delta_pp:+6.1f} pp"
+            f"   (n={here.pairs:,} / {there.pairs:,})"
         )
     return notes
 
