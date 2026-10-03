@@ -263,11 +263,21 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
     return levels, terms, len(categories)
 
 
-def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int):
-    """An exact chance function for one level: P(a random OTHER annotated node's set intersects S).
+def _chance_by_level(
+    levels: dict[int, dict[int, frozenset[str]]], level: int, *, self_excluded: bool = True
+):
+    """An exact chance function for one level: P(a random annotated node of `levels` intersects S).
 
     Memoised on the claim set, because a catalogue holds only ~118 distinct COG category values —
     so the inverted-index union is paid once per distinct set rather than once per node.
+
+    ⛔ **`self_excluded` is bound to WHERE the pool comes from and must not be set independently.**
+    Within a species the pool is the focal node's own catalogue, the focal node is one of its
+    members, and the comparator is *"a random **other** node"* — so one member is removed from both
+    numerator and denominator. Across species the pool is the **donor** catalogue and the focal node
+    is not in it at all, so subtracting one would be removing a node that was never there — on a
+    small pool that deflates chance and inflates the lift reported against it. `tally_cells` ties the
+    two together through its `donor_pool` argument; nothing else passes this.
     """
     holders: dict[str, set[int]] = defaultdict(set)
     for locus_id, folded in levels.items():
@@ -282,7 +292,8 @@ def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int):
         matching: set[int] = set()
         for value in claim:
             matching |= holders.get(value, set())
-        #: self-exclusion — the comparator is a random OTHER node, which is what the page claims
+        if not self_excluded:
+            return len(matching) / len(pool)
         return (len(matching) - 1) / (len(pool) - 1) if len(pool) > 1 else 0.0
 
     return chance
@@ -292,6 +303,8 @@ def tally_cells(
     levels: dict[int, dict[int, frozenset[str]]],
     edges,
     annotation_kind: AnnotationKind,
+    *,
+    donor_pool: dict[int, dict[int, frozenset[str]]] | None = None,
 ) -> dict[tuple[str, int], Cell]:
     """Tally every (tier, level) cell over `edges` of `(locus_id, neighbour_locus_id, cosine)`.
 
@@ -300,9 +313,23 @@ def tally_cells(
     `scripts/measure_cog_function_inference.py` — which is what the write-up's numbers come from —
     reaches it directly. A second copy for the script is exactly how a page and the document that
     describes it come to disagree.
+
+    ⚠ **`donor_pool` names the set the CHANCE baseline is drawn from, when that is not the set the
+    edges live in — and it is a statistical decision, not a convenience.** `None` (the default, and
+    every within-species caller) means the comparator is *"a random other node of this catalogue"*:
+    the pool is `levels`, the focal node belongs to it, and chance self-excludes. A cross-species
+    transfer's comparator is *"a random annotated node of the DONOR catalogue"*, so the pool is the
+    donor's claims alone — never the union, which would dilute it with the recipient's own
+    distribution — and self-exclusion is dropped because the focal node is not a donor. Both
+    consequences follow from the one argument so they cannot be set inconsistently.
+    ⛔ A wrong null rescales every lift in the table silently; agreement is untouched, so nothing
+    about the output would look wrong.
     """
     ladder = sorted(LEVEL_LABEL[annotation_kind], reverse=True)
-    chance_functions = {level: _chance_by_level(levels, level) for level in ladder}
+    pool, self_excluded = (levels, True) if donor_pool is None else (donor_pool, False)
+    chance_functions = {
+        level: _chance_by_level(pool, level, self_excluded=self_excluded) for level in ladder
+    }
     tally: dict[tuple[str, int], list[float]] = defaultdict(lambda: [0, 0, 0.0])
     for locus_id, neighbour_id, cosine in edges:
         mine = levels.get(locus_id)
