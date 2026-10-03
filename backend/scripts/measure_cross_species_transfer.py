@@ -1053,6 +1053,91 @@ def prevalence_match(
     print("        and the simpler quantity should be the filter.")
 
 
+# ============================ SECTION 6 — THRESHOLD-FREE discrimination, for comparing REPRESENTATIONS
+def discrimination(pairs: list[tuple[float, bool]]) -> tuple[float, int, int]:
+    """AUC = P(an agreeing pair scores above a disagreeing one) — `(auc, n_agree, n_disagree)`.
+
+    ⛔ **Why a threshold-free measure is needed at all, and why it is NOT a replacement for the
+    ladder.** The decided tiers are an **ESM** calibration: 96.7 % of within-kp ESM neighbour edges sit
+    at or above 0.90 against **1.17 %** of Bacformer's (877 of 75,263), so running a Bacformer map
+    through those cuts empties both columns and the comparison says nothing. Re-cutting the tiers per
+    representation is a statistical decision and is **David's to make** (`~/.claude/CLAUDE.md`:
+    *"Statistical method is a decision, not an implementation detail … never swap it unilaterally"*).
+    This statistic sidesteps the question instead of answering it: it asks only whether a
+    representation **ranks** agreeing donors above disagreeing ones, which is the premise any tiering
+    of it would rest on. A representation that cannot rank cannot be rescued by better cuts.
+
+    Computed from ranks (the Mann-Whitney identity) rather than by enumerating pairs, so it is O(n log
+    n) rather than O(n²) over ~365 k edges. Ties take half credit, which is what the rank average
+    gives for free and is the conventional handling.
+    """
+    if not pairs:
+        return (float("nan"), 0, 0)
+    ordered = sorted(pairs, key=lambda item: item[0])
+    # average ranks within tied scores, so a tie contributes 0.5 rather than 1 or 0
+    ranks = [0.0] * len(ordered)
+    index = 0
+    while index < len(ordered):
+        stop = index
+        while stop + 1 < len(ordered) and ordered[stop + 1][0] == ordered[index][0]:
+            stop += 1
+        shared = (index + stop) / 2 + 1
+        for position in range(index, stop + 1):
+            ranks[position] = shared
+        index = stop + 1
+    agree_ranks = sum(rank for rank, (_score, agree) in zip(ranks, ordered, strict=True) if agree)
+    n_agree = sum(1 for _score, agree in ordered if agree)
+    n_disagree = len(ordered) - n_agree
+    if not n_agree or not n_disagree:
+        return (float("nan"), n_agree, n_disagree)
+    auc = (agree_ranks - n_agree * (n_agree + 1) / 2) / (n_agree * n_disagree)
+    return (auc, n_agree, n_disagree)
+
+
+def report_discrimination(
+    rows,
+    *,
+    recipient_ids,
+    donor_ids,
+    both,
+    kind: AnnotationKind,
+    rule: str,
+    representation: str,
+    within: list[tuple[int, int, float]],
+) -> None:
+    """How well each similarity RANKS agreeing donors, cross-species and within-species.
+
+    ⚠ Reported at the **deepest rung both nodes state**, pooled over every similarity with no floor —
+    a threshold would defeat the purpose. ⛔ This is a descriptive statistic beside the ladder, not a
+    substitute for it: it cannot say where a cut belongs, only whether one could exist.
+    """
+    ladder = sorted(LEVEL_LABEL[kind], reverse=True)
+
+    def scored(edges):
+        out = []
+        for recipient_id, donor_id, cosine in edges:
+            mine, theirs = both.get(recipient_id), both.get(donor_id)
+            if mine is None or theirs is None or cosine is None:
+                continue
+            level = next((lv for lv in ladder if mine[lv] and theirs[lv]), None)
+            if level is not None:
+                out.append((float(cosine), bool(mine[level] & theirs[level])))
+        return out
+
+    cross_edges = [
+        (recipient_ids[row["recipient_node"]][0], donor_ids[row["donor_node"]][0], row[rule]) for row in rows
+    ]
+    print(f"\n  {kind.value} — THRESHOLD-FREE discrimination of '{rule}' ({representation})")
+    print(f"     {'edge set':<24}{'AUC':>8}{'agreeing':>11}{'disagreeing':>13}")
+    for name, edges in (("cross-species", cross_edges), ("within-species", within)):
+        auc, n_agree, n_disagree = discrimination(scored(edges))
+        shown = f"{auc:.3f}" if auc == auc else "—"
+        print(f"     {name:<24}{shown:>8}{n_agree:>11,}{n_disagree:>13,}")
+    print("     AUC = P(an agreeing donor scores above a disagreeing one). 0.5 is no information.")
+    print("     ⛔ Comparable ACROSS representations, which the tier table is not — the decided cuts")
+    print("        are an ESM calibration and leave 98.8 % of Bacformer edges below the 0.90 floor.")
+
+
 def main() -> None:
     """Section 1 (reliable?) then Section 2 (worthwhile?), for every vocabulary and every rule."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -1215,6 +1300,16 @@ def main() -> None:
                 print("\n     DOES THE LADDER TRANSFER? the quoted rung only, as a difference:")
                 for note in transfer_gate(cross_cells, within_cells, kind, recipient=arguments.recipient):
                     print(note)
+                report_discrimination(
+                    rows,
+                    recipient_ids=recipient_ids,
+                    donor_ids=donor_ids,
+                    both=both,
+                    kind=kind,
+                    rule=rule,
+                    representation=representation,
+                    within=within,
+                )
                 mapped = candidates_from_map(rows, rule=rule, recipient_ids=recipient_ids, donor_ids=donor_ids)
                 shared = dict(
                     recipient_ids=recipient_ids,

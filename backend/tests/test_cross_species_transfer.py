@@ -865,3 +865,49 @@ def test_the_size_ratio_bucket_sign_matches_the_band_sign(capsys):
     # ⛔ and the one pair must not also appear on the "donor is more" side of either table
     assert "commoner" not in band_half.split("donor band vs recipient")[1]
     assert "larger" not in size_half.split("⛔")[0]
+
+
+# ================================= THRESHOLD-FREE discrimination, for comparing REPRESENTATIONS
+def test_the_AUC_is_pinned_on_cases_with_exact_known_answers():
+    """⛔ The one statistic comparable ACROSS representations, so its arithmetic must be exact.
+
+    The decided tiers are an ESM calibration — 96.7 % of within-kp ESM edges sit at or above 0.90
+    against 1.17 % of Bacformer's — so a tier table cannot compare the two geometries and this can.
+    Pinned on separations whose AUC is known by hand rather than against another implementation.
+    """
+    # perfect separation: every agreeing pair scores above every disagreeing one
+    assert xs.discrimination([(0.9, True), (0.8, True), (0.2, False), (0.1, False)])[0] == 1.0
+    # perfectly inverted
+    assert xs.discrimination([(0.1, True), (0.2, True), (0.8, False), (0.9, False)])[0] == 0.0
+    # ⛔ every score tied: no information, and ties must take HALF credit rather than all or none
+    assert xs.discrimination([(0.5, True), (0.5, True), (0.5, False), (0.5, False)])[0] == 0.5
+    # one agreeing pair sits below one of the two disagreeing ones -> 1 of 2 comparisons lost
+    auc, n_agree, n_disagree = xs.discrimination([(0.9, True), (0.3, True), (0.5, False), (0.1, False)])
+    assert (auc, n_agree, n_disagree) == (0.75, 2, 2)
+    # a single tie across the boundary is half a point
+    assert xs.discrimination([(0.5, True), (0.5, False)])[0] == 0.5
+    assert xs.discrimination([(0.6, True), (0.5, False)])[0] == 1.0
+
+
+def test_the_AUC_refuses_to_invent_a_number_from_one_class():
+    """⛔ With no disagreeing pair there is nothing to discriminate — NaN, not 1.0.
+
+    A cell where everything agrees would otherwise report perfect discrimination, which reads as
+    evidence when it is the absence of a comparison.
+    """
+    import math
+
+    assert math.isnan(xs.discrimination([(0.9, True), (0.8, True)])[0])
+    assert math.isnan(xs.discrimination([(0.9, False), (0.8, False)])[0])
+    assert math.isnan(xs.discrimination([])[0])
+    # and the class counts are still reported, so the emptiness is visible rather than silent
+    assert xs.discrimination([(0.9, True), (0.8, True)])[1:] == (2, 0)
+
+
+def test_the_AUC_does_not_depend_on_input_order():
+    """A rank statistic must be invariant to the order the edges arrived in."""
+    pairs = [(0.91, True), (0.42, False), (0.77, True), (0.88, False), (0.15, True)]
+    first = xs.discrimination(pairs)[0]
+    for seed in range(4):
+        shuffled = sorted(pairs, key=lambda item: (item[0] * (seed + 1)) % 1.0)
+        assert xs.discrimination(shuffled)[0] == pytest.approx(first)
