@@ -603,3 +603,90 @@ def test_the_two_catalogues_SHARE_the_node_label_namespace_so_the_label_map_keys
     right.update({locus_id: label for label, (locus_id, _g) in recipient_ids.items()})
     assert len(right) == 4
     assert right[302532] == "0" and right[320063] == "0", "both catalogues keep their own label '0'"
+
+
+# ============================================ UniRef50 FIRST, then ESM — the two arms in series
+def test_arm_A_is_not_limited_to_the_ESM_shortlist(walk_inputs, capsys):
+    """⛔ A UniRef50-first transfer needs no embedding, so it must not be scoped to the ESM map.
+
+    Arm A is the baseline cross-species ESM has to beat; restricting it to the ~21 shortlisted
+    candidates would hand ESM a reach that belongs to the bridge. Here the bridged donor (E2) is
+    **absent from the ESM candidate list entirely** and Arm A must still find it.
+    """
+    recipient_ids, donor_ids, _unused = walk_inputs
+    xs.uniref_first_then_esm(
+        recipient_ids={"1098": (101, 100)},
+        donor_ids=donor_ids,
+        recipient_counts={101: {"U_SHARED": 95}},
+        donor_counts={2: {"U_SHARED": 90}},  # donor locus 2 bridges; it is NOT in the map
+        donor_levels={2: _cog("COG0002", "C")},
+        recipient_levels={},
+        esm_candidates={},  # ⬅ no ESM candidates at all
+        kind=COG,
+        label_of={101: "1098", 2: "E2"},
+        recipient="kp",
+        donor="ecoli",
+    )
+    printed = capsys.readouterr().out
+    arm_a = [line for line in printed.splitlines() if "A: UniRef50 bridge" in line][0]
+    assert arm_a.split()[-3:] == ["1", "95", "100"], "1 node, 95 bridged genes, 100 whole-node genes"
+
+
+def test_the_whole_node_gene_count_is_reported_beside_the_bridged_one(capsys):
+    """⭐ David's point: a bridge can rest on a MINORITY of a node's genes, and the node is then
+    annotated whole on the measured 99.5-99.9 % within-node unanimity. Both counts are reported.
+
+    Here the bridge covers 22 of 100 genes — below the strict threshold, so the permissive arm counts
+    it and the strict one does not, which is exactly the sensitivity check that choice needs.
+    """
+    xs.uniref_first_then_esm(
+        recipient_ids={"13": (113, 100)},
+        donor_ids={"E7": (7, 100)},
+        recipient_counts={113: {"U_MINOR": 22, "U_MAJOR": 78}},
+        donor_counts={7: {"U_MINOR": 50}},
+        donor_levels={7: _cog("COG0009", "S")},
+        recipient_levels={},
+        esm_candidates={},
+        kind=COG,
+        label_of={113: "13", 7: "E7"},
+        recipient="kp",
+        donor="ecoli",
+    )
+    lines = capsys.readouterr().out.splitlines()
+    permissive = [line for line in lines if "A: UniRef50 bridge" in line][0]
+    strict = [line for line in lines if "A-strict" in line][0]
+    assert permissive.split()[-3:] == ["1", "22", "100"], "bridged on 22 genes, node is 100"
+    assert strict.split()[-3:] == ["0", "—", "0"], "22/100 is below the 50 % strict threshold"
+
+
+def test_the_arms_are_exclusive_and_sum_to_the_unlabelled_total(capsys):
+    """⛔ A node reached by the bridge must NOT also be counted by ESM, or the two arms double-count.
+
+    Three unlabelled nodes: one bridged, one reachable only by ESM, one by neither. The run aborts if
+    they do not sum, so the assertion here is that the split is the intended one.
+    """
+    xs.uniref_first_then_esm(
+        recipient_ids={"a": (101, 10), "b": (102, 20), "c": (103, 30)},
+        donor_ids={"E1": (1, 5), "E2": (2, 5)},
+        recipient_counts={101: {"U_SHARED": 10}, 102: {"U_KP": 20}},  # 103 has no UniRef50 at all
+        donor_counts={1: {"U_SHARED": 5}, 2: {"U_EC": 5}},
+        donor_levels={1: _cog("COG0001", "E"), 2: _cog("COG0002", "C")},
+        recipient_levels={},
+        #: node b reaches annotated donor 2 by ESM; node a ALSO has an ESM route but the bridge wins
+        esm_candidates={101: [(1, 2, 0.999)], 102: [(1, 2, 0.995)], 103: [(1, 2, 0.5)]},
+        kind=COG,
+        label_of={},
+        recipient="kp",
+        donor="ecoli",
+    )
+    lines = capsys.readouterr().out.splitlines()
+
+    def cells(needle):
+        return [line for line in lines if needle in line][0].split()[-3:]
+
+    assert cells("A: UniRef50 bridge")[0] == "1", "node a, via the bridge"
+    # ⚠ "B: ESM" alone also matches the accuracy table's HEADER; the arm row is the one that says
+    # "no bridge available", and the first version of this assertion picked up the header instead.
+    assert cells("no bridge available")[0] == "1", "node b, via ESM only — a is NOT counted twice"
+    assert cells("neither")[0] == "1", "node c is below the ESM floor and has no bridge"
+    assert [line for line in lines if "TOTAL unlabelled" in line][0].split()[-1] == "3"

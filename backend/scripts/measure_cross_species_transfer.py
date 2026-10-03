@@ -722,6 +722,194 @@ def bridge_symbol_control(
     print("        whether they are below 50 % identity. Only measured identity answers that.")
 
 
+# ======================= SECTION 4 — UniRef50 FIRST, then ESM: which arm infers what (David's ask)
+#: A shared family must cover at least this share of the recipient node's genes to count for the
+#: strict variant. The permissive variant takes ANY shared family — which is the right default for
+#: David's point that *"not all the syntelogues will match the same uniref 50"*, and the strict one is
+#: the sensitivity check against a bridge resting on one spurious rare family.
+STRICT_BRIDGE_SHARE = 0.5
+
+
+def uniref50_gene_counts(session: Session, catalogue: str) -> dict[int, dict[str, int]]:
+    """Per locus, how many of its genes carry each UniRef50 accession.
+
+    ⭐ Gene **counts**, not just the set, because David's point needs them: a bridge can rest on a
+    minority of a node's genes, and whether that is enough is a decision the numbers should inform
+    rather than one buried in a set intersection.
+    """
+    out: dict[int, dict[str, int]] = defaultdict(dict)
+    for locus_id, accession, genes in session.execute(
+        text("""
+            select m.locus_id, f.uniref50_accession, count(*)
+              from gene_locus_membership m
+              join locus l on l.locus_id = m.locus_id
+              join pangenome p on p.pangenome_id = l.pangenome_id
+              join gene_functional_annotation f
+                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
+             where p.catalogue_key = :catalogue and f.uniref50_accession is not null
+             group by 1, 2
+        """),
+        {"catalogue": catalogue},
+    ).all():
+        out[locus_id][accession] = genes
+    return dict(out)
+
+
+def uniref_first_then_esm(
+    *,
+    recipient_ids,
+    donor_ids,
+    recipient_counts,
+    donor_counts,
+    donor_levels,
+    recipient_levels,
+    esm_candidates,
+    kind: AnnotationKind,
+    label_of: dict,
+    recipient: str,
+    donor: str,
+    esm_floor: float = 0.98,
+) -> None:
+    """⭐ Two arms in series: the UniRef50 bridge first (NO embedding), then ESM for what it missed.
+
+    **David, 2026-10-03:** *"if we are inferring by uniref first (at any esm) and then by esm, the
+    question is how many genes get inferred by each."*
+
+    ⛔ **Arm A uses no embedding at all and is not restricted to the ESM shortlist.** A UniRef50-first
+    transfer is a catalogue-wide join on the accession — it does not need a neighbour map, so limiting
+    it to the ~21 shortlisted candidates would hand ESM a reach that belongs to the bridge. This arm is
+    therefore the **baseline cross-species ESM has to beat**, and it was not measured until now.
+
+    ⭐ **Two gene counts per arm, because they answer different questions** (David: *"not all the
+    syntelogues will match the same uniref 50. BUT given the syntelogue node itself is very strongly
+    uniform … we can then annotate the whole node from it"*): the genes **actually carrying** a shared
+    family, and the **whole node** that a within-node imputation then covers. The second is the one that
+    moves the coverage dial, and it rests on the measured 99.5-99.9 % within-node unanimity
+    (`function_inference.md` §2), not on an assumption.
+    """
+    # an inverted index over the donor catalogue: family -> the donor loci that carry it
+    holders: dict[str, set[int]] = defaultdict(set)
+    for locus_id, families in donor_counts.items():
+        for accession in families:
+            holders[accession].add(locus_id)
+
+    unlabelled = [(locus_id, genes) for locus_id, genes in recipient_ids.values() if locus_id not in recipient_levels]
+    arms = {
+        "A: UniRef50 bridge (any ESM)": [0, 0, 0],
+        f"A-strict: bridge >= {STRICT_BRIDGE_SHARE:.0%} of genes": [0, 0, 0],
+        f"B: ESM >= {esm_floor}, no bridge available": [0, 0, 0],
+        "neither": [0, 0, 0],
+    }
+    examples = []
+    for locus_id, node_genes in unlabelled:
+        mine = recipient_counts.get(locus_id, {})
+        # every donor locus sharing a family with this node, and how many of MY genes that family covers
+        reach: dict[int, int] = defaultdict(int)
+        for accession, my_genes in mine.items():
+            for donor_id in holders.get(accession, ()):
+                reach[donor_id] = max(reach[donor_id], my_genes)
+        annotated = {d: shared for d, shared in reach.items() if d in donor_levels}
+        if annotated:
+            best = max(annotated, key=lambda d: (annotated[d], -d))
+            shared_genes = annotated[best]
+            arms["A: UniRef50 bridge (any ESM)"][0] += 1
+            arms["A: UniRef50 bridge (any ESM)"][1] += shared_genes
+            arms["A: UniRef50 bridge (any ESM)"][2] += node_genes
+            key = f"A-strict: bridge >= {STRICT_BRIDGE_SHARE:.0%} of genes"
+            if node_genes and shared_genes / node_genes >= STRICT_BRIDGE_SHARE:
+                arms[key][0] += 1
+                arms[key][1] += shared_genes
+                arms[key][2] += node_genes
+            if len(examples) < 4:
+                examples.append((label_of.get(locus_id, locus_id), label_of.get(best, best), shared_genes, node_genes))
+            continue
+        # Arm B: the bridge offered nothing, so ESM is the only route left
+        best_esm = None
+        for _rank, donor_id, cosine in sorted(esm_candidates.get(locus_id, [])):
+            if donor_id in donor_levels and cosine >= esm_floor:
+                best_esm = (donor_id, cosine)
+                break
+        if best_esm:
+            arms[f"B: ESM >= {esm_floor}, no bridge available"][0] += 1
+            arms[f"B: ESM >= {esm_floor}, no bridge available"][2] += node_genes
+        else:
+            arms["neither"][0] += 1
+            arms["neither"][2] += node_genes
+
+    # ⛔ A reach without its accuracy is exactly what this whole study refuses to report. Arm A's
+    # donors are chosen catalogue-wide with NO similarity requirement, so the "bridged" agreement
+    # measured over the ESM shortlist (97.8-99.7 %) does not transfer to it — the shortlist excludes
+    # the remote pairs an unrestricted join admits. Measured here on its own terms: recipient nodes
+    # that DO carry the vocabulary, against the call their best bridged donor would have given,
+    # per rung and pooled over all similarities.
+    arm_a: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for locus_id, mine_levels in recipient_levels.items():
+        reach: dict[int, int] = defaultdict(int)
+        for accession, my_genes in recipient_counts.get(locus_id, {}).items():
+            for donor_id in holders.get(accession, ()):
+                reach[donor_id] = max(reach[donor_id], my_genes)
+        annotated = {d: shared for d, shared in reach.items() if d in donor_levels}
+        if not annotated:
+            continue
+        best = max(annotated, key=lambda d: (annotated[d], -d))
+        theirs = donor_levels[best]
+        for level in sorted(LEVEL_LABEL[kind], reverse=True):
+            if mine_levels[level] and theirs[level]:
+                arm_a[level][0] += 1
+                arm_a[level][1] += bool(mine_levels[level] & theirs[level])
+
+    # ⛔ And Arm B on ITS OWN population, for the same reason. Arm B is *nodes with no bridged
+    # annotated donor anywhere*, which is not the same set as *nodes whose ESM-chosen donor happened
+    # to be unbridged* — so the stratified table's `not_bridged` column is close to it but is not it.
+    # Quoting one arm at the other's rate is the error both of these exist to avoid.
+    arm_b: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for locus_id, mine_levels in recipient_levels.items():
+        reach = {
+            donor_id for accession in recipient_counts.get(locus_id, {}) for donor_id in holders.get(accession, ())
+        }
+        if reach & set(donor_levels):
+            continue  # a bridge was available, so this node belongs to Arm A
+        for _rank, donor_id, cosine in sorted(esm_candidates.get(locus_id, [])):
+            if donor_id in donor_levels and cosine >= esm_floor:
+                theirs = donor_levels[donor_id]
+                for level in sorted(LEVEL_LABEL[kind], reverse=True):
+                    if mine_levels[level] and theirs[level]:
+                        arm_b[level][0] += 1
+                        arm_b[level][1] += bool(mine_levels[level] & theirs[level])
+                break
+
+    print(f"\n  {kind.value} — each arm's OWN accuracy, measured on its own population")
+    print(f"     {'rung':<20}{'A: bridge, any sim':>22}{'B: ESM >= ' + str(esm_floor) + ', no bridge':>30}")
+    for level in sorted(LEVEL_LABEL[kind], reverse=True):
+        cells = []
+        for arm in (arm_a, arm_b):
+            pairs, agreeing = arm[level]
+            cells.append(f"{agreeing / pairs:.1%} n={pairs:,}" if pairs >= MIN_PAIRS else f"n={pairs:,}")
+        print(f"     {LEVEL_LABEL[kind][level]:<20}{cells[0]:>22}{cells[1]:>30}")
+    print("     ⚠ Column A is NOT the 'bridged' column of the stratified table — that one is restricted")
+    print("        to pairs the ESM shortlist surfaced, and this arm deliberately is not. Column B is")
+    print("        NOT the 'not_bridged' column either: that is 'the chosen donor was unbridged', this")
+    print("        is 'no bridged donor existed anywhere'. Each arm is quoted at its own rate.")
+
+    print(f"\n  {kind.value} — UniRef50 FIRST, then ESM: what each arm infers")
+    print(f"     {'arm':<42}{'nodes':>9}{'bridged genes':>15}{'whole-node genes':>18}")
+    for name, (nodes, bridged_genes, node_genes) in arms.items():
+        shown = f"{bridged_genes:,}" if bridged_genes else "—"
+        print(f"     {name:<42}{nodes:>9,}{shown:>15}{node_genes:>18,}")
+    total = sum(arm[0] for name, arm in arms.items() if not name.startswith("A-strict"))
+    print(f"     {'TOTAL unlabelled nodes':<42}{total:>9,}")
+    if total != len(unlabelled):
+        raise SystemExit(f"FATAL: the arms sum to {total:,} but there are {len(unlabelled):,} unlabelled nodes")
+    print("     ⛔ Arm A uses NO embedding and is NOT limited to the ESM shortlist — it is the baseline")
+    print("        cross-species ESM has to beat. Arm B is ESM's MARGINAL contribution over it.")
+    print("     ⭐ 'bridged genes' are the genes actually carrying a shared family; 'whole-node genes'")
+    print("        is what a within-node imputation then covers, at the measured 99.5-99.9 % unanimity.")
+    if examples:
+        print("     arm-A cases (shared genes / node genes):")
+        for node, donor_node, shared, node_genes in examples:
+            print(f"       {recipient} {node:<8} <- {donor} {donor_node:<8} {shared}/{node_genes}")
+
+
 def main() -> None:
     """Section 1 (reliable?) then Section 2 (worthwhile?), for every vocabulary and every rule."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -805,6 +993,10 @@ def main() -> None:
         symbols = {
             "donor": modal_symbols(database, donor_catalogue),
             "recipient": modal_symbols(database, recipient_catalogue),
+        }
+        counts = {
+            "donor": uniref50_gene_counts(database, donor_catalogue),
+            "recipient": uniref50_gene_counts(database, recipient_catalogue),
         }
         print(
             f"  within-{arguments.recipient} baseline: {len(within):,} stored ESM neighbour edges over "
@@ -904,6 +1096,19 @@ def main() -> None:
                     reach,
                     recipient_sets=gene_level["recipient"],
                     donor_sets=gene_level["donor"],
+                    kind=kind,
+                    label_of=label_of,
+                    recipient=arguments.recipient,
+                    donor=arguments.donor,
+                )
+                uniref_first_then_esm(
+                    recipient_ids=recipient_ids,
+                    donor_ids=donor_ids,
+                    recipient_counts=counts["recipient"],
+                    donor_counts=counts["donor"],
+                    donor_levels=donor_levels,
+                    recipient_levels=recipient_levels,
+                    esm_candidates=mapped,
                     kind=kind,
                     label_of=label_of,
                     recipient=arguments.recipient,
