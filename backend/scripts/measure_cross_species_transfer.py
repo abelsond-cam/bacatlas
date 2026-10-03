@@ -1013,6 +1013,45 @@ def prevalence_match(
     print("     ⭐ a monotone fall away from 'same band' would make this a usable filter; a flat")
     print("        column would mean prevalence carries no information the similarity does not.")
 
+    # ⛔ THE CONFOUND, measured rather than named. `prevalence_band` is derived from the genome count,
+    # so band and node SIZE are near-collinear by construction — a band effect could be a size effect
+    # wearing prevalence's clothes. The decisive question is not "is there a band effect" but "which
+    # of the two is the better predictor", so the same agreement is re-cut on the donor/recipient size
+    # ratio, in log2 buckets, directly beside the band table. If the ratio explains as much, the
+    # simpler and more directly measurable quantity should be the filter.
+    import math
+
+    ratio_tally: dict[int, list[int]] = defaultdict(lambda: [0, 0])
+    for row in rows:
+        if int(row[f"rank_{rule}"]) != 1 or row[rule] < floor:
+            continue
+        r_label, d_label = row["recipient_node"], row["donor_node"]
+        r_id, r_genes = recipient_ids[r_label]
+        d_id, d_genes = donor_ids[d_label]
+        mine, theirs = both.get(r_id), both.get(d_id)
+        if mine is None or theirs is None or d_id not in donor_levels or not r_genes or not d_genes:
+            continue
+        level = next((lv for lv in ladder if mine[lv] and theirs[lv]), None)
+        if level is None:
+            continue
+        bucket = max(-3, min(3, round(math.log2(d_genes / r_genes))))
+        ratio_tally[bucket][0] += 1
+        ratio_tally[bucket][1] += bool(mine[level] & theirs[level])
+
+    print("     — the same pairs re-cut on donor/recipient SIZE ratio (the band's confound):")
+    for bucket in sorted(ratio_tally):
+        label = (
+            "donor same size (within 2x)"
+            if bucket == 0
+            else f"donor {2 ** abs(bucket)}x {'smaller' if bucket < 0 else 'larger'}"
+            + (" or more" if abs(bucket) == 3 else "")
+        )
+        pairs, agreeing = ratio_tally[bucket]
+        cell = f"{agreeing / pairs:.1%} n={pairs:,}" if pairs >= MIN_PAIRS else f"n={pairs:,}"
+        print(f"     {label:<34}{cell:>20}")
+    print("     ⛔ If this table has the same shape as the band one, 'prevalence match' IS 'size match'")
+    print("        and the simpler quantity should be the filter.")
+
 
 def main() -> None:
     """Section 1 (reliable?) then Section 2 (worthwhile?), for every vocabulary and every rule."""

@@ -813,5 +813,55 @@ def test_the_band_order_is_the_published_enums_own(capsys):
         rule="cross",
         floor=0.98,
     )
-    body = [line for line in capsys.readouterr().out.splitlines() if "n=" in line]
+    # ⚠ scoped to the BAND half: the size-ratio control beside it does not read bands at all, so it
+    # legitimately still reports the pair. An unscoped assertion here started failing the moment that
+    # control was added, which is the right failure — the band half is what this test is about.
+    band_half = capsys.readouterr().out.split("SIZE ratio")[0]
+    body = [line for line in band_half.splitlines() if "n=" in line]
     assert not body, "an unrecognised band is skipped rather than given a position"
+
+
+def test_the_size_ratio_bucket_sign_matches_the_band_sign(capsys):
+    """⛔ Both axes must read "negative = the donor is LESS", or the two tables printed side by side
+    disagree about direction while looking comparable.
+
+    The size ratio is the band's confound control, so it is only informative if a reader can lay one
+    table over the other. Pinned on a donor far smaller and rarer than its recipient: it must land on
+    the "rarer" side of the band table AND the "smaller" side of the size table, never the other.
+    """
+    recipient_ids = {"big": (101, 100)}
+    donor_ids = {"Esmall": (1, 4)}  # 25x smaller -> log2 = -4.6 -> clamped to the -3 bucket
+    levels = {101: _cog("COG0001", "E"), 1: _cog("COG0001", "E")}
+    rows = [
+        {
+            "recipient_node": "big",
+            "donor_node": "Esmall",
+            "recipient_genes": 100,
+            "cross": 0.99,
+            "cross_p75": 0.99,
+            "cross_max": 0.99,
+            "rank_cross": 1,
+            "rank_cross_p75": 1,
+            "rank_cross_max": 1,
+        }
+    ]
+    xs.prevalence_match(
+        rows,
+        recipient_ids=recipient_ids,
+        donor_ids=donor_ids,
+        recipient_bands={101: "CORE"},
+        donor_bands={1: "CLOUD"},
+        recipient_sets={},
+        donor_sets={},
+        both=levels,
+        donor_levels={1: levels[1]},
+        kind=COG,
+        rule="cross",
+        floor=0.98,
+    )
+    band_half, size_half = capsys.readouterr().out.split("SIZE ratio")
+    assert "donor 3 bands rarer" in band_half, "a CLOUD donor for a CORE recipient is RARER"
+    assert "donor 8x smaller or more" in size_half, "a 4-gene donor for a 100-gene recipient is SMALLER"
+    # ⛔ and the one pair must not also appear on the "donor is more" side of either table
+    assert "commoner" not in band_half.split("donor band vs recipient")[1]
+    assert "larger" not in size_half.split("⛔")[0]
