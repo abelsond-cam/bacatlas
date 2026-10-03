@@ -13,7 +13,7 @@
  */
 import { computed } from "vue";
 
-import type { AnnotationEntry, FunctionResponse } from "@/api/types";
+import type { AnnotationEntry, AnnotationKind, FunctionResponse } from "@/api/types";
 import { GENE_ONTOLOGY_NAMESPACES, coverageSentence } from "@/lib/functionVocabulary";
 
 import CogCard from "./CogCard.vue";
@@ -32,7 +32,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{ retry: [] }>();
 
-function entriesOf(kind: string): readonly AnnotationEntry[] {
+function entriesOf(kind: AnnotationKind): readonly AnnotationEntry[] {
   return props.block?.annotations[kind] ?? [];
 }
 
@@ -107,17 +107,56 @@ const noGeneOntologySentence = computed(() =>
 
       <EnzymeAndKeggCard
         :coverage="block.coverage"
-        :enzyme-entries="entriesOf('enzyme_commission')"
+        :enzyme-entries="entriesOf('ec_number')"
         :kegg-entries="entriesOf('kegg_orthology')"
       />
 
-      <p class="muted">
-        COG, GO and EC as Bakta assigned them, from the same annotation the gene names come from —
-        not an independent source, and not evidence the clustering did not already see. GO terms are
-        folded onto the metagenomics GO slim before the members are compared, because a term and its
-        own child are annotated at different depths rather than in disagreement. Coverage is stated
-        first everywhere: a gene Bakta never annotated says nothing either way.
-      </p>
+      <!--
+        ⛔ This was ONE five-line paragraph doing four jobs — provenance, independence, the GO-slim
+        method and the coverage principle — and a reader looking for any one of them had to read all
+        four (David, 2026-10-03: "The text on current page is a bit hard to absorb. A cleaner layout
+        needed."). Split and labelled: the same four claims, each findable on its own.
+      -->
+      <dl class="func-notes">
+        <div>
+          <dt>Source</dt>
+          <dd>
+            COG, GO and EC as Bakta assigned them, from the same annotation the gene names come
+            from — not an independent source, and not evidence the clustering did not already see.
+          </dd>
+        </div>
+        <div>
+          <dt>GO slim</dt>
+          <dd>
+            GO terms are folded onto the metagenomics GO slim before the members are compared,
+            because a term and its own child are annotated at different depths rather than in
+            disagreement.
+          </dd>
+        </div>
+        <div>
+          <dt>Coverage</dt>
+          <dd>
+            Stated first on every card above: a gene Bakta never annotated says nothing either way,
+            which is a different finding from the members disagreeing.
+          </dd>
+        </div>
+        <div>
+          <dt>Density</dt>
+          <!--
+            ⚠ Measured on ecoli-nuna4, loci of ≥10 members that carry the axis at all (2026-10-03):
+            COG median 1.000 (n=4,031, 75.9 % on every gene) · EC median 1.000 (n=2,114, 84.8 %) ·
+            Pfam median 1.000 (n=6,304, 96.6 %) · KEGG Q1 0.091, median 0.737, only 36.5 % on every
+            gene (n=908). KEGG is the one axis where a reader must look at the count rather than
+            assume it, so it is the one named here.
+          -->
+          <dd>
+            Where COG, EC or Pfam appear at all, the median locus carries them on <em>every</em>
+            member gene — so a partial count there is worth noticing. KEGG is the exception and is
+            routinely partial: of the loci carrying any KEGG, a quarter carry it on under a tenth of
+            their genes. Read the count on the card, never the terms alone.
+          </dd>
+        </div>
+      </dl>
     </template>
   </div>
 </template>

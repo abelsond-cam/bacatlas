@@ -85,16 +85,16 @@ function locus(overrides: Partial<Locus> = {}): Locus {
 // ── the headline ───────────────────────────────────────────────────────────────────────────────
 function mountHeadline(overrides: Partial<Locus> = {}, collectionGenomeCount = 100) {
   return mount(LocusHeadline, {
-    props: {
-      locus: locus(overrides),
-      collectionGenomeCount,
-      separationMeasurableLocusCount: 12_104,
-    },
+    props: { locus: locus(overrides), collectionGenomeCount },
   });
 }
 
 function tileValues(wrapper: ReturnType<typeof mountHeadline>): string[] {
   return wrapper.findAll(".tile .v").map((node) => node.text());
+}
+
+function tileCaptions(wrapper: ReturnType<typeof mountHeadline>): string[] {
+  return wrapper.findAll(".tile .k").map((node) => node.text());
 }
 
 describe("⭐ the headline — what it is, then how good it is", () => {
@@ -126,11 +126,50 @@ describe("⭐ the headline — what it is, then how good it is", () => {
     expect(tileValues(mountHeadline())).toEqual([
       "97%", // 97 of 100 genomes
       "1.03", // 100 genes / 97 genomes
+      "98%", // ⭐ sequence identity — `resolved_threshold`, promoted out of the prose below
       "0.91", // synteny A5
       "0.940", // within cluster · Bacformer — the median over every gene pair, shown as itself
       "0.940", // within cluster · ESM
-      "p62", // the separation midrank
     ]);
+  });
+
+  it("⛔ tiles `resolved_threshold` and NEVER `seqid_coverage`", () => {
+    // `seqid_coverage` is populated on 0 of 17,531 ecoli-nuna4 loci, so a tile reading it would print
+    // a dash on every locus in both catalogues. The identity tile must follow the threshold.
+    const head = mountHeadline({
+      evidence: { ...locus().evidence, resolved_threshold: 0.6 },
+    });
+    expect(tileValues(head)[2]).toBe("60%");
+  });
+
+  it("⚠ states the 50-member cap in the identity tile's title, because 35 % of loci sit at it", () => {
+    const capped = mountHeadline({
+      evidence: { ...locus().evidence, resolved_threshold_is_capped_at_50_members: true },
+    });
+    const title = capped.findAll(".tile")[2]!.attributes("title")!;
+    expect(title).toContain("first 50 member genes");
+    expect(title).toContain("not all 100");
+    // …and it is NOT claimed where it does not apply.
+    expect(mountHeadline().findAll(".tile")[2]!.attributes("title")).not.toContain("first 50");
+  });
+
+  it("⛔ tells the two NO-THRESHOLD cases apart — they are opposite findings, not one dash", () => {
+    // Measured on ecoli-nuna4: 5,896 loci carry no threshold — 5,427 singletons (no pair to align)
+    // and 469 multi-member loci MMseqs never grouped at any rung. One tooltip for both would merge
+    // "does not arise" with "alignment found nothing".
+    const singleton = mountHeadline({
+      gene_count: 1,
+      evidence: { ...locus().evidence, resolved_threshold: null },
+    });
+    expect(tileValues(singleton)[2]).toBe("—");
+    expect(singleton.findAll(".tile")[2]!.attributes("title")).toContain("no pair to align");
+
+    const unaligned = mountHeadline({
+      evidence: { ...locus().evidence, resolved_threshold: null, collapse_tier: "esm_homology" },
+    });
+    const title = unaligned.findAll(".tile")[2]!.attributes("title")!;
+    expect(title).toContain("never grouped these members at any threshold");
+    expect(title).toContain("esm_homology");
   });
 
   it("⛔ prints `—` where a number was never measured, never 0", () => {
@@ -144,7 +183,23 @@ describe("⭐ the headline — what it is, then how good it is", () => {
         bacformer: similarity({ within_similarity: null, separation_percentile: null }),
       },
     });
-    expect(tileValues(head)).toEqual(["97%", "1.03", "—", "—", "—", "—"]);
+    expect(tileValues(head)).toEqual(["97%", "1.03", "98%", "—", "—", "—"]);
+  });
+
+  it("⛔ says `one member` for a singleton's cohesion, which is neither 0 nor a dash", () => {
+    // `within_similarity` is null for EXACTLY the singletons — 5,427 of 17,531 ecoli-nuna4 loci and
+    // 4,398 of 15,670 kp-nuna4 — and for no multi-member locus. A 0.0 would claim the members are
+    // unrelated; a dash would say the question was asked and missed.
+    const head = mountHeadline({
+      gene_count: 1,
+      similarity: {
+        esm: similarity({ within_similarity: null }),
+        bacformer: similarity({ within_similarity: null }),
+      },
+    });
+    expect(tileValues(head).slice(4, 6)).toEqual(["one member", "one member"]);
+    // ⚠ And it is set as prose, not in the 19px number face, or it overflows three columns.
+    expect(head.findAll(".tile .v")[4]!.classes()).toContain("v-note");
   });
 
   it("⛔ shows the within-cluster median ITSELF, never a rescaling against the floor", () => {
@@ -158,57 +213,73 @@ describe("⭐ the headline — what it is, then how good it is", () => {
         bacformer: similarity({ within_similarity: 0.7 }),
       },
     });
-    expect(tileValues(head).slice(3, 5)).toEqual(["0.700", "0.700"]);
+    expect(tileValues(head).slice(4, 6)).toEqual(["0.700", "0.700"]);
   });
 
-  it("⛔ carries the separation VERDICT as a class and names its denominator", () => {
-    const head = mountHeadline();
-    const tile = head.findAll(".tile")[5]!;
-    expect(tile.classes()).toContain("sep-win");
-    expect(tile.attributes("title")).toContain("Clean cluster separation");
-    expect(tile.attributes("title")).toContain("+0.330");
-    // ⚠ The title names the two rows the difference came from, in the words the card uses.
-    expect(tile.attributes("title")).toContain("(within cluster − nearest other cluster)");
-    expect(tile.attributes("title")).toContain("ranked against 12,104 loci");
-  });
-
-  it("flags a NEGATIVE separation, where the nearest rival is closer than its own members", () => {
-    const head = mountHeadline({
-      similarity: {
-        esm: similarity(),
-        bacformer: similarity({ nearest_similarity: 0.98, separation_percentile: 0.01 }),
-      },
-    });
-    expect(head.findAll(".tile")[5]!.classes()).toContain("sep-bad");
+  it("⛔ no longer tiles cluster separation — the card below is where it lives now", () => {
+    // It held the sixth slot as a percentile until 2026-10-03. `EmbeddingSimilarityCard` already drew
+    // it as a `.pair.sep` row against each representation's OWN measurable count, so the tile was the
+    // duplicate — and the slot went to sequence identity, which was in no tile at all.
+    expect(tileCaptions(mountHeadline())).not.toContain("cluster separation");
+    expect(tileCaptions(mountHeadline())).toEqual([
+      "of genomes",
+      "copies per genome",
+      "sequence identity",
+      "synteny A5",
+      "within cluster · Bacformer",
+      "within cluster · ESM",
+    ]);
   });
 });
 
-describe("⚠ the inferred-name caveat sits BESIDE the name, not in the typography", () => {
-  it("says nothing where the name is a real Bakta symbol", () => {
-    expect(mountHeadline().find(".inferred-note").exists()).toBe(false);
-  });
-
-  it("names the Bakta product where it came from one", () => {
-    expect(mountHeadline({ display_name_source: "product" }).find(".inferred-note").text()).toBe(
-      "inferred from the Bakta product — not a Bakta gene name",
+describe("⭐ the name says what it RESTS ON — the denominator, beside the name", () => {
+  it("⛔ gives gumC's case the fraction, which the page used to say nothing about", () => {
+    // David, 2026-10-03: "Only 2 / 100 gumC nodes have Bakta names. Yet this is very quiet on the
+    // current page." kp-nuna4 locus 722 — 100 members, named_gene_count 2 — and `bakta_symbol`
+    // returned null, so the line was absent entirely.
+    const head = mountHeadline({ gene_count: 100, named_gene_count: 2, display_name: "gumC" });
+    expect(head.find(".inferred-note").text()).toBe(
+      "Name inferred from 2 of 100 named genes — the other 98 carry no name",
     );
   });
 
-  it("names the Pfam accession where it came from one", () => {
-    const head = mountHeadline({
+  it("says so where every member gene carries a name — 7,132 of 8,245 ecoli loci", () => {
+    // "No note" is too weak a signal to carry 86 % of the named loci: silence would then mean both
+    // "all 100 agree" and "2 of 100", which is the ambiguity this line exists to remove.
+    expect(mountHeadline({ gene_count: 100, named_gene_count: 100 }).find(".inferred-note").text()).toBe(
+      "Name carried by all 100 member genes",
+    );
+  });
+
+  it("reads `gene` in the singular where exactly one member is named", () => {
+    expect(mountHeadline({ gene_count: 40, named_gene_count: 1 }).find(".inferred-note").text()).toBe(
+      "Name inferred from 1 of 40 named gene — the other 39 carry no name",
+    );
+  });
+
+  it("⛔ states the ZERO for the three sources measured to always have it", () => {
+    // `label`, `product` and `pfam_architecture` have named_gene_count = 0 in EVERY case across
+    // ecoli-nuna4, ecoli-nuna5, kp-nuna4 and kp-nuna5 — so each can state it flatly rather than hedge.
+    expect(mountHeadline({ display_name_source: "product", named_gene_count: 0 }).find(".inferred-note").text()).toBe(
+      "No member gene carries a name — inferred from the Bakta product",
+    );
+    const pfam = mountHeadline({
       display_name_source: "pfam_architecture",
       display_name_source_accession: "PF00126",
+      named_gene_count: 0,
     });
-    expect(head.find(".inferred-note").text()).toBe(
-      "inferred from PF00126 — not a Bakta gene name",
+    expect(pfam.find(".inferred-note").text()).toBe(
+      "No member gene carries a name — inferred from PF00126",
     );
   });
 
-  it("⛔ says NOTHING where the name is the locus id — there is no name to caveat", () => {
-    // 16,551 of 33,201 loci. A line reading "inferred from label" would invent a claim about a name
-    // nothing inferred.
-    const head = mountHeadline({ display_name_source: "label", display_name: "4222" });
-    expect(head.find(".inferred-note").exists()).toBe(false);
+  it("⛔ breaks the silence on the LARGEST group — the 8,741 loci named only by their id", () => {
+    // These got no line at all, which is how the biggest group on the page said the least. The name
+    // IS the locus id, so there is no name to caveat — but there is a fact to state.
+    const head = mountHeadline({ display_name_source: "label", display_name: "4222", named_gene_count: 0 });
+    expect(head.find(".inferred-note").text()).toBe(
+      "No member gene carries a name — this is the locus id",
+    );
   });
 });
 

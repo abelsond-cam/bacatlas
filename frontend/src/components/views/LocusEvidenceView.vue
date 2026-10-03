@@ -32,15 +32,13 @@ const similarityView = useSimilarityViewStore();
 const { view } = storeToRefs(similarityView);
 
 const baselines = computed(() => props.catalogue.similarity_baselines);
-/**
- * ⚠ The separation TILE reads Bacformer — the context axis the track is built on — so its "of N
- * loci" is Bacformer's measurable count, not ESM's. The card itself names each representation's own.
+/*
+ * ⛔ `separationCount` lived here to give the headline's separation TILE its "of N loci" denominator,
+ * reading Bacformer's measurable count because the tile read Bacformer. The tile moved into
+ * `EmbeddingSimilarityCard` on 2026-10-03, and that card already derives each representation's OWN
+ * measurable count from the same `baselines` — so the prop went with the tile rather than being
+ * threaded through a component that no longer shows it.
  */
-const separationCount = computed(
-  () =>
-    baselines.value.find((baseline) => baseline.representation === "bacformer")
-      ?.measurable_locus_count ?? null,
-);
 </script>
 
 <template>
@@ -50,7 +48,6 @@ const separationCount = computed(
         <LocusHeadline
           :locus="detail.locus"
           :collection-genome-count="catalogue.pangenome.genome_count"
-          :separation-measurable-locus-count="separationCount"
         />
         <SequenceDiversityCard
           :locus="detail.locus"

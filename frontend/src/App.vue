@@ -265,7 +265,7 @@ onBeforeUnmount(() => window.removeEventListener("hashchange", onHashChange));
           />
         </div>
       </section>
-      <section id="view-eggnog" class="view-panel" role="tabpanel" aria-label="EggNOG" :hidden="view !== 'function'">
+      <section id="view-function" class="view-panel" role="tabpanel" aria-label="Function" :hidden="view !== 'function'">
         <div class="wrap">
           <FunctionView v-if="drawable !== null" :detail="drawable" />
         </div>

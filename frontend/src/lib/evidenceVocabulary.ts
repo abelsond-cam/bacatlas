@@ -154,14 +154,18 @@ export const PFAM_VERDICTS: Readonly<Record<string, Verdict>> = {
       "The architectures share a domain but neither contains the other. Weigh this against the " +
       "sequence and context evidence.",
   },
+  // ⛔ The reader-facing note cited `nuna_structural_syntology.md §6.2` until 2026-10-03. That file
+  // exists and §6.2 ("Pfam domain architecture — structural evidence") is the argument behind this
+  // chip — but it lives in the PRIVATE nuna repo, so to everyone reading BacAtlas the citation named
+  // a document they cannot open. Provenance belongs in the source, where it can be followed; the note
+  // keeps the claim and drops the dead reference.
   disjoint: {
     tone: "bad",
     label: "conflicting architecture",
     note:
       "The minor architecture shares NO domain family or clan with the dominant one — different " +
-      "folds at the same locus. A discordant architecture is evidence AGAINST this merge " +
-      "(nuna_structural_syntology.md §6.2), and this locus should be treated as contested until " +
-      "the sequence and context evidence is weighed.",
+      "folds at the same locus. A discordant architecture is evidence AGAINST this merge, and this " +
+      "locus should be treated as contested until the sequence and context evidence is weighed.",
   },
 };
 

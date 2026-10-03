@@ -60,6 +60,38 @@ export type GoVerdict =
   | "overlapping"
   | "disjoint";
 
+/**
+ * ⛔ **The annotation vocabulary, pinned — `backend/bacatlas_backend/models/enumerations.py`'s
+ * `AnnotationKind`, all seven members.**
+ *
+ * It exists because `annotations` was `Record<string, …>`, and a bare string index means a key that
+ * matches nothing type-checks, renders, and shows an empty card. `FunctionTab` asked for
+ * `enzyme_commission`; the backend has always emitted `ec_number`; the string appeared exactly once
+ * in the whole front end and in no test. **4,544 loci across the two live catalogues carry an EC
+ * number and not one of them displayed it** — 3,348 drew no EC/KEGG card at all and 1,196 drew it
+ * with the KEGG row alone (measured 2026-10-03). Six of the seven keys were right, and the compiler
+ * could not tell them apart from the seventh.
+ *
+ * ⚠ So the fix is the TYPE, not the one string: `entriesOf` now takes an `AnnotationKind`, and the
+ * next typo is a build failure rather than a blank card. `[[build-an-instrument-not-another-fix]]`.
+ */
+export const ANNOTATION_KINDS = [
+  "gene_symbol",
+  "protein_product",
+  "pfam_architecture",
+  "cog_orthogroup",
+  "gene_ontology_slim",
+  "ec_number",
+  "kegg_orthology",
+] as const;
+
+export type AnnotationKind = (typeof ANNOTATION_KINDS)[number];
+
+/** What the response carries per vocabulary. `Partial`: an absent kind is absent, not empty. */
+export type AnnotationsByKind = Readonly<
+  Partial<Record<AnnotationKind, readonly AnnotationEntry[]>>
+>;
+
 export interface AnnotationEntry {
   readonly rank: number;
   readonly term: string;
@@ -333,7 +365,7 @@ export interface Locus {
 
 export interface LocusDetailResponse {
   readonly locus: Locus;
-  readonly annotations: Readonly<Record<string, readonly AnnotationEntry[]>>;
+  readonly annotations: AnnotationsByKind;
   readonly uniref50_families: readonly UnirefFamily[];
   readonly arrangements: {
     readonly listed: readonly Arrangement[];
@@ -472,7 +504,7 @@ export interface ArrangementPageResponse {
 }
 
 export interface FunctionResponse {
-  readonly annotations: Readonly<Record<string, readonly AnnotationEntry[]>>;
+  readonly annotations: AnnotationsByKind;
   readonly coverage: {
     readonly gene_count: number;
     readonly cog_annotated_gene_count: number;

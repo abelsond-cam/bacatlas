@@ -318,6 +318,25 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
     expect(head.find(".lid").text()).toBe("lysS ·17373");
   });
 
+  it("⛔ draws the EC row — 4,544 loci carried an EC number and NOT ONE of them showed it", () => {
+    // The tab asked `annotations` for `enzyme_commission`; the backend's `AnnotationKind` enum has
+    // always said `ec_number`. `annotations` was `Record<string, …>`, so the wrong key type-checked,
+    // rendered, and silently dropped the whole row — and this fixture had no EC entry, so 668 green
+    // tests never touched it. gumC (kp-nuna4 locus 722) carries EC on 16 of its 100 genes and showed
+    // no EC/KEGG card at all. The compile-time guard is `ANNOTATION_KINDS`; this is the behaviour.
+    const tab = mountTab({
+      block: block({
+        annotations: {
+          cog_orthogroup: [entry("COG1132", 60)],
+          ec_number: [entry("2.7.10.-", 16)],
+        },
+        coverage: coverage({ ec_annotated_gene_count: 16 }),
+      }),
+    });
+    expect(tab.text()).toContain("2.7.10.-");
+    expect(tab.text()).toContain("16 of 100 annotated");
+  });
+
   it("⚠ says these are not an independent source", () => {
     // They are the same annotations the gene names come from, so a reader taking the COG agreement
     // as corroboration of the merge is double-counting one source.

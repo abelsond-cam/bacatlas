@@ -26,7 +26,11 @@ import { useLocusNavigationStore } from "./locusNavigationStore";
 export const VIEW_TABS = [
   { id: "locus", label: "Syntelog Loci" },
   { id: "sequence", label: "Sequence" },
-  { id: "function", label: "EggNOG" },
+  // ⭐ `Function`, not `EggNOG` (David, 2026-10-03): *"Change 'EggNOG' to just be a 'Function' tab
+  // and it can include the EggNOG annotations."* The tab names what a reader is looking for; EggNOG
+  // is one of the sources inside it, and the panel's own heading has read `Function` all along — the
+  // strip was the only place still naming the database instead of the question.
+  { id: "function", label: "Function" },
   { id: "navigating", label: "Navigating BacAtlas" },
 ] as const;
 

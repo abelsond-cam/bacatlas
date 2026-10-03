@@ -105,7 +105,7 @@ describe("the view tabs", () => {
   it("⭐ put the three views OF THIS LOCUS first and the site's documentation last", () => {
     // David, 2026-09-22 — "Navigating BacAtlas" had sat second, between the evidence and the sequence.
     const labels = mount(ViewTabs, { props: { view: "locus" } }).findAll(".view-tab").map((tab) => tab.text());
-    expect(labels).toEqual(["Syntelog Loci", "Sequence", "EggNOG", "Navigating BacAtlas"]);
+    expect(labels).toEqual(["Syntelog Loci", "Sequence", "Function", "Navigating BacAtlas"]);
   });
 });
 

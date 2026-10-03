@@ -3592,3 +3592,58 @@ td.fam-sym {
 .own-lines li.placed-elsewhere .own-line-mark {
     color: var(--ink-2);
 }
+
+/* A tile whose value is a WORD, not a number (David, 2026-10-03). `within cluster` is null for exactly
+   the singletons -- 5,427 of 17,531 ecoli-nuna4 loci -- and the tile says "one member" there, because a
+   0.0 would claim the members are unrelated and a dash would say the question was asked and missed. At
+   the tile's 19px mono that phrase overflows three columns, so it is set as prose: the number face is
+   for numbers. */
+.tile .v.v-note {
+    font-family: var(--sans);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    line-height: 1.5;
+}
+
+/* The Function tab's closing note, split into labelled claims (David, 2026-10-03: "The text on current
+   page is a bit hard to absorb. A cleaner layout needed."). It was one five-line paragraph carrying
+   provenance, independence, the GO-slim method and the coverage principle at once. A definition list
+   lets a reader find the one they came for; the label column is fixed so the four read as a set. */
+.func-notes {
+    margin: var(--s4) 0 0;
+    display: grid;
+    gap: var(--s2);
+    font-size: 12px;
+    color: var(--ink-3);
+    line-height: 1.6;
+}
+.func-notes > div {
+    display: grid;
+    grid-template-columns: 124px 1fr;
+    gap: var(--s3);
+}
+.func-notes dt {
+    font-size: 10.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    padding-top: 1px;
+}
+.func-notes dd {
+    margin: 0;
+    color: var(--ink-2);
+}
+.func-notes dd em {
+    font-style: normal;
+    font-weight: 700;
+    color: var(--ink);
+}
+/* ⚠ The label column becomes a line of its own on a phone: at 124px it leaves ~40 % of the width for
+   prose, which wraps to one or two words a line. */
+@media (max-width: 560px) {
+    .func-notes > div {
+        grid-template-columns: 1fr;
+        gap: 2px;
+    }
+}
