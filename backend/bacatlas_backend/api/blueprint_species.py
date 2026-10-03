@@ -19,6 +19,7 @@ from __future__ import annotations
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import select
 
+from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.serialisers.locus_serialiser import (
@@ -29,6 +30,7 @@ from bacatlas_backend.serialisers.locus_serialiser import (
 )
 from bacatlas_backend.serialisers.projected_genome_serialiser import serialise_projected_genome
 from bacatlas_backend.services.audit_residual_service import load_audit_residuals
+from bacatlas_backend.services.function_inference_service import calibration_for, load_inference
 from bacatlas_backend.services.gene_sequence_service import (
     SequenceUnavailable,
     load_gene_sequences,
@@ -469,7 +471,13 @@ def get_locus_arrangements(species_key: str, locus_label: str):
 @species_blueprint.get("/catalogues/<species_key>/loci/<path:locus_label>/function")
 @species_blueprint.get("/species/<species_key>/loci/<path:locus_label>/function")
 def get_locus_function(species_key: str, locus_label: str):
-    """The EggNOG tab — fetched on tab open, not on every walk."""
+    """The Function tab — fetched on tab open, not on every walk.
+
+    ⭐ Carries its own **calibration**: the measured agreement rate for every (similarity tier,
+    depth) the inference ladder can quote, recomputed from the loaded catalogue rather than copied
+    out of the write-up. ~3.6 kB of cells on a cold-path response, so the reader can see the whole
+    ladder instead of one rate presented without its neighbours.
+    """
     with _session() as session:
         try:
             pangenome = _resolve_pangenome(session, species_key)
@@ -488,6 +496,18 @@ def get_locus_function(species_key: str, locus_label: str):
         grouped = load_function_block(session, locus_id=locus.locus_id)
         return _immutable(
             {
+                # ⛔ Separate from `annotations`, never merged into it: one is what this node's genes
+                # SAY, the other is what a neighbour SUGGESTS, and a reader cannot be left to tell
+                # them apart by context.
+                "inference": load_inference(
+                    session, pangenome_id=pangenome.pangenome_id, locus=locus
+                ),
+                "calibration": {
+                    kind.value: calibration_for(
+                        session, pangenome_id=pangenome.pangenome_id, annotation_kind=kind
+                    ).as_json()
+                    for kind in SUPPORTED_KINDS
+                },
                 "annotations": {
                     kind: [serialise_annotation_entry(entry) for entry in entries]
                     for kind, entries in grouped.items()

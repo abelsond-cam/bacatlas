@@ -97,6 +97,356 @@
       }
      ]
     },
+    "calibration": {
+     "cog_orthogroup": {
+      "annotated_locus_count": 4993,
+      "annotation_kind": "cog_orthogroup",
+      "cells": [
+       {
+        "agreement": 0.9889883000688231,
+        "chance": 0.0027891839606826014,
+        "interval_high": 0.9932106784051377,
+        "interval_low": 0.9821870587270255,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 354.57980327220383,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9944941500344116,
+        "chance": 0.07533691897400512,
+        "interval_high": 0.9972075286651817,
+        "interval_low": 0.9891728712355351,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 13.200621469236884,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9077922077922078,
+        "chance": 0.0023770500333000397,
+        "interval_high": 0.9262528996638689,
+        "interval_low": 0.8852826910823511,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 381.89865382510567,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9571428571428572,
+        "chance": 0.07551328879453915,
+        "interval_high": 0.9693229771534483,
+        "interval_low": 0.9404239271225691,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 12.675157875153682,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.5798387096774194,
+        "chance": 0.0020991651157981914,
+        "interval_high": 0.6070238267423919,
+        "interval_low": 0.5521604295166044,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 276.2234877635817,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7814516129032258,
+        "chance": 0.07787669949338279,
+        "interval_high": 0.8035654836383993,
+        "interval_low": 0.7575992177190728,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 10.03447267265899,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.298819255222525,
+        "chance": 0.0017070910186543834,
+        "interval_high": 0.3182752471610667,
+        "interval_low": 0.280063998957059,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 175.04588329336397,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5059037238873751,
+        "chance": 0.07698593862805297,
+        "interval_high": 0.5267579762969314,
+        "interval_low": 0.48502890812849625,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 6.57137826599192,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.12609970674486803,
+        "chance": 0.0009028639371381425,
+        "interval_high": 0.13331542575612546,
+        "interval_low": 0.11922081550786992,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 139.6663456783679,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.33560117302052783,
+        "chance": 0.06858123731107627,
+        "interval_high": 0.3456970992387057,
+        "interval_low": 0.3256533453515655,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.893483789134354,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "ec_number": {
+      "annotated_locus_count": 2539,
+      "annotation_kind": "ec_number",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.004750134016320202,
+        "interval_high": 1.0,
+        "interval_low": 0.9816928578508741,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 210.52037617554893,
+        "pairs": 206,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.979933110367893,
+        "chance": 0.02229981881134058,
+        "interval_high": 0.9907716266732061,
+        "interval_low": 0.9569185189342668,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 43.943545849329844,
+        "pairs": 299,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.059466050988553676,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 16.72590729297677,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.23380424006710906,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.254087332327638,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8434343434343434,
+        "chance": 0.0032740492863192264,
+        "interval_high": 0.8874552799499632,
+        "interval_low": 0.786340409343027,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 257.61198738170333,
+        "pairs": 198,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9520295202952029,
+        "chance": 0.020851882878879135,
+        "interval_high": 0.9717547637088241,
+        "interval_low": 0.9196677865892385,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 45.65676518639539,
+        "pairs": 271,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9619377162629758,
+        "chance": 0.06414359861591695,
+        "interval_high": 0.9786161784970397,
+        "interval_low": 0.9331395283424255,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 14.996628455832772,
+        "pairs": 289,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.976897689768977,
+        "chance": 0.21759291768420366,
+        "interval_high": 0.9887652790167235,
+        "interval_low": 0.9530887590276617,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.489565653909588,
+        "pairs": 303,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.4343675417661098,
+        "chance": 0.0029149645421223985,
+        "interval_high": 0.48221337253265495,
+        "interval_low": 0.38771427886209897,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 149.01297614064455,
+        "pairs": 419,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6566265060240963,
+        "chance": 0.017950105078307344,
+        "interval_high": 0.696989498539895,
+        "interval_low": 0.6138655601080927,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 36.58064970425314,
+        "pairs": 498,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6908023483365949,
+        "chance": 0.056480020200744975,
+        "interval_high": 0.7293261946519485,
+        "interval_low": 0.6494310774876766,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 12.230915390633717,
+        "pairs": 511,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7840909090909091,
+        "chance": 0.20435068772834739,
+        "interval_high": 0.817068050447459,
+        "interval_low": 0.7470096749504789,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 3.8369868866467267,
+        "pairs": 528,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.2267818574514039,
+        "chance": 0.0018164191036496196,
+        "interval_high": 0.2548500721808544,
+        "interval_low": 0.20097122039198806,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 124.8510638297874,
+        "pairs": 926,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.35634167385677307,
+        "chance": 0.019487330628187787,
+        "interval_high": 0.3843472266370865,
+        "interval_low": 0.3292853093850167,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 18.2858124930326,
+        "pairs": 1159,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.3837011884550085,
+        "chance": 0.04996748178980259,
+        "interval_high": 0.41180661320951994,
+        "interval_low": 0.3563518269740038,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 7.67901792748168,
+        "pairs": 1178,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5085020242914979,
+        "chance": 0.20815937826016478,
+        "interval_high": 0.5363147851421542,
+        "interval_low": 0.48063653454229927,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 2.4428494576687028,
+        "pairs": 1235,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.0997648639570037,
+        "chance": 0.0014109536439217156,
+        "interval_high": 0.11105157203615579,
+        "interval_low": 0.08950977278672914,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 70.70740019474303,
+        "pairs": 2977,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.18401015228426396,
+        "chance": 0.020193694336576497,
+        "interval_high": 0.19641557820912695,
+        "interval_low": 0.17222032238079535,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 9.112257976044011,
+        "pairs": 3940,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.22559334475165158,
+        "chance": 0.05486524937449119,
+        "interval_high": 0.23866209943866826,
+        "interval_low": 0.21303996597496208,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 4.111771063170233,
+        "pairs": 4087,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.42669481585737745,
+        "chance": 0.2208702181451367,
+        "interval_high": 0.44160166351970914,
+        "interval_low": 0.41191996709343587,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.9318802663426118,
+        "pairs": 4263,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     }
+    },
     "coverage": {
      "cog_annotated_gene_count": 106,
      "cog_distinct_id_count": 1,
@@ -116,6 +466,37 @@
      "biological_process": "single",
      "cellular_component": "single",
      "molecular_function": "nested"
+    },
+    "inference": {
+     "representation": "esm",
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 106,
+        "checkable": true,
+        "gene_count": 106,
+        "member_gene_count": 106,
+        "name": null,
+        "term": "6.1.1.18"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 106,
+        "checkable": true,
+        "gene_count": 106,
+        "member_gene_count": 106,
+        "name": "Glutamyl- or glutaminyl-tRNA synthetase",
+        "term": "COG0008"
+       },
+       "walk": []
+      }
+     ]
     }
    },
    "label": "17373",
@@ -2180,6 +2561,1933 @@
     ]
    }
   },
+  "inferred_function": {
+   "function": {
+    "annotations": {},
+    "calibration": {
+     "cog_orthogroup": {
+      "annotated_locus_count": 4993,
+      "annotation_kind": "cog_orthogroup",
+      "cells": [
+       {
+        "agreement": 0.9889883000688231,
+        "chance": 0.0027891839606826014,
+        "interval_high": 0.9932106784051377,
+        "interval_low": 0.9821870587270255,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 354.57980327220383,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9944941500344116,
+        "chance": 0.07533691897400512,
+        "interval_high": 0.9972075286651817,
+        "interval_low": 0.9891728712355351,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 13.200621469236884,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9077922077922078,
+        "chance": 0.0023770500333000397,
+        "interval_high": 0.9262528996638689,
+        "interval_low": 0.8852826910823511,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 381.89865382510567,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9571428571428572,
+        "chance": 0.07551328879453915,
+        "interval_high": 0.9693229771534483,
+        "interval_low": 0.9404239271225691,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 12.675157875153682,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.5798387096774194,
+        "chance": 0.0020991651157981914,
+        "interval_high": 0.6070238267423919,
+        "interval_low": 0.5521604295166044,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 276.2234877635817,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7814516129032258,
+        "chance": 0.07787669949338279,
+        "interval_high": 0.8035654836383993,
+        "interval_low": 0.7575992177190728,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 10.03447267265899,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.298819255222525,
+        "chance": 0.0017070910186543834,
+        "interval_high": 0.3182752471610667,
+        "interval_low": 0.280063998957059,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 175.04588329336397,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5059037238873751,
+        "chance": 0.07698593862805297,
+        "interval_high": 0.5267579762969314,
+        "interval_low": 0.48502890812849625,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 6.57137826599192,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.12609970674486803,
+        "chance": 0.0009028639371381425,
+        "interval_high": 0.13331542575612546,
+        "interval_low": 0.11922081550786992,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 139.6663456783679,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.33560117302052783,
+        "chance": 0.06858123731107627,
+        "interval_high": 0.3456970992387057,
+        "interval_low": 0.3256533453515655,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.893483789134354,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "ec_number": {
+      "annotated_locus_count": 2539,
+      "annotation_kind": "ec_number",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.004750134016320202,
+        "interval_high": 1.0,
+        "interval_low": 0.9816928578508741,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 210.52037617554893,
+        "pairs": 206,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.979933110367893,
+        "chance": 0.02229981881134058,
+        "interval_high": 0.9907716266732061,
+        "interval_low": 0.9569185189342668,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 43.943545849329844,
+        "pairs": 299,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.059466050988553676,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 16.72590729297677,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.23380424006710906,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.254087332327638,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8434343434343434,
+        "chance": 0.0032740492863192264,
+        "interval_high": 0.8874552799499632,
+        "interval_low": 0.786340409343027,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 257.61198738170333,
+        "pairs": 198,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9520295202952029,
+        "chance": 0.020851882878879135,
+        "interval_high": 0.9717547637088241,
+        "interval_low": 0.9196677865892385,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 45.65676518639539,
+        "pairs": 271,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9619377162629758,
+        "chance": 0.06414359861591695,
+        "interval_high": 0.9786161784970397,
+        "interval_low": 0.9331395283424255,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 14.996628455832772,
+        "pairs": 289,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.976897689768977,
+        "chance": 0.21759291768420366,
+        "interval_high": 0.9887652790167235,
+        "interval_low": 0.9530887590276617,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.489565653909588,
+        "pairs": 303,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.4343675417661098,
+        "chance": 0.0029149645421223985,
+        "interval_high": 0.48221337253265495,
+        "interval_low": 0.38771427886209897,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 149.01297614064455,
+        "pairs": 419,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6566265060240963,
+        "chance": 0.017950105078307344,
+        "interval_high": 0.696989498539895,
+        "interval_low": 0.6138655601080927,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 36.58064970425314,
+        "pairs": 498,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6908023483365949,
+        "chance": 0.056480020200744975,
+        "interval_high": 0.7293261946519485,
+        "interval_low": 0.6494310774876766,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 12.230915390633717,
+        "pairs": 511,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7840909090909091,
+        "chance": 0.20435068772834739,
+        "interval_high": 0.817068050447459,
+        "interval_low": 0.7470096749504789,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 3.8369868866467267,
+        "pairs": 528,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.2267818574514039,
+        "chance": 0.0018164191036496196,
+        "interval_high": 0.2548500721808544,
+        "interval_low": 0.20097122039198806,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 124.8510638297874,
+        "pairs": 926,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.35634167385677307,
+        "chance": 0.019487330628187787,
+        "interval_high": 0.3843472266370865,
+        "interval_low": 0.3292853093850167,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 18.2858124930326,
+        "pairs": 1159,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.3837011884550085,
+        "chance": 0.04996748178980259,
+        "interval_high": 0.41180661320951994,
+        "interval_low": 0.3563518269740038,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 7.67901792748168,
+        "pairs": 1178,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5085020242914979,
+        "chance": 0.20815937826016478,
+        "interval_high": 0.5363147851421542,
+        "interval_low": 0.48063653454229927,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 2.4428494576687028,
+        "pairs": 1235,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.0997648639570037,
+        "chance": 0.0014109536439217156,
+        "interval_high": 0.11105157203615579,
+        "interval_low": 0.08950977278672914,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 70.70740019474303,
+        "pairs": 2977,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.18401015228426396,
+        "chance": 0.020193694336576497,
+        "interval_high": 0.19641557820912695,
+        "interval_low": 0.17222032238079535,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 9.112257976044011,
+        "pairs": 3940,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.22559334475165158,
+        "chance": 0.05486524937449119,
+        "interval_high": 0.23866209943866826,
+        "interval_low": 0.21303996597496208,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 4.111771063170233,
+        "pairs": 4087,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.42669481585737745,
+        "chance": 0.2208702181451367,
+        "interval_high": 0.44160166351970914,
+        "interval_low": 0.41191996709343587,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.9318802663426118,
+        "pairs": 4263,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     }
+    },
+    "coverage": {
+     "cog_annotated_gene_count": 0,
+     "cog_distinct_id_count": 0,
+     "ec_annotated_gene_count": 0,
+     "gene_count": 102,
+     "go_annotated_gene_count": {
+      "biological_process": 0,
+      "cellular_component": 0,
+      "molecular_function": 0
+     },
+     "kegg_annotated_gene_count": 0,
+     "modal_cog_categories": null
+    },
+    "go_verdicts": {
+     "biological_process": "no_coverage",
+     "cellular_component": "no_coverage",
+     "molecular_function": "no_coverage"
+    },
+    "inference": {
+     "representation": "esm",
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 4130,
+         "cosine": 0.989086,
+         "display_name": "yecV",
+         "node_label": "4130",
+         "rank": 1,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 2604,
+         "cosine": 0.986387,
+         "display_name": "ychT",
+         "node_label": "2604",
+         "rank": 2,
+         "tier": "0.98-0.99"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "candidate": {
+        "calibration": {
+         "agreement": 0.9077922077922078,
+         "chance": 0.0023770500333000397,
+         "interval_high": 0.9262528996638689,
+         "interval_low": 0.8852826910823511,
+         "level": 2,
+         "level_label": "COG orthogroup",
+         "lift": 381.89865382510567,
+         "pairs": 770,
+         "tier": "0.98-0.99"
+        },
+        "cosine": 0.986387,
+        "donor": {
+         "annotated_gene_count": 100,
+         "catalogue_ordinal": 2604,
+         "checkable": true,
+         "display_name": "ychT",
+         "gene_count": 100,
+         "member_gene_count": 100,
+         "name": "Small neutral amino acid transporter SnatA, MarC family",
+         "node_label": "2604",
+         "term": "COG2095"
+        },
+        "level": 2,
+        "rank": 2,
+        "tier": "0.98-0.99",
+        "value": [
+         "COG2095"
+        ]
+       },
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 4130,
+         "cosine": 0.989086,
+         "display_name": "yecV",
+         "node_label": "4130",
+         "rank": 1,
+         "tier": "0.98-0.99"
+        },
+        {
+         "carries_annotation": true,
+         "catalogue_ordinal": 2604,
+         "cosine": 0.986387,
+         "display_name": "ychT",
+         "node_label": "2604",
+         "rank": 2,
+         "tier": "0.98-0.99"
+        }
+       ]
+      }
+     ]
+    }
+   },
+   "label": "17513",
+   "response": {
+    "anchor": {
+     "arrangement_ranks": [],
+     "is_anchored": false,
+     "kind": null,
+     "projected_copies": []
+    },
+    "annotations": {
+     "gene_symbol": [
+      {
+       "gene_count": 102,
+       "name": null,
+       "rank": 0,
+       "term": "evgL"
+      }
+     ],
+     "protein_product": [
+      {
+       "gene_count": 102,
+       "name": null,
+       "rank": 0,
+       "term": "Protein EvgL"
+      }
+     ]
+    },
+    "arrangements": {
+     "arrangements_not_listed": 1,
+     "listed": [
+      {
+       "gene_count": 47,
+       "genome_count": 47,
+       "is_recorded_reverse_complement": false,
+       "rank": 0,
+       "slots": [
+        {
+         "absence_reason": null,
+         "locus": "4016",
+         "same_strand": false,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "4079",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "17490",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "2889",
+         "same_strand": false,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1773",
+         "same_strand": false,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1772",
+         "same_strand": false,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 46,
+       "genome_count": 46,
+       "is_recorded_reverse_complement": false,
+       "rank": 1,
+       "slots": [
+        {
+         "absence_reason": null,
+         "locus": "3945",
+         "same_strand": false,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "3924",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "17490",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "2889",
+         "same_strand": false,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1773",
+         "same_strand": false,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1772",
+         "same_strand": false,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 2,
+       "genome_count": 2,
+       "is_recorded_reverse_complement": false,
+       "rank": 2,
+       "slots": [
+        {
+         "absence_reason": null,
+         "locus": "3945",
+         "same_strand": false,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "3924",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "17490",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 1,
+       "genome_count": 1,
+       "is_recorded_reverse_complement": false,
+       "rank": 3,
+       "slots": [
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "15667",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "2889",
+         "same_strand": false,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1773",
+         "same_strand": false,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1772",
+         "same_strand": false,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 1,
+       "genome_count": 1,
+       "is_recorded_reverse_complement": false,
+       "rank": 4,
+       "slots": [
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "17419",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "2889",
+         "same_strand": false,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1773",
+         "same_strand": false,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1772",
+         "same_strand": false,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 1,
+       "genome_count": 1,
+       "is_recorded_reverse_complement": false,
+       "rank": 5,
+       "slots": [
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "3924",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "17490",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 1,
+       "genome_count": 1,
+       "is_recorded_reverse_complement": false,
+       "rank": 6,
+       "slots": [
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "5840",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "4099",
+         "same_strand": false,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "4982",
+         "same_strand": true,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "17357",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": "contig_end",
+         "locus": null,
+         "same_strand": null,
+         "signed_offset": 5
+        }
+       ]
+      },
+      {
+       "gene_count": 1,
+       "genome_count": 1,
+       "is_recorded_reverse_complement": false,
+       "rank": 7,
+       "slots": [
+        {
+         "absence_reason": null,
+         "locus": "4079",
+         "same_strand": true,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "17490",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "2176",
+         "same_strand": false,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "39",
+         "same_strand": false,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "12939",
+         "same_strand": false,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "3172",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "287",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "2889",
+         "same_strand": false,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1773",
+         "same_strand": false,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1772",
+         "same_strand": false,
+         "signed_offset": 5
+        }
+       ]
+      }
+     ],
+     "members_in_arrangements_not_listed": 1,
+     "members_without_a_neighbourhood": 1,
+     "membership_is_complete": true,
+     "total": 9
+    },
+    "intergenic_gaps": [
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "17490",
+       "3924"
+      ],
+      "length_variance_score": 0.05740740740740741,
+      "maximum_signed_length_nt": 17,
+      "median_signed_length_nt": 17,
+      "minimum_signed_length_nt": -14,
+      "modal_length_nt": 17,
+      "observed_genome_count": 54,
+      "quartile1_signed_length_nt": 17,
+      "quartile3_signed_length_nt": 17
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "17490",
+       "2176"
+      ],
+      "length_variance_score": 0.001525843982452794,
+      "maximum_signed_length_nt": 108,
+      "median_signed_length_nt": 107,
+      "minimum_signed_length_nt": 104,
+      "modal_length_nt": 107,
+      "observed_genome_count": 98,
+      "quartile1_signed_length_nt": 107,
+      "quartile3_signed_length_nt": 107
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "2176",
+       "39"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": -1,
+      "median_signed_length_nt": -1,
+      "minimum_signed_length_nt": -1,
+      "modal_length_nt": -1,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": -1,
+      "quartile3_signed_length_nt": -1
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "17513",
+       "39"
+      ],
+      "length_variance_score": 0.00010386642777388277,
+      "maximum_signed_length_nt": 389,
+      "median_signed_length_nt": 389,
+      "minimum_signed_length_nt": 388,
+      "modal_length_nt": 389,
+      "observed_genome_count": 99,
+      "quartile1_signed_length_nt": 389,
+      "quartile3_signed_length_nt": 389
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "17513",
+       "3172"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": -4,
+      "median_signed_length_nt": -4,
+      "minimum_signed_length_nt": -4,
+      "modal_length_nt": -4,
+      "observed_genome_count": 98,
+      "quartile1_signed_length_nt": -4,
+      "quartile3_signed_length_nt": -4
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "287",
+       "3172"
+      ],
+      "length_variance_score": 0.07806122448979591,
+      "maximum_signed_length_nt": 55,
+      "median_signed_length_nt": 4,
+      "minimum_signed_length_nt": 4,
+      "modal_length_nt": 4,
+      "observed_genome_count": 98,
+      "quartile1_signed_length_nt": 4,
+      "quartile3_signed_length_nt": 4
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "1772",
+       "1773"
+      ],
+      "length_variance_score": 0.003333333333333333,
+      "maximum_signed_length_nt": 69,
+      "median_signed_length_nt": 69,
+      "minimum_signed_length_nt": 68,
+      "modal_length_nt": 69,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 69,
+      "quartile3_signed_length_nt": 69
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "4099",
+       "4982"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 123,
+      "median_signed_length_nt": 123,
+      "minimum_signed_length_nt": 123,
+      "modal_length_nt": 123,
+      "observed_genome_count": 28,
+      "quartile1_signed_length_nt": 123,
+      "quartile3_signed_length_nt": 123
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "3924",
+       "3945"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 217,
+      "median_signed_length_nt": 217,
+      "minimum_signed_length_nt": 217,
+      "modal_length_nt": 217,
+      "observed_genome_count": 52,
+      "quartile1_signed_length_nt": 217,
+      "quartile3_signed_length_nt": 217
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "287",
+       "2889"
+      ],
+      "length_variance_score": 0.00018365472910927456,
+      "maximum_signed_length_nt": 55,
+      "median_signed_length_nt": 55,
+      "minimum_signed_length_nt": 54,
+      "modal_length_nt": 55,
+      "observed_genome_count": 99,
+      "quartile1_signed_length_nt": 55,
+      "quartile3_signed_length_nt": 55
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1773",
+       "2889"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 73,
+      "median_signed_length_nt": 73,
+      "minimum_signed_length_nt": 73,
+      "modal_length_nt": 73,
+      "observed_genome_count": 99,
+      "quartile1_signed_length_nt": 73,
+      "quartile3_signed_length_nt": 73
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "15667",
+       "2176"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 104,
+      "median_signed_length_nt": 104,
+      "minimum_signed_length_nt": 104,
+      "modal_length_nt": 104,
+      "observed_genome_count": 1,
+      "quartile1_signed_length_nt": 104,
+      "quartile3_signed_length_nt": 104
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "4016",
+       "4079"
+      ],
+      "length_variance_score": 0.007042253521126761,
+      "maximum_signed_length_nt": 284,
+      "median_signed_length_nt": 284,
+      "minimum_signed_length_nt": 272,
+      "modal_length_nt": 284,
+      "observed_genome_count": 48,
+      "quartile1_signed_length_nt": 284,
+      "quartile3_signed_length_nt": 284
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "17490",
+       "4079"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 17,
+      "median_signed_length_nt": 17,
+      "minimum_signed_length_nt": 17,
+      "modal_length_nt": 17,
+      "observed_genome_count": 48,
+      "quartile1_signed_length_nt": 17,
+      "quartile3_signed_length_nt": 17
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "12939",
+       "39"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 2,
+      "median_signed_length_nt": 2,
+      "minimum_signed_length_nt": 2,
+      "modal_length_nt": 2,
+      "observed_genome_count": 1,
+      "quartile1_signed_length_nt": 2,
+      "quartile3_signed_length_nt": 2
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "12939",
+       "17513"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 389,
+      "median_signed_length_nt": 389,
+      "minimum_signed_length_nt": 389,
+      "modal_length_nt": 389,
+      "observed_genome_count": 1,
+      "quartile1_signed_length_nt": 389,
+      "quartile3_signed_length_nt": 389
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": false,
+      "flanking_loci": [
+       "17357",
+       "4982"
+      ],
+      "length_variance_score": 0.0007590132827324478,
+      "maximum_signed_length_nt": 531,
+      "median_signed_length_nt": 527,
+      "minimum_signed_length_nt": 527,
+      "modal_length_nt": 527,
+      "observed_genome_count": 10,
+      "quartile1_signed_length_nt": 527,
+      "quartile3_signed_length_nt": 527
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "4099",
+       "5840"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 337,
+      "median_signed_length_nt": 337,
+      "minimum_signed_length_nt": 337,
+      "modal_length_nt": 337,
+      "observed_genome_count": 2,
+      "quartile1_signed_length_nt": 337,
+      "quartile3_signed_length_nt": 337
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "17357",
+       "17513"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 836,
+      "median_signed_length_nt": 836,
+      "minimum_signed_length_nt": 836,
+      "modal_length_nt": 836,
+      "observed_genome_count": 1,
+      "quartile1_signed_length_nt": 836,
+      "quartile3_signed_length_nt": 836
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "17419",
+       "2176"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 107,
+      "median_signed_length_nt": 107,
+      "minimum_signed_length_nt": 107,
+      "modal_length_nt": 107,
+      "observed_genome_count": 1,
+      "quartile1_signed_length_nt": 107,
+      "quartile3_signed_length_nt": 107
+     }
+    ],
+    "locus": {
+     "bakta_gene_symbol": "evgL",
+     "best_product": "Protein EvgL",
+     "catalogue_ordinal": 17513,
+     "display_name": "evgL",
+     "display_name_source": "bakta_symbol",
+     "display_name_source_accession": null,
+     "evidence": {
+      "collapse_bucket": "synteny_only",
+      "collapse_tier": "esm_homology",
+      "resolved_threshold": null,
+      "resolved_threshold_is_capped_at_50_members": true,
+      "syntenic_a5": 0.8805
+     },
+     "gene_count": 102,
+     "gene_length_interquartile_range_nt": 0,
+     "genome_count": 100,
+     "interest_score": 2264150.0102,
+     "label": "17513",
+     "median_gene_length_nt": 30,
+     "named_gene_count": 102,
+     "pfam": {
+      "annotated_gene_count": 0,
+      "architecture_count": 0,
+      "concordance_class": "no_coverage"
+     },
+     "prevalence_band": "core",
+     "similarity": {
+      "bacformer": {
+       "nearest_loci": [
+        {
+         "catalogue_ordinal": 39,
+         "cross_similarity": 0.437145,
+         "rank": 1
+        },
+        {
+         "catalogue_ordinal": 12939,
+         "cross_similarity": 0.407845,
+         "rank": 2
+        },
+        {
+         "catalogue_ordinal": 2176,
+         "cross_similarity": 0.361928,
+         "rank": 3
+        },
+        {
+         "catalogue_ordinal": 3172,
+         "cross_similarity": 0.289008,
+         "rank": 4
+        },
+        {
+         "catalogue_ordinal": 5384,
+         "cross_similarity": 0.283957,
+         "rank": 5
+        }
+       ],
+       "nearest_similarity": 0.437145,
+       "own_fraction_percentile": 0.10782450632074692,
+       "own_neighbour_fraction": 0.980392,
+       "separation_percentile": 0.8517309757911262,
+       "weak_margin_percentile": 0.01933404940923738,
+       "weak_other_similarity": 0.56249,
+       "weak_own_similarity": 0.442061,
+       "within_similarity": 0.965113
+      },
+      "esm": {
+       "nearest_loci": [
+        {
+         "catalogue_ordinal": 4130,
+         "cross_similarity": 0.989086,
+         "rank": 1
+        },
+        {
+         "catalogue_ordinal": 2604,
+         "cross_similarity": 0.986387,
+         "rank": 2
+        }
+       ],
+       "nearest_similarity": 0.989086,
+       "own_fraction_percentile": 0.525159051474841,
+       "own_neighbour_fraction": 1.0,
+       "separation_percentile": 0.2428323556143105,
+       "weak_margin_percentile": 0.27836073700735353,
+       "weak_other_similarity": 0.989086,
+       "weak_own_similarity": 1.0,
+       "within_similarity": 1.0
+      }
+     },
+     "uniref50": {
+      "coverage": 0.0,
+      "family_count": 0,
+      "impurity": null,
+      "labelled_gene_count": 0,
+      "major_family_count": 0
+     }
+    },
+    "neighbour_display_rows": [
+     {
+      "best_product": "EmrKY-TolC multidrug resistance efflux pump, membrane fusion protein component",
+      "catalogue_ordinal": 12939,
+      "display_name": "locus 12939",
+      "display_name_source": "label",
+      "genome_count": 1,
+      "label": "12939",
+      "median_gene_length_nt": 540,
+      "prevalence_band": "rare"
+     },
+     {
+      "best_product": "D-serine dehydratase",
+      "catalogue_ordinal": 15667,
+      "display_name": "locus 15667",
+      "display_name_source": "label",
+      "genome_count": 1,
+      "label": "15667",
+      "median_gene_length_nt": 399,
+      "prevalence_band": "rare"
+     },
+     {
+      "best_product": "IS3 family IS911 transposase",
+      "catalogue_ordinal": 17187,
+      "display_name": "tnp",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 28,
+      "label": "17187",
+      "median_gene_length_nt": 654,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "IS1 family transposase",
+      "catalogue_ordinal": 17357,
+      "display_name": "tnp",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 63,
+      "label": "17357",
+      "median_gene_length_nt": 210,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "D-serine ammonia-lyase",
+      "catalogue_ordinal": 17419,
+      "display_name": "dsdA",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 1,
+      "label": "17419",
+      "median_gene_length_nt": 600,
+      "prevalence_band": "rare"
+     },
+     {
+      "best_product": "D-serine ammonia-lyase",
+      "catalogue_ordinal": 17490,
+      "display_name": "dsdA",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 98,
+      "label": "17490",
+      "median_gene_length_nt": 1329,
+      "prevalence_band": "soft_core"
+     },
+     {
+      "best_product": "Protein EvgL",
+      "catalogue_ordinal": 17513,
+      "display_name": "evgL",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "17513",
+      "median_gene_length_nt": 30,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "oxalyl-CoA decarboxylase",
+      "catalogue_ordinal": 1772,
+      "display_name": "oxc",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1772",
+      "median_gene_length_nt": 1695,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "transporter YfdV",
+      "catalogue_ordinal": 1773,
+      "display_name": "yfdV",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1773",
+      "median_gene_length_nt": 945,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "multidrug efflux MFS transporter permease subunit EmrY",
+      "catalogue_ordinal": 2176,
+      "display_name": "emrY",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "2176",
+      "median_gene_length_nt": 1539,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "YchE family NAAT transporter",
+      "catalogue_ordinal": 2604,
+      "display_name": "ychT",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "2604",
+      "median_gene_length_nt": 54,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "acid-sensing system histidine kinase EvgS",
+      "catalogue_ordinal": 287,
+      "display_name": "evgS",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "287",
+      "median_gene_length_nt": 3594,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "CoA:oxalate CoA-transferase",
+      "catalogue_ordinal": 2889,
+      "display_name": "yfdE",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 99,
+      "label": "2889",
+      "median_gene_length_nt": 1146,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "acid-sensing system DNA-binding response regulator EvgA",
+      "catalogue_ordinal": 3172,
+      "display_name": "evgA",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 98,
+      "label": "3172",
+      "median_gene_length_nt": 615,
+      "prevalence_band": "soft_core"
+     },
+     {
+      "best_product": "multidrug efflux MFS transporter periplasmic adaptor subunit EmrK",
+      "catalogue_ordinal": 39,
+      "display_name": "emrK",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "39",
+      "median_gene_length_nt": 1164,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "D-serine transporter DsdX",
+      "catalogue_ordinal": 3924,
+      "display_name": "dsdX",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 55,
+      "label": "3924",
+      "median_gene_length_nt": 1338,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "DNA-binding transcriptional regulator DsdC",
+      "catalogue_ordinal": 3945,
+      "display_name": "dsdC",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 54,
+      "label": "3945",
+      "median_gene_length_nt": 936,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "DNA-binding transcriptional regulator, LacI/PurR family",
+      "catalogue_ordinal": 4016,
+      "display_name": "purR",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 51,
+      "label": "4016",
+      "median_gene_length_nt": 954,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "D-serine transporter DsdX",
+      "catalogue_ordinal": 4079,
+      "display_name": "dsdX",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 48,
+      "label": "4079",
+      "median_gene_length_nt": 219,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "Biofilm development YmgB/AriR family protein",
+      "catalogue_ordinal": 4099,
+      "display_name": "AriR",
+      "display_name_source": "product",
+      "genome_count": 48,
+      "label": "4099",
+      "median_gene_length_nt": 258,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "Protein YecV",
+      "catalogue_ordinal": 4130,
+      "display_name": "yecV",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 47,
+      "label": "4130",
+      "median_gene_length_nt": 45,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "hypothetical protein",
+      "catalogue_ordinal": 4982,
+      "display_name": "locus 4982",
+      "display_name_source": "label",
+      "genome_count": 32,
+      "label": "4982",
+      "median_gene_length_nt": 111,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "hypothetical protein",
+      "catalogue_ordinal": 5384,
+      "display_name": "locus 5384",
+      "display_name_source": "label",
+      "genome_count": 23,
+      "label": "5384",
+      "median_gene_length_nt": 96,
+      "prevalence_band": "shell"
+     },
+     {
+      "best_product": "Integrase catalytic domain-containing protein",
+      "catalogue_ordinal": 5840,
+      "display_name": "locus 5840",
+      "display_name_source": "label",
+      "genome_count": 16,
+      "label": "5840",
+      "median_gene_length_nt": 357,
+      "prevalence_band": "shell"
+     }
+    ],
+    "offsets": [
+     {
+      "members_without_an_observation": 5,
+      "observed_member_count": 97,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 48,
+        "locus": "3945",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 47,
+        "locus": "4016",
+        "rank": 1,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "4079",
+        "rank": 2,
+        "same_strand_gene_count": 1
+       },
+       {
+        "gene_count": 1,
+        "locus": "17187",
+        "rank": 3,
+        "same_strand_gene_count": 1
+       }
+      ],
+      "signed_offset": -5
+     },
+     {
+      "members_without_an_observation": 3,
+      "observed_member_count": 99,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 50,
+        "locus": "3924",
+        "rank": 0,
+        "same_strand_gene_count": 50
+       },
+       {
+        "gene_count": 47,
+        "locus": "4079",
+        "rank": 1,
+        "same_strand_gene_count": 47
+       },
+       {
+        "gene_count": 1,
+        "locus": "5840",
+        "rank": 2,
+        "same_strand_gene_count": 1
+       },
+       {
+        "gene_count": 1,
+        "locus": "17490",
+        "rank": 3,
+        "same_strand_gene_count": 1
+       }
+      ],
+      "signed_offset": -4
+     },
+     {
+      "members_without_an_observation": 1,
+      "observed_member_count": 101,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 97,
+        "locus": "17490",
+        "rank": 0,
+        "same_strand_gene_count": 97
+       },
+       {
+        "gene_count": 1,
+        "locus": "2176",
+        "rank": 1,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "4099",
+        "rank": 2,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "15667",
+        "rank": 3,
+        "same_strand_gene_count": 1
+       },
+       {
+        "gene_count": 1,
+        "locus": "17419",
+        "rank": 4,
+        "same_strand_gene_count": 1
+       }
+      ],
+      "signed_offset": -3
+     },
+     {
+      "members_without_an_observation": 1,
+      "observed_member_count": 101,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 99,
+        "locus": "2176",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "39",
+        "rank": 1,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "4982",
+        "rank": 2,
+        "same_strand_gene_count": 1
+       }
+      ],
+      "signed_offset": -2
+     },
+     {
+      "members_without_an_observation": 1,
+      "observed_member_count": 101,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 99,
+        "locus": "39",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "12939",
+        "rank": 1,
+        "same_strand_gene_count": 0
+       },
+       {
+        "gene_count": 1,
+        "locus": "17357",
+        "rank": 2,
+        "same_strand_gene_count": 0
+       }
+      ],
+      "signed_offset": -1
+     },
+     {
+      "members_without_an_observation": 4,
+      "observed_member_count": 98,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 98,
+        "locus": "3172",
+        "rank": 0,
+        "same_strand_gene_count": 98
+       }
+      ],
+      "signed_offset": 1
+     },
+     {
+      "members_without_an_observation": 4,
+      "observed_member_count": 98,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 98,
+        "locus": "287",
+        "rank": 0,
+        "same_strand_gene_count": 98
+       }
+      ],
+      "signed_offset": 2
+     },
+     {
+      "members_without_an_observation": 5,
+      "observed_member_count": 97,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 97,
+        "locus": "2889",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       }
+      ],
+      "signed_offset": 3
+     },
+     {
+      "members_without_an_observation": 5,
+      "observed_member_count": 97,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 97,
+        "locus": "1773",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       }
+      ],
+      "signed_offset": 4
+     },
+     {
+      "members_without_an_observation": 5,
+      "observed_member_count": 97,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 97,
+        "locus": "1772",
+        "rank": 0,
+        "same_strand_gene_count": 0
+       }
+      ],
+      "signed_offset": 5
+     }
+    ],
+    "pfam_reference": {},
+    "resolved_neighbour_count": 24,
+    "uniref50_families": []
+   }
+  },
   "no_window": {
    "function": {
     "annotations": {
@@ -2201,6 +4509,356 @@
       }
      ]
     },
+    "calibration": {
+     "cog_orthogroup": {
+      "annotated_locus_count": 4993,
+      "annotation_kind": "cog_orthogroup",
+      "cells": [
+       {
+        "agreement": 0.9889883000688231,
+        "chance": 0.0027891839606826014,
+        "interval_high": 0.9932106784051377,
+        "interval_low": 0.9821870587270255,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 354.57980327220383,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9944941500344116,
+        "chance": 0.07533691897400512,
+        "interval_high": 0.9972075286651817,
+        "interval_low": 0.9891728712355351,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 13.200621469236884,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9077922077922078,
+        "chance": 0.0023770500333000397,
+        "interval_high": 0.9262528996638689,
+        "interval_low": 0.8852826910823511,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 381.89865382510567,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9571428571428572,
+        "chance": 0.07551328879453915,
+        "interval_high": 0.9693229771534483,
+        "interval_low": 0.9404239271225691,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 12.675157875153682,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.5798387096774194,
+        "chance": 0.0020991651157981914,
+        "interval_high": 0.6070238267423919,
+        "interval_low": 0.5521604295166044,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 276.2234877635817,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7814516129032258,
+        "chance": 0.07787669949338279,
+        "interval_high": 0.8035654836383993,
+        "interval_low": 0.7575992177190728,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 10.03447267265899,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.298819255222525,
+        "chance": 0.0017070910186543834,
+        "interval_high": 0.3182752471610667,
+        "interval_low": 0.280063998957059,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 175.04588329336397,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5059037238873751,
+        "chance": 0.07698593862805297,
+        "interval_high": 0.5267579762969314,
+        "interval_low": 0.48502890812849625,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 6.57137826599192,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.12609970674486803,
+        "chance": 0.0009028639371381425,
+        "interval_high": 0.13331542575612546,
+        "interval_low": 0.11922081550786992,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 139.6663456783679,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.33560117302052783,
+        "chance": 0.06858123731107627,
+        "interval_high": 0.3456970992387057,
+        "interval_low": 0.3256533453515655,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.893483789134354,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "ec_number": {
+      "annotated_locus_count": 2539,
+      "annotation_kind": "ec_number",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.004750134016320202,
+        "interval_high": 1.0,
+        "interval_low": 0.9816928578508741,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 210.52037617554893,
+        "pairs": 206,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.979933110367893,
+        "chance": 0.02229981881134058,
+        "interval_high": 0.9907716266732061,
+        "interval_low": 0.9569185189342668,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 43.943545849329844,
+        "pairs": 299,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.059466050988553676,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 16.72590729297677,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.23380424006710906,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.254087332327638,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8434343434343434,
+        "chance": 0.0032740492863192264,
+        "interval_high": 0.8874552799499632,
+        "interval_low": 0.786340409343027,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 257.61198738170333,
+        "pairs": 198,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9520295202952029,
+        "chance": 0.020851882878879135,
+        "interval_high": 0.9717547637088241,
+        "interval_low": 0.9196677865892385,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 45.65676518639539,
+        "pairs": 271,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9619377162629758,
+        "chance": 0.06414359861591695,
+        "interval_high": 0.9786161784970397,
+        "interval_low": 0.9331395283424255,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 14.996628455832772,
+        "pairs": 289,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.976897689768977,
+        "chance": 0.21759291768420366,
+        "interval_high": 0.9887652790167235,
+        "interval_low": 0.9530887590276617,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.489565653909588,
+        "pairs": 303,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.4343675417661098,
+        "chance": 0.0029149645421223985,
+        "interval_high": 0.48221337253265495,
+        "interval_low": 0.38771427886209897,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 149.01297614064455,
+        "pairs": 419,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6566265060240963,
+        "chance": 0.017950105078307344,
+        "interval_high": 0.696989498539895,
+        "interval_low": 0.6138655601080927,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 36.58064970425314,
+        "pairs": 498,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6908023483365949,
+        "chance": 0.056480020200744975,
+        "interval_high": 0.7293261946519485,
+        "interval_low": 0.6494310774876766,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 12.230915390633717,
+        "pairs": 511,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7840909090909091,
+        "chance": 0.20435068772834739,
+        "interval_high": 0.817068050447459,
+        "interval_low": 0.7470096749504789,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 3.8369868866467267,
+        "pairs": 528,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.2267818574514039,
+        "chance": 0.0018164191036496196,
+        "interval_high": 0.2548500721808544,
+        "interval_low": 0.20097122039198806,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 124.8510638297874,
+        "pairs": 926,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.35634167385677307,
+        "chance": 0.019487330628187787,
+        "interval_high": 0.3843472266370865,
+        "interval_low": 0.3292853093850167,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 18.2858124930326,
+        "pairs": 1159,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.3837011884550085,
+        "chance": 0.04996748178980259,
+        "interval_high": 0.41180661320951994,
+        "interval_low": 0.3563518269740038,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 7.67901792748168,
+        "pairs": 1178,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5085020242914979,
+        "chance": 0.20815937826016478,
+        "interval_high": 0.5363147851421542,
+        "interval_low": 0.48063653454229927,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 2.4428494576687028,
+        "pairs": 1235,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.0997648639570037,
+        "chance": 0.0014109536439217156,
+        "interval_high": 0.11105157203615579,
+        "interval_low": 0.08950977278672914,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 70.70740019474303,
+        "pairs": 2977,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.18401015228426396,
+        "chance": 0.020193694336576497,
+        "interval_high": 0.19641557820912695,
+        "interval_low": 0.17222032238079535,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 9.112257976044011,
+        "pairs": 3940,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.22559334475165158,
+        "chance": 0.05486524937449119,
+        "interval_high": 0.23866209943866826,
+        "interval_low": 0.21303996597496208,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 4.111771063170233,
+        "pairs": 4087,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.42669481585737745,
+        "chance": 0.2208702181451367,
+        "interval_high": 0.44160166351970914,
+        "interval_low": 0.41191996709343587,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.9318802663426118,
+        "pairs": 4263,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     }
+    },
     "coverage": {
      "cog_annotated_gene_count": 76,
      "cog_distinct_id_count": 1,
@@ -2220,6 +4878,76 @@
      "biological_process": "no_coverage",
      "cellular_component": "no_coverage",
      "molecular_function": "single"
+    },
+    "inference": {
+     "representation": "esm",
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 8513,
+         "cosine": 0.971008,
+         "display_name": "locus 8513",
+         "node_label": "8513",
+         "rank": 1,
+         "tier": "0.97-0.98"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 4050,
+         "cosine": 0.957919,
+         "display_name": "tnp",
+         "node_label": "4050",
+         "rank": 2,
+         "tier": "0.90-0.96"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 16011,
+         "cosine": 0.928232,
+         "display_name": "locus 16011",
+         "node_label": "16011",
+         "rank": 3,
+         "tier": "0.90-0.96"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 16217,
+         "cosine": 0.920929,
+         "display_name": "locus 16217",
+         "node_label": "16217",
+         "rank": 4,
+         "tier": "0.90-0.96"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 4119,
+         "cosine": 0.888043,
+         "display_name": "tnp",
+         "node_label": "4119",
+         "rank": 5,
+         "tier": "< 0.90"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 76,
+        "checkable": true,
+        "gene_count": 76,
+        "member_gene_count": 76,
+        "name": "Transposase (or an inactivated derivative), DDE domain",
+        "term": "COG3316"
+       },
+       "walk": []
+      }
+     ]
     }
    },
    "label": "17243",
@@ -5144,6 +7872,356 @@
       }
      ]
     },
+    "calibration": {
+     "cog_orthogroup": {
+      "annotated_locus_count": 4993,
+      "annotation_kind": "cog_orthogroup",
+      "cells": [
+       {
+        "agreement": 0.9889883000688231,
+        "chance": 0.0027891839606826014,
+        "interval_high": 0.9932106784051377,
+        "interval_low": 0.9821870587270255,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 354.57980327220383,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9944941500344116,
+        "chance": 0.07533691897400512,
+        "interval_high": 0.9972075286651817,
+        "interval_low": 0.9891728712355351,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 13.200621469236884,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9077922077922078,
+        "chance": 0.0023770500333000397,
+        "interval_high": 0.9262528996638689,
+        "interval_low": 0.8852826910823511,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 381.89865382510567,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9571428571428572,
+        "chance": 0.07551328879453915,
+        "interval_high": 0.9693229771534483,
+        "interval_low": 0.9404239271225691,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 12.675157875153682,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.5798387096774194,
+        "chance": 0.0020991651157981914,
+        "interval_high": 0.6070238267423919,
+        "interval_low": 0.5521604295166044,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 276.2234877635817,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7814516129032258,
+        "chance": 0.07787669949338279,
+        "interval_high": 0.8035654836383993,
+        "interval_low": 0.7575992177190728,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 10.03447267265899,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.298819255222525,
+        "chance": 0.0017070910186543834,
+        "interval_high": 0.3182752471610667,
+        "interval_low": 0.280063998957059,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 175.04588329336397,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5059037238873751,
+        "chance": 0.07698593862805297,
+        "interval_high": 0.5267579762969314,
+        "interval_low": 0.48502890812849625,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 6.57137826599192,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.12609970674486803,
+        "chance": 0.0009028639371381425,
+        "interval_high": 0.13331542575612546,
+        "interval_low": 0.11922081550786992,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 139.6663456783679,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.33560117302052783,
+        "chance": 0.06858123731107627,
+        "interval_high": 0.3456970992387057,
+        "interval_low": 0.3256533453515655,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.893483789134354,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "ec_number": {
+      "annotated_locus_count": 2539,
+      "annotation_kind": "ec_number",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.004750134016320202,
+        "interval_high": 1.0,
+        "interval_low": 0.9816928578508741,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 210.52037617554893,
+        "pairs": 206,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.979933110367893,
+        "chance": 0.02229981881134058,
+        "interval_high": 0.9907716266732061,
+        "interval_low": 0.9569185189342668,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 43.943545849329844,
+        "pairs": 299,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.059466050988553676,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 16.72590729297677,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.23380424006710906,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.254087332327638,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8434343434343434,
+        "chance": 0.0032740492863192264,
+        "interval_high": 0.8874552799499632,
+        "interval_low": 0.786340409343027,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 257.61198738170333,
+        "pairs": 198,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9520295202952029,
+        "chance": 0.020851882878879135,
+        "interval_high": 0.9717547637088241,
+        "interval_low": 0.9196677865892385,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 45.65676518639539,
+        "pairs": 271,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9619377162629758,
+        "chance": 0.06414359861591695,
+        "interval_high": 0.9786161784970397,
+        "interval_low": 0.9331395283424255,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 14.996628455832772,
+        "pairs": 289,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.976897689768977,
+        "chance": 0.21759291768420366,
+        "interval_high": 0.9887652790167235,
+        "interval_low": 0.9530887590276617,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.489565653909588,
+        "pairs": 303,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.4343675417661098,
+        "chance": 0.0029149645421223985,
+        "interval_high": 0.48221337253265495,
+        "interval_low": 0.38771427886209897,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 149.01297614064455,
+        "pairs": 419,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6566265060240963,
+        "chance": 0.017950105078307344,
+        "interval_high": 0.696989498539895,
+        "interval_low": 0.6138655601080927,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 36.58064970425314,
+        "pairs": 498,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6908023483365949,
+        "chance": 0.056480020200744975,
+        "interval_high": 0.7293261946519485,
+        "interval_low": 0.6494310774876766,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 12.230915390633717,
+        "pairs": 511,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7840909090909091,
+        "chance": 0.20435068772834739,
+        "interval_high": 0.817068050447459,
+        "interval_low": 0.7470096749504789,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 3.8369868866467267,
+        "pairs": 528,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.2267818574514039,
+        "chance": 0.0018164191036496196,
+        "interval_high": 0.2548500721808544,
+        "interval_low": 0.20097122039198806,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 124.8510638297874,
+        "pairs": 926,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.35634167385677307,
+        "chance": 0.019487330628187787,
+        "interval_high": 0.3843472266370865,
+        "interval_low": 0.3292853093850167,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 18.2858124930326,
+        "pairs": 1159,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.3837011884550085,
+        "chance": 0.04996748178980259,
+        "interval_high": 0.41180661320951994,
+        "interval_low": 0.3563518269740038,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 7.67901792748168,
+        "pairs": 1178,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5085020242914979,
+        "chance": 0.20815937826016478,
+        "interval_high": 0.5363147851421542,
+        "interval_low": 0.48063653454229927,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 2.4428494576687028,
+        "pairs": 1235,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.0997648639570037,
+        "chance": 0.0014109536439217156,
+        "interval_high": 0.11105157203615579,
+        "interval_low": 0.08950977278672914,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 70.70740019474303,
+        "pairs": 2977,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.18401015228426396,
+        "chance": 0.020193694336576497,
+        "interval_high": 0.19641557820912695,
+        "interval_low": 0.17222032238079535,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 9.112257976044011,
+        "pairs": 3940,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.22559334475165158,
+        "chance": 0.05486524937449119,
+        "interval_high": 0.23866209943866826,
+        "interval_low": 0.21303996597496208,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 4.111771063170233,
+        "pairs": 4087,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.42669481585737745,
+        "chance": 0.2208702181451367,
+        "interval_high": 0.44160166351970914,
+        "interval_low": 0.41191996709343587,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.9318802663426118,
+        "pairs": 4263,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     }
+    },
     "coverage": {
      "cog_annotated_gene_count": 103,
      "cog_distinct_id_count": 1,
@@ -5163,6 +8241,37 @@
      "biological_process": "single",
      "cellular_component": "no_coverage",
      "molecular_function": "single"
+    },
+    "inference": {
+     "representation": "esm",
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 103,
+        "checkable": true,
+        "gene_count": 103,
+        "member_gene_count": 103,
+        "name": null,
+        "term": "3.5.1.88"
+       },
+       "walk": []
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 103,
+        "checkable": true,
+        "gene_count": 103,
+        "member_gene_count": 103,
+        "name": "Peptide deformylase",
+        "term": "COG0242"
+       },
+       "walk": []
+      }
+     ]
     }
    },
    "label": "17526",
@@ -6674,6 +9783,356 @@
       }
      ]
     },
+    "calibration": {
+     "cog_orthogroup": {
+      "annotated_locus_count": 4993,
+      "annotation_kind": "cog_orthogroup",
+      "cells": [
+       {
+        "agreement": 0.9889883000688231,
+        "chance": 0.0027891839606826014,
+        "interval_high": 0.9932106784051377,
+        "interval_low": 0.9821870587270255,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 354.57980327220383,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9944941500344116,
+        "chance": 0.07533691897400512,
+        "interval_high": 0.9972075286651817,
+        "interval_low": 0.9891728712355351,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 13.200621469236884,
+        "pairs": 1453,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9077922077922078,
+        "chance": 0.0023770500333000397,
+        "interval_high": 0.9262528996638689,
+        "interval_low": 0.8852826910823511,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 381.89865382510567,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9571428571428572,
+        "chance": 0.07551328879453915,
+        "interval_high": 0.9693229771534483,
+        "interval_low": 0.9404239271225691,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 12.675157875153682,
+        "pairs": 770,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.5798387096774194,
+        "chance": 0.0020991651157981914,
+        "interval_high": 0.6070238267423919,
+        "interval_low": 0.5521604295166044,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 276.2234877635817,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7814516129032258,
+        "chance": 0.07787669949338279,
+        "interval_high": 0.8035654836383993,
+        "interval_low": 0.7575992177190728,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 10.03447267265899,
+        "pairs": 1240,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.298819255222525,
+        "chance": 0.0017070910186543834,
+        "interval_high": 0.3182752471610667,
+        "interval_low": 0.280063998957059,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 175.04588329336397,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5059037238873751,
+        "chance": 0.07698593862805297,
+        "interval_high": 0.5267579762969314,
+        "interval_low": 0.48502890812849625,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 6.57137826599192,
+        "pairs": 2202,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.12609970674486803,
+        "chance": 0.0009028639371381425,
+        "interval_high": 0.13331542575612546,
+        "interval_low": 0.11922081550786992,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 139.6663456783679,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.33560117302052783,
+        "chance": 0.06858123731107627,
+        "interval_high": 0.3456970992387057,
+        "interval_low": 0.3256533453515655,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.893483789134354,
+        "pairs": 8525,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     },
+     "ec_number": {
+      "annotated_locus_count": 2539,
+      "annotation_kind": "ec_number",
+      "cells": [
+       {
+        "agreement": 1.0,
+        "chance": 0.004750134016320202,
+        "interval_high": 1.0,
+        "interval_low": 0.9816928578508741,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 210.52037617554893,
+        "pairs": 206,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.979933110367893,
+        "chance": 0.02229981881134058,
+        "interval_high": 0.9907716266732061,
+        "interval_low": 0.9569185189342668,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 43.943545849329844,
+        "pairs": 299,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.059466050988553676,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 16.72590729297677,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9946236559139785,
+        "chance": 0.23380424006710906,
+        "interval_high": 0.9985244031239926,
+        "interval_low": 0.9806114881663808,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.254087332327638,
+        "pairs": 372,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8434343434343434,
+        "chance": 0.0032740492863192264,
+        "interval_high": 0.8874552799499632,
+        "interval_low": 0.786340409343027,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 257.61198738170333,
+        "pairs": 198,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9520295202952029,
+        "chance": 0.020851882878879135,
+        "interval_high": 0.9717547637088241,
+        "interval_low": 0.9196677865892385,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 45.65676518639539,
+        "pairs": 271,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9619377162629758,
+        "chance": 0.06414359861591695,
+        "interval_high": 0.9786161784970397,
+        "interval_low": 0.9331395283424255,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 14.996628455832772,
+        "pairs": 289,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.976897689768977,
+        "chance": 0.21759291768420366,
+        "interval_high": 0.9887652790167235,
+        "interval_low": 0.9530887590276617,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 4.489565653909588,
+        "pairs": 303,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.4343675417661098,
+        "chance": 0.0029149645421223985,
+        "interval_high": 0.48221337253265495,
+        "interval_low": 0.38771427886209897,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 149.01297614064455,
+        "pairs": 419,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6566265060240963,
+        "chance": 0.017950105078307344,
+        "interval_high": 0.696989498539895,
+        "interval_low": 0.6138655601080927,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 36.58064970425314,
+        "pairs": 498,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.6908023483365949,
+        "chance": 0.056480020200744975,
+        "interval_high": 0.7293261946519485,
+        "interval_low": 0.6494310774876766,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 12.230915390633717,
+        "pairs": 511,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.7840909090909091,
+        "chance": 0.20435068772834739,
+        "interval_high": 0.817068050447459,
+        "interval_low": 0.7470096749504789,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 3.8369868866467267,
+        "pairs": 528,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.2267818574514039,
+        "chance": 0.0018164191036496196,
+        "interval_high": 0.2548500721808544,
+        "interval_low": 0.20097122039198806,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 124.8510638297874,
+        "pairs": 926,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.35634167385677307,
+        "chance": 0.019487330628187787,
+        "interval_high": 0.3843472266370865,
+        "interval_low": 0.3292853093850167,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 18.2858124930326,
+        "pairs": 1159,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.3837011884550085,
+        "chance": 0.04996748178980259,
+        "interval_high": 0.41180661320951994,
+        "interval_low": 0.3563518269740038,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 7.67901792748168,
+        "pairs": 1178,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.5085020242914979,
+        "chance": 0.20815937826016478,
+        "interval_high": 0.5363147851421542,
+        "interval_low": 0.48063653454229927,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 2.4428494576687028,
+        "pairs": 1235,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.0997648639570037,
+        "chance": 0.0014109536439217156,
+        "interval_high": 0.11105157203615579,
+        "interval_low": 0.08950977278672914,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 70.70740019474303,
+        "pairs": 2977,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.18401015228426396,
+        "chance": 0.020193694336576497,
+        "interval_high": 0.19641557820912695,
+        "interval_low": 0.17222032238079535,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 9.112257976044011,
+        "pairs": 3940,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.22559334475165158,
+        "chance": 0.05486524937449119,
+        "interval_high": 0.23866209943866826,
+        "interval_low": 0.21303996597496208,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 4.111771063170233,
+        "pairs": 4087,
+        "tier": "0.90-0.96"
+       },
+       {
+        "agreement": 0.42669481585737745,
+        "chance": 0.2208702181451367,
+        "interval_high": 0.44160166351970914,
+        "interval_low": 0.41191996709343587,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.9318802663426118,
+        "pairs": 4263,
+        "tier": "0.90-0.96"
+       }
+      ],
+      "locus_count": 17531,
+      "min_pairs": 30,
+      "representation": "esm"
+     }
+    },
     "coverage": {
      "cog_annotated_gene_count": 111,
      "cog_distinct_id_count": 1,
@@ -6693,6 +10152,76 @@
      "biological_process": "nested",
      "cellular_component": "no_coverage",
      "molecular_function": "nested"
+    },
+    "inference": {
+     "representation": "esm",
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "candidate": null,
+       "own": null,
+       "walk": [
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 12120,
+         "cosine": 0.998644,
+         "display_name": "radC",
+         "node_label": "12120",
+         "rank": 1,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 5385,
+         "cosine": 0.998624,
+         "display_name": "radC",
+         "node_label": "5385",
+         "rank": 2,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 5975,
+         "cosine": 0.99842,
+         "display_name": "radC",
+         "node_label": "5975",
+         "rank": 3,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 14225,
+         "cosine": 0.995552,
+         "display_name": "radC",
+         "node_label": "14225",
+         "rank": 4,
+         "tier": ">= 0.99"
+        },
+        {
+         "carries_annotation": false,
+         "catalogue_ordinal": 13450,
+         "cosine": 0.994365,
+         "display_name": "radC",
+         "node_label": "13450",
+         "rank": 5,
+         "tier": ">= 0.99"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "candidate": null,
+       "own": {
+        "annotated_gene_count": 111,
+        "checkable": true,
+        "gene_count": 111,
+        "member_gene_count": 143,
+        "name": "DNA repair protein RadC, contains a helix-hairpin-helix DNA-binding motif",
+        "term": "COG2003"
+       },
+       "walk": []
+      }
+     ]
     }
    },
    "label": "17315",
@@ -10536,10 +14065,12 @@
   },
   "pangenome": {
    "built_at": null,
+   "catalogue_key": "ecoli-nuna4",
    "exclusivity_form": "damped_exclusion",
    "gene_count": 489146,
    "genome_count": 100,
    "git_sha": "899a124",
+   "ingested_at": "2026-09-25T09:35:06.477248+01:00",
    "locus_count": 17531,
    "omitted_sections": {
     "seqid_to_medoid": "the audit ran with --skip-seqid-to-medoid, so member-vs-medoid identity was never measured \u2014 seqid_coverage is NULL for every locus, and that is a fact about the RUN"

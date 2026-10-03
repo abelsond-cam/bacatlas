@@ -503,8 +503,95 @@ export interface ArrangementPageResponse {
   readonly total: number;
 }
 
+/**
+ * ⛔ **The vocabularies the inference ladder covers, pinned to the backend's `SUPPORTED_KINDS`.**
+ * A string here would let a typo compile — the defect that hid 4,544 loci's EC numbers behind the
+ * key `enzyme_commission` for as long as `annotations` was a `Record<string, …>`.
+ */
+export const INFERENCE_KINDS = ["cog_orthogroup", "ec_number"] as const;
+export type InferenceKind = (typeof INFERENCE_KINDS)[number];
+
+/** One (similarity tier, depth) cell of the measured ladder. */
+export interface CalibrationCell {
+  readonly tier: string;
+  readonly level: number;
+  readonly level_label: string;
+  readonly pairs: number;
+  /** ⛔ `null` below the backend's pair floor — a cell with too few pairs has a count, not a rate. */
+  readonly agreement: number | null;
+  readonly interval_low: number | null;
+  readonly interval_high: number | null;
+  readonly chance: number;
+  /** Observed ÷ chance. ⛔ NOT an odds ratio — see `annotation_transfer.Cell.lift`. */
+  readonly lift: number | null;
+}
+
+export interface CalibrationLadder {
+  readonly annotation_kind: InferenceKind;
+  readonly representation: Representation;
+  readonly annotated_locus_count: number;
+  readonly locus_count: number;
+  readonly min_pairs: number;
+  readonly cells: readonly CalibrationCell[];
+}
+
+/** What this node's OWN call rests on. */
+export interface OwnSupport {
+  readonly term: string;
+  readonly name: string | null;
+  /** How many member genes carry the modal term — the vote, not the node size. */
+  readonly gene_count: number;
+  readonly annotated_gene_count: number;
+  readonly member_gene_count: number;
+  /**
+   * ⛔ `false` where exactly ONE gene carries a call. Such a node is unanimous *by construction*,
+   * which is the absence of evidence rather than evidence — 518 of 4,993 *E. coli* COG nodes, `gumC`
+   * among them. A card that rendered it like any other would claim a check that never happened.
+   */
+  readonly checkable: boolean;
+}
+
+/** One step of the outward walk, including the ranks that carried nothing. */
+export interface WalkStep {
+  readonly rank: number;
+  readonly cosine: number | null;
+  readonly tier: string;
+  readonly node_label: string;
+  readonly catalogue_ordinal: number;
+  readonly display_name: string | null;
+  readonly carries_annotation: boolean;
+}
+
+export interface TransferCandidate {
+  readonly rank: number;
+  readonly cosine: number | null;
+  readonly tier: string;
+  readonly donor: OwnSupport & {
+    readonly node_label: string;
+    readonly catalogue_ordinal: number;
+    readonly display_name: string | null;
+  };
+  /** `null` where the tier is too remote to call, or the donor states nothing this deep. */
+  readonly level: number | null;
+  readonly value: readonly string[] | null;
+  readonly calibration: CalibrationCell | null;
+}
+
+export interface VocabularyInference {
+  readonly annotation_kind: InferenceKind;
+  readonly own: OwnSupport | null;
+  /** ⛔ Empty where the node has its own call — a suggestion would compete with a real annotation. */
+  readonly walk: readonly WalkStep[];
+  readonly candidate: TransferCandidate | null;
+}
+
 export interface FunctionResponse {
   readonly annotations: AnnotationsByKind;
+  readonly inference: {
+    readonly representation: Representation;
+    readonly vocabularies: readonly VocabularyInference[];
+  };
+  readonly calibration: Readonly<Record<InferenceKind, CalibrationLadder>>;
   readonly coverage: {
     readonly gene_count: number;
     readonly cog_annotated_gene_count: number;

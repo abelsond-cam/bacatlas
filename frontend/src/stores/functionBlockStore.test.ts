@@ -3,7 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 
 import { failure, success } from "@/api/result";
-import { asCatalogueKey } from "@/api/types";
+import type { CalibrationLadder, InferenceKind } from "@/api/types";
+import { INFERENCE_KINDS, asCatalogueKey } from "@/api/types";
 import type { FunctionResponse, LocusDetailResponse } from "@/api/types";
 
 import { useFunctionBlockStore } from "./functionBlockStore";
@@ -41,9 +42,44 @@ function locusDetail(label: string): LocusDetailResponse {
   };
 }
 
+/**
+ * ⛔ The inference block is REQUIRED on a `FunctionResponse`, so a fixture must carry it. Empty by
+ * default: a node that needs no suggestion is the ordinary case, and a fixture that silently
+ * shipped a candidate would make every card under test look like an inferred one.
+ */
+function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
+  return {
+    inference: {
+      representation: "esm",
+      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
+        annotation_kind,
+        own: null,
+        walk: [],
+        candidate: null,
+      })),
+    },
+    calibration: {
+      cog_orthogroup: ladder("cog_orthogroup"),
+      ec_number: ladder("ec_number"),
+    },
+  };
+}
+
+function ladder(annotation_kind: InferenceKind): CalibrationLadder {
+  return {
+    annotation_kind,
+    representation: "esm",
+    annotated_locus_count: 0,
+    locus_count: 0,
+    min_pairs: 30,
+    cells: [],
+  };
+}
+
 function functionBlock(cogCount: number): FunctionResponse {
   return {
     annotations: { cog_orthogroup: [{ rank: 0, term: "COG1132", name: "x", gene_count: cogCount }] },
+    ...emptyInference(),
     coverage: {
       gene_count: 100,
       cog_annotated_gene_count: cogCount,

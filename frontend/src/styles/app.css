@@ -3647,3 +3647,139 @@ td.fam-sym {
         gap: 2px;
     }
 }
+
+/* ── inferred function, 2026-10-03 ──────────────────────────────────────────────────────────────
+   A node with no COG or EC of its own can be given a candidate from its nearest ESM neighbour, at a
+   depth its similarity earns (nuna `docs/model_evaluation/COG_function_inference.md`).
+
+   ⛔ The visual job of this block is ONE thing: a suggestion must not be mistakable for an
+   annotation. So it is a dashed card — every other card on the tab has a solid rule — it carries an
+   "inferred" tag beside its heading, and its value sits on a tinted strip rather than in the
+   headline weight the real terms use. A reader who skims must still come away knowing which is
+   which. */
+.infer {
+    border-style: dashed;
+}
+
+.infer-tag {
+    margin-left: 8px;
+    padding: 1px 6px;
+    border: 1px solid var(--rule-2);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+    vertical-align: 2px;
+}
+
+.infer-value {
+    margin: 10px 0 2px;
+    padding: 8px 10px;
+    background: var(--panel-2);
+    border-radius: 3px;
+    font-size: 15px;
+}
+
+.infer-lead {
+    margin-right: 6px;
+    color: var(--ink-2);
+}
+
+.infer-from,
+.infer-rate {
+    margin: 4px 0 0;
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.infer-rate {
+    margin-top: 8px;
+    color: var(--ink);
+}
+
+/* The donor is walkable: the suggestion is only as good as the node it came from, so the reader can
+   go and look at it. A button rather than a link because the walk is in-app history. */
+.infer-walk {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: pointer;
+}
+
+.infer-walk:hover {
+    text-decoration-style: solid;
+}
+
+/* ⚠ A call resting on ONE gene. Not an error state and not styled as one — it is a true statement
+   about what the annotation can support, and it reads above the cards it qualifies. */
+.infer-onegene {
+    margin: 0 0 var(--s4);
+    padding: 8px 10px;
+    border-left: 3px solid var(--rule-2);
+    background: var(--panel-2);
+    font-size: 13px;
+    color: var(--ink-2);
+}
+
+.infer-ladder {
+    margin-top: 12px;
+    font-size: 13px;
+}
+
+.infer-ladder > summary {
+    color: var(--ink-2);
+    cursor: pointer;
+}
+
+.infer-scroll {
+    overflow-x: auto;
+    margin: 8px 0 4px;
+}
+
+.infer-table {
+    width: auto;
+    max-width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.infer-table th,
+.infer-table td {
+    padding: 3px 18px 3px 0;
+    white-space: nowrap;
+    text-align: left;
+    border-bottom: 1px solid var(--rule);
+}
+
+.infer-table th {
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--ink-3);
+}
+
+.infer-table .num {
+    text-align: right;
+}
+
+.infer-table th:last-child,
+.infer-table td:last-child {
+    padding-right: 0;
+}
+
+/* The row the suggestion above was actually read from — so the rate in the sentence and the rate in
+   the table are visibly the same number, not two that happen to agree. */
+.infer-row-used {
+    font-weight: 600;
+}
+
+.infer-row-used td {
+    background: var(--panel-2);
+}

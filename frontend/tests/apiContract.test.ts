@@ -122,7 +122,7 @@ interface Recorded {
 
 // ⭐ `function_rich` carries EC *and* KEGG *and* all three GO namespaces — the parts a typical
 // locus does not exercise at all. It is in the generic loops too, so every shape assertion gains it.
-const CASES = ["ordinary", "over_cap", "no_window", "function_rich"] as const;
+const CASES = ["ordinary", "over_cap", "no_window", "function_rich", "inferred_function"] as const;
 
 beforeEach(() => setActivePinia(createPinia()));
 
@@ -802,6 +802,67 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       // ⛔ and the GO tables are POPULATED — the whole point of the dialect bug above
       const populated = tab.findAll(".card").filter((card) => card.find("tbody tr").exists());
       expect(populated.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it("⭐ the inferred-function card renders on real bytes, with its MEASURED rate and the walk", () => {
+      // ⛔ The case is useless unless it still exercises what it was chosen for, so assert that
+      // first: no COG of its own, and a donor found past rank 1. A regenerate that quietly picked an
+      // annotated locus would otherwise leave this test passing while testing nothing.
+      const block = functionFor("inferred_function");
+      const cog = block.inference.vocabularies.find(
+        (entry) => entry.annotation_kind === "cog_orthogroup",
+      )!;
+      expect(cog.own).toBeNull();
+      expect(cog.candidate).not.toBeNull();
+      expect(cog.candidate!.rank).toBeGreaterThanOrEqual(2);
+      expect(cog.walk.some((step) => !step.carries_annotation)).toBe(true);
+
+      const tab = mount(FunctionTab, {
+        props: {
+          displayName: recorded.loci.inferred_function!.response.locus.display_name,
+          locusLabel: recorded.loci.inferred_function!.label,
+          block,
+          status: "ready" as const,
+        },
+      });
+      const card = tab.find(".infer");
+      expect(card.exists()).toBe(true);
+      expect(card.find(".infer-tag").text()).toBe("inferred");
+      // the measured rate, with its n — both, or the rate means nothing
+      const cell = cog.candidate!.calibration!;
+      expect(card.find(".infer-rate").text()).toContain(
+        `${(cell.agreement! * 100).toFixed(1)}%`,
+      );
+      expect(card.find(".infer-rate").text()).toContain(cell.pairs.toLocaleString());
+      // and the ranks that carried nothing are named, not skipped past
+      expect(card.text()).toContain("carried no COG");
+      // ⛔ the ladder shipped with the response, and the row the suggestion was read from
+      const used = card.findAll(".infer-row-used");
+      expect(used).toHaveLength(1);
+      expect(used[0]!.text()).toContain(cell.tier);
+    });
+
+    it("⛔ the calibration shipped with every response is self-consistent, and never a bare rate", () => {
+      for (const kind of CASES) {
+        const block = functionFor(kind);
+        for (const ladder of Object.values(block.calibration)) {
+          expect(ladder.cells.length).toBeGreaterThan(0);
+          for (const cell of ladder.cells) {
+            expect(cell.pairs).toBeGreaterThan(0);
+            if (cell.pairs < ladder.min_pairs) {
+              // ⛔ below the floor there is a COUNT and no rate — a rate off a handful of pairs
+              // would be read as a measurement
+              expect(cell.agreement).toBeNull();
+              expect(cell.lift).toBeNull();
+            } else {
+              expect(cell.agreement).not.toBeNull();
+              expect(cell.interval_low!).toBeLessThanOrEqual(cell.agreement!);
+              expect(cell.interval_high!).toBeGreaterThanOrEqual(cell.agreement!);
+              expect(cell.lift!).toBeGreaterThan(1);
+            }
+          }
+        }
+      }
     });
 
     it("⚠ every GO row carries an accession AND a readable class name", () => {

@@ -8,11 +8,14 @@
  * the card says so, because the alternative reads as a hole in the locus when it is a hole in the
  * annotation.
  *
- * ⛔ **It states that the opportunity exists; it does NOT predict.** Propagating a COG from the
- * annotated members to the rest is *annotation transfer*, which is a method to be chosen
- * deliberately: it needs a transfer rule, a confidence measure, a decision about discordant loci and
- * a marking that can never be mistaken for a Bakta call. None of that is shipped, so neither is a
- * predicted label.
+ * ⛔ **This card still states only what the genes SAY — it does not predict.** Propagating a COG to
+ * the unannotated members is *annotation transfer*, and it now exists, but as its own card
+ * (`InferredFunctionCard.vue`) with the four things it needed before it could: a transfer rule (the
+ * similarity ladder David chose, 2026-10-03), a confidence measure (the agreement rate measured on
+ * the loaded catalogue), a decision about discordant and unverifiable loci (a call resting on one
+ * gene is marked as unchecked), and a marking that cannot be mistaken for a Bakta call. ⚠ **Keep
+ * that separation.** Nothing inferred belongs on this card; the two sit side by side so a reader can
+ * see which is which, which is the whole reason the transfer was held back until it could be.
  *
  * ⛔ **The distinct-id count is a COUNT, never a relation.** More than one orthologous group in a
  * locus is an ordinary consequence of grouping above the family level, which is what this method

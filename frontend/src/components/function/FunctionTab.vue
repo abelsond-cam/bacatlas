@@ -13,12 +13,26 @@
  */
 import { computed } from "vue";
 
-import type { AnnotationEntry, AnnotationKind, FunctionResponse } from "@/api/types";
+import type {
+  AnnotationEntry,
+  AnnotationKind,
+  FunctionResponse,
+  InferenceKind,
+  VocabularyInference,
+} from "@/api/types";
+import { INFERENCE_KINDS } from "@/api/types";
 import { GENE_ONTOLOGY_NAMESPACES, coverageSentence } from "@/lib/functionVocabulary";
 
 import CogCard from "./CogCard.vue";
 import EnzymeAndKeggCard from "./EnzymeAndKeggCard.vue";
 import GeneOntologyCard from "./GeneOntologyCard.vue";
+import InferredFunctionCard from "./InferredFunctionCard.vue";
+
+/** How each inferable vocabulary is named to a reader — never the enum value. */
+const VOCABULARY_LABELS: Readonly<Record<InferenceKind, string>> = {
+  cog_orthogroup: "COG",
+  ec_number: "EC number",
+};
 
 const props = defineProps<{
   /** The locus this panel is about — its name and label head the tab. */
@@ -30,7 +44,32 @@ const props = defineProps<{
   failureDetail?: string | null;
 }>();
 
-const emit = defineEmits<{ retry: [] }>();
+const emit = defineEmits<{ retry: []; walk: [label: string] }>();
+
+const inferenceByKind = computed(() => {
+  const byKind = new Map<InferenceKind, VocabularyInference>();
+  for (const entry of props.block?.inference.vocabularies ?? []) byKind.set(entry.annotation_kind, entry);
+  return byKind;
+});
+
+/** The vocabularies this node has none of — the ones a neighbour can be asked about. */
+const inferable = computed(() =>
+  INFERENCE_KINDS.map((kind) => inferenceByKind.value.get(kind)).filter(
+    (entry): entry is VocabularyInference => entry !== undefined && entry.own === null,
+  ),
+);
+
+/**
+ * ⛔ **The vocabularies whose own call rests on ONE gene.** Such a node is unanimous *by
+ * construction*, so there is no internal agreement to report — and a card that showed it like any
+ * other would be claiming a check that never happened. 518 of 4,993 *E. coli* COG nodes are in this
+ * state, `gumC` among them: COG3206 on 1 of its 100 genes.
+ */
+const unverifiable = computed(() =>
+  INFERENCE_KINDS.map((kind) => ({ kind, entry: inferenceByKind.value.get(kind) })).filter(
+    ({ entry }) => entry?.own != null && !entry.own.checkable,
+  ),
+);
 
 function entriesOf(kind: AnnotationKind): readonly AnnotationEntry[] {
   return props.block?.annotations[kind] ?? [];
@@ -89,6 +128,17 @@ const noGeneOntologySentence = computed(() =>
     <p v-else-if="status !== 'ready' || block === null" class="muted">Loading the function annotation…</p>
 
     <template v-else>
+      <!--
+        ⛔ Before any card: a call that rests on one gene is a different kind of claim from one that
+        rests on a hundred, and the difference has to be visible without opening anything.
+      -->
+      <p v-for="{ kind, entry } in unverifiable" :key="`one-gene-${kind}`" class="infer-onegene">
+        This locus's {{ VOCABULARY_LABELS[kind] }} rests on
+        <strong>1 of {{ entry!.own!.member_gene_count.toLocaleString() }}</strong> member genes, so
+        its members cannot be checked against each other — a single annotated gene agrees with itself
+        by construction.
+      </p>
+
       <CogCard :coverage="block.coverage" :entries="entriesOf('cog_orthogroup')" />
 
       <div v-if="!hasAnyGeneOntology" class="card">
@@ -109,6 +159,16 @@ const noGeneOntologySentence = computed(() =>
         :coverage="block.coverage"
         :enzyme-entries="entriesOf('ec_number')"
         :kegg-entries="entriesOf('kegg_orthology')"
+      />
+
+      <!-- ⛔ AFTER every card of real annotation, never among them. What a neighbour SUGGESTS. -->
+      <InferredFunctionCard
+        v-for="entry in inferable"
+        :key="`infer-${entry.annotation_kind}`"
+        :inference="entry"
+        :ladder="block.calibration[entry.annotation_kind]"
+        :vocabulary-label="VOCABULARY_LABELS[entry.annotation_kind]"
+        @walk="(label) => emit('walk', label)"
       />
 
       <!--

@@ -16,6 +16,10 @@ ordinary locus for a discriminating case fails loudly rather than quietly testin
 - `over_cap` — more arrangements than the API lists, so members sit past the cap.
 - `no_window` — the most members with no recorded neighbourhood at all.
 - `function_rich` — EC and KEGG and all three GO namespaces, the parts a typical locus lacks.
+- `inferred_function` — **no COG of its own**, and a COG-bearing ESM neighbour close enough to quote,
+  so the inferred-function card renders on real bytes rather than only on a hand-built object. ⚠ Its
+  first annotated donor must sit past rank 1, because the walk reporting the empty ranks before the
+  donor is the part a fixture with a rank-1 donor would never exercise.
 - sequences: a MINUS-strand gene well inside its contig (where the flank orientation can be wrong and
   still look plausible), and a genome with NO gene at that locus (an answer, not a failure).
 """
@@ -25,7 +29,7 @@ from __future__ import annotations
 import json
 import pathlib
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.application_factory import create_application
@@ -98,6 +102,38 @@ def choose_cases(session: Session, pangenome_id: int) -> dict[str, str]:
             .order_by(Locus.member_gene_count.desc(), Locus.catalogue_ordinal)
             .limit(1),
             "function_rich",
+        ),
+        # ⭐ A node with NO COG whose first COG-bearing ESM neighbour sits past rank 1 — so the
+        # fixture exercises both the suggestion and the reported walk over the ranks that carried
+        # nothing. For *E. coli* COG only 1,679 of 4,143 transfers come from rank 1, so a rank-1
+        # donor would be the unrepresentative case.
+        # ⚠ Plain SQL: the "no NEARER neighbour carries one" clause correlates a second scan of
+        # `locus_nearest_locus` to the first, which reads clearly here and not in the ORM.
+        "inferred_function": _one(
+            session,
+            text("""
+                select focal.node_label
+                  from locus focal
+                  join locus_nearest_locus n
+                       on n.locus_id = focal.locus_id and n.representation = 'ESM'
+                  join locus donor on donor.locus_id = n.neighbour_locus_id
+                 where focal.pangenome_id = :pangenome_id
+                   and focal.cog_distinct_id_count = 0
+                   and donor.cog_distinct_id_count > 0
+                   and n.cross_similarity >= 0.98
+                   and n.rank >= 2
+                   and not exists (
+                         select 1
+                           from locus_nearest_locus earlier
+                           join locus e on e.locus_id = earlier.neighbour_locus_id
+                          where earlier.locus_id = focal.locus_id
+                            and earlier.representation = 'ESM'
+                            and earlier.rank < n.rank
+                            and e.cog_distinct_id_count > 0)
+                 order by focal.member_gene_count desc, focal.catalogue_ordinal
+                 limit 1
+            """).bindparams(pangenome_id=pangenome_id),
+            "inferred_function",
         ),
     }
 

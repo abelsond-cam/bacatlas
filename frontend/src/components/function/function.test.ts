@@ -4,7 +4,17 @@
 import { mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 
-import type { AnnotationEntry, FunctionResponse, GoVerdict } from "@/api/types";
+import type {
+  AnnotationEntry,
+  CalibrationCell,
+  CalibrationLadder,
+  FunctionResponse,
+  GoVerdict,
+  InferenceKind,
+  VocabularyInference,
+  WalkStep,
+} from "@/api/types";
+import { INFERENCE_KINDS } from "@/api/types";
 
 import CogCard from "./CogCard.vue";
 import EnzymeAndKeggCard from "./EnzymeAndKeggCard.vue";
@@ -32,6 +42,40 @@ function coverage(overrides: Partial<FunctionResponse["coverage"]> = {}): Functi
   };
 }
 
+/**
+ * ⛔ The inference block is REQUIRED on a `FunctionResponse`, so a fixture must carry it. Empty by
+ * default: a node that needs no suggestion is the ordinary case, and a fixture that silently
+ * shipped a candidate would make every card under test look like an inferred one.
+ */
+function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
+  return {
+    inference: {
+      representation: "esm",
+      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
+        annotation_kind,
+        own: null,
+        walk: [],
+        candidate: null,
+      })),
+    },
+    calibration: {
+      cog_orthogroup: ladder("cog_orthogroup"),
+      ec_number: ladder("ec_number"),
+    },
+  };
+}
+
+function ladder(annotation_kind: InferenceKind): CalibrationLadder {
+  return {
+    annotation_kind,
+    representation: "esm",
+    annotated_locus_count: 0,
+    locus_count: 0,
+    min_pairs: 30,
+    cells: [],
+  };
+}
+
 function block(overrides: Partial<FunctionResponse> = {}): FunctionResponse {
   return {
     annotations: {
@@ -42,6 +86,7 @@ function block(overrides: Partial<FunctionResponse> = {}): FunctionResponse {
       ],
     },
     coverage: coverage(),
+    ...emptyInference(),
     go_verdicts: {
       molecular_function: "single",
       biological_process: "nested",
@@ -342,5 +387,247 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
     // as corroboration of the merge is double-counting one source.
     expect(mountTab().text()).toContain("not an independent source");
     expect(mountTab().text()).toContain("folded onto the metagenomics GO slim");
+  });
+});
+
+// ── the inferred-function card: the three states a fixture of real bytes cannot all reach ────────
+function cell(overrides: Partial<CalibrationCell> = {}): CalibrationCell {
+  return {
+    tier: "0.98-0.99",
+    level: 2,
+    level_label: "COG orthogroup",
+    pairs: 770,
+    agreement: 0.908,
+    interval_low: 0.886,
+    interval_high: 0.926,
+    chance: 0.0024,
+    lift: 381.9,
+    ...overrides,
+  };
+}
+
+function step(rank: number, cosine: number, carries: boolean): WalkStep {
+  return {
+    rank,
+    cosine,
+    tier: "0.98-0.99",
+    node_label: `n${rank}`,
+    catalogue_ordinal: rank,
+    display_name: `node ${rank}`,
+    carries_annotation: carries,
+  };
+}
+
+function inference(overrides: Partial<VocabularyInference> = {}): VocabularyInference {
+  return { annotation_kind: "cog_orthogroup", own: null, walk: [], candidate: null, ...overrides };
+}
+
+function withInference(entry: VocabularyInference): FunctionResponse {
+  const base = emptyInference();
+  return block({
+    annotations: {},
+    inference: {
+      representation: "esm",
+      vocabularies: base.inference.vocabularies.map((row) =>
+        row.annotation_kind === entry.annotation_kind ? entry : row,
+      ),
+    },
+    calibration: {
+      cog_orthogroup: { ...ladder("cog_orthogroup"), cells: [cell(), cell({ tier: "0.90-0.96", agreement: 0.336, pairs: 8525, lift: 4.9 })] },
+      ec_number: ladder("ec_number"),
+    },
+  });
+}
+
+describe("the inferred-function card", () => {
+  it("⭐ states the suggestion, the depth, the measured rate AND its n", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.999, false), step(2, 0.985, true)],
+          candidate: {
+            rank: 2,
+            cosine: 0.985,
+            tier: "0.98-0.99",
+            donor: {
+              node_label: "n2",
+              catalogue_ordinal: 2,
+              display_name: "wza",
+              term: "COG0450",
+              name: "peroxiredoxin",
+              gene_count: 97,
+              annotated_gene_count: 97,
+              member_gene_count: 99,
+              checkable: true,
+            },
+            level: 2,
+            value: ["COG0450"],
+            calibration: cell(),
+          },
+        }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.find(".infer-value").text()).toContain("COG0450");
+    const rate = card.find(".infer-rate").text();
+    expect(rate).toContain("90.8%");
+    expect(rate).toContain("770");
+    expect(rate).toContain("382×");
+    // ⛔ the rank that carried nothing is named — a card showing only the donor would imply rank 1
+    expect(card.text()).toContain("rank 1 at 0.999");
+  });
+
+  it("⛔ says NOTHING is suggested where the only donor is too remote to call", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.84, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.84,
+            tier: "< 0.90",
+            donor: {
+              node_label: "n1",
+              catalogue_ordinal: 1,
+              display_name: null,
+              term: "COG0450",
+              name: null,
+              gene_count: 4,
+              annotated_gene_count: 4,
+              member_gene_count: 4,
+              checkable: true,
+            },
+            level: null,
+            value: null,
+            calibration: null,
+          },
+        }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.text()).toContain("too remote to call");
+    expect(card.find(".infer-value").exists()).toBe(false);
+  });
+
+  it("⭐ states the DARK SET as a finding where no neighbour carries the vocabulary", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({ walk: [1, 2, 3, 4, 5].map((rank) => step(rank, 0.97, false)) }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.text()).toContain("None of the 5 nearest nodes");
+    expect(card.find(".infer-value").exists()).toBe(false);
+  });
+
+  it("⚠ flags a donor whose OWN call rests on one gene, by the same rule", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.985, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.985,
+            tier: "0.98-0.99",
+            donor: {
+              node_label: "n1",
+              catalogue_ordinal: 1,
+              display_name: null,
+              term: "COG4733",
+              name: null,
+              gene_count: 1,
+              annotated_gene_count: 1,
+              member_gene_count: 120,
+              checkable: false,
+            },
+            level: 2,
+            value: ["COG4733"],
+            calibration: cell(),
+          },
+        }),
+      ),
+    });
+    expect(tab.find(".infer").text()).toContain("never checked against itself");
+  });
+
+  it("⛔ a node with its own call is offered no suggestion at all", () => {
+    // ⚠ BOTH vocabularies, deliberately. With only COG given an `own` the EC card still renders —
+    // which is correct, and would make a bare `.infer` assertion pass for the wrong reason.
+    const own = {
+      term: "COG1132",
+      name: "x",
+      gene_count: 60,
+      annotated_gene_count: 60,
+      member_gene_count: 100,
+      checkable: true,
+    };
+    const tab = mountTab({
+      block: block({
+        annotations: {},
+        inference: {
+          representation: "esm",
+          vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
+            annotation_kind,
+            own,
+            walk: [],
+            candidate: null,
+          })),
+        },
+      }),
+    });
+    expect(tab.find(".infer").exists()).toBe(false);
+    expect(tab.find(".infer-onegene").exists()).toBe(false);
+  });
+
+  it("⛔ a call resting on ONE gene says so, above the cards it qualifies", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          own: {
+            term: "COG3206",
+            name: "GumC",
+            gene_count: 1,
+            annotated_gene_count: 1,
+            member_gene_count: 100,
+            checkable: false,
+          },
+        }),
+      ),
+    });
+    const note = tab.find(".infer-onegene");
+    expect(note.exists()).toBe(true);
+    expect(note.text()).toContain("1 of 100");
+    expect(note.text()).toContain("agrees with itself");
+  });
+
+  it("walks to the donor, so a reader can go and judge it", async () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.985, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.985,
+            tier: "0.98-0.99",
+            donor: {
+              node_label: "4242",
+              catalogue_ordinal: 7,
+              display_name: "wza",
+              term: "COG0450",
+              name: null,
+              gene_count: 9,
+              annotated_gene_count: 9,
+              member_gene_count: 9,
+              checkable: true,
+            },
+            level: 2,
+            value: ["COG0450"],
+            calibration: cell(),
+          },
+        }),
+      ),
+    });
+    await tab.find(".infer-walk").trigger("click");
+    expect(tab.emitted("walk")).toEqual([["4242"]]);
   });
 });
