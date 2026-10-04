@@ -22,6 +22,10 @@ from sqlalchemy import create_engine
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.instruments.sql_cost_oracle import SqlCostOracle
+from bacatlas_backend.services.function_inference_service import (
+    clear_calibration_cache,
+    clear_propagation_cache,
+)
 
 #: Resolving `species_key` → its published pangenome: one statement, on every route.
 SPECIES_RESOLUTION = 1
@@ -31,6 +35,10 @@ SPECIES_RESOLUTION = 1
 #: geometry's single table became two — the per-locus similarities and the ranked nearest loci, which
 #: have different cardinalities and so are deliberately not joined into one statement.
 LOCUS_VIEW_MINIMUM = 10
+
+#: The Function tab on a WARM process: the locus view's own statements plus the species resolution,
+#: the function block and the inference walk. Measured on both published catalogues.
+FUNCTION_TAB_WARM = 14
 
 #: ⚠ A genome PROJECTED onto the ecoli catalogue, if one is loaded. The projection is an optional
 #: addition to a published catalogue, so these two tests skip rather than fail where none exists —
@@ -157,3 +165,42 @@ def test_ONLY_the_shell_aggregates_over_the_catalogue(application, path):
 def test_and_the_shell_DOES_aggregate_so_the_property_above_is_not_vacuous(application):
     report = _measure(application, "/api/v1/species/ecoli")
     assert len(_catalogue_aggregations(report)) == 1
+
+
+def _gene_grain_catalogue_scans(report):
+    """Statements reading `gene_functional_annotation` across a whole catalogue.
+
+    ⚠ The complement of `_annotated_counts`, which reads the same table under
+    `m.locus_id = any(:locus_ids)` — six loci, not a catalogue. Excluding that one is what makes
+    this a scan detector rather than a table detector.
+    """
+    return [
+        record.summary()
+        for record in report.statements
+        if "gene_functional_annotation" in record.sql and "locus_id = any(" not in record.sql
+    ]
+
+
+@pytest.mark.parametrize("species,label", [("ecoli", "2811"), ("kp", "722")])
+def test_the_FUNCTION_tab_pays_its_catalogue_SCANS_once_per_process_and_never_again(
+    application, species, label
+):
+    """⭐ The two caches on this route are what make a catalogue-wide read admissible on it at all.
+
+    The ladder reads every stored neighbour EDGE; the propagation base rate reads every annotated
+    GENE, measured at **0.22-1.94 s** per (catalogue, vocabulary) — so a cold tab pays 4.2-5.2 s
+    wall and a warm one 0.01 s. ⛔ The guarantee is therefore not that the scan is cheap but that it
+    happens ONCE: the second request must issue none of them.
+
+    ⚠ Clears both caches first, so the assertion holds whatever order the suite runs in — the
+    parametrized aggregation test above also fetches this route, and a warm cache would make the
+    non-vacuity half silently pass.
+    """
+    clear_calibration_cache()
+    clear_propagation_cache()
+    cold = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
+    assert _gene_grain_catalogue_scans(cold), "non-vacuity: a cold tab really does scan the genes"
+
+    warm = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
+    assert _gene_grain_catalogue_scans(warm) == [], "⛔ the second request re-measures nothing"
+    warm.assert_at_most(FUNCTION_TAB_WARM, what="a warm Function tab, at the route")

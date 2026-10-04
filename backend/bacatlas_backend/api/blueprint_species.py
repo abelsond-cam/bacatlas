@@ -477,6 +477,12 @@ def get_locus_function(species_key: str, locus_label: str):
     depth) the inference ladder can quote, recomputed from the loaded catalogue rather than copied
     out of the write-up. ~3.6 kB of cells on a cold-path response, so the reader can see the whole
     ladder instead of one rate presented without its neighbours.
+
+    ⭐ And its **propagation** base rate, which rides INSIDE `inference` rather than beside the
+    calibration — nested on `own` and on `candidate.donor`, because it qualifies one node's call
+    (how often that call covers the members not carrying it) rather than the ladder as a whole. It
+    needs no top-level block for the same reason: a catalogue-wide table of band rates would be a
+    second copy of the one cell the page actually quotes.
     """
     with _session() as session:
         try:

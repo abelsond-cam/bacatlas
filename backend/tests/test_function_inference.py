@@ -27,11 +27,15 @@ from bacatlas_backend.instruments.annotation_transfer import (
     quotable_level,
     tier_for,
 )
-from bacatlas_backend.models.enumerations import AnnotationKind
+from bacatlas_backend.instruments.within_node_propagation import MIN_NODES
+from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
 from bacatlas_backend.services.function_inference_service import (
+    _PROPAGATION,
     calibration_for,
     clear_calibration_cache,
+    clear_propagation_cache,
+    propagation_for,
 )
 
 
@@ -238,11 +242,16 @@ def test_the_two_catalogues_do_not_share_a_cached_ladder(session):
 
 
 # ── the endpoint, on the cases that teach the caveats ───────────────────────────────────────────
-def test_gumC_says_its_COG_rests_on_ONE_gene_and_cannot_be_checked(client):
-    """⭐ The worked case: kp node 722, 100 members, COG3206 on **1** of them, EC on 16.
+def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, session):
+    """⭐ The worked case, and the one the page had BACKWARDS: kp node 722, 100 members, COG3206 on
+    **1** of them, EC on 16.
 
-    ⛔ The two vocabularies must not read alike on this card. One rests on a vote with sixteen
-    voters; the other on a vote with one, which is unanimous by construction.
+    ⛔ The two vocabularies still must not read alike on the *check*: one vote had sixteen voters,
+    the other one, and `checkable` is what keeps that apart. ⭐ **But the CLAIM is the same in both
+    cases** — the call covers all 100 member genes either way, at the measured rate for the node's
+    prevalence band. David, 2026-10-04: *"the whole point of our method is effectively the carrying
+    by one is enough."* This test previously asserted the opposite copy ("cannot be checked"), which
+    is why it is rewritten here rather than deleted.
     """
     payload = client.get("/api/v1/species/kp/loci/722/function").get_json()
     by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
@@ -250,7 +259,29 @@ def test_gumC_says_its_COG_rests_on_ONE_gene_and_cannot_be_checked(client):
     cog = by_kind["cog_orthogroup"]["own"]
     assert cog["term"] == "COG3206"
     assert (cog["gene_count"], cog["annotated_gene_count"], cog["member_gene_count"]) == (1, 1, 100)
-    assert cog["checkable"] is False
+    assert cog["checkable"] is False, "one voter is still not a vote, and the page still says so"
+
+    # ⛔ COVERAGE BEFORE THE RATE. The two populations must account for every kp CORE node that
+    # carries a COG at all — `checkable` is what the rate is MEASURED on, `one_gene` what it is
+    # APPLIED to, and a rate quoted without them would be a number from an unnamed denominator.
+    band = cog["propagation"]
+    assert band["prevalence_band"] == "CORE", "gumC is a 100-genome core node, not a singleton"
+    carrying = session.execute(
+        text("""
+            select count(*)
+              from locus l join pangenome p using (pangenome_id)
+             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'CORE'
+               and l.cog_distinct_id_count > 0
+        """)
+    ).scalar_one()
+    assert band["checkable_node_count"] + band["one_gene_node_count"] == carrying, (
+        "every CORE node carrying a COG is in exactly one of the two columns"
+    )
+    assert band["checkable_node_count"] >= MIN_NODES, "and there are enough of them to quote a rate"
+    assert band["rate"] is not None and band["rate"] > 0.99
+    assert band["interval_low"] <= band["rate"] <= band["interval_high"] <= 1.0, (
+        "⛔ a Wilson interval, because a normal one runs past 1.0 at these rates"
+    )
 
     ec = by_kind["ec_number"]["own"]
     assert ec["term"] == "2.7.10.-"
@@ -259,6 +290,146 @@ def test_gumC_says_its_COG_rests_on_ONE_gene_and_cannot_be_checked(client):
     assert ec_levels(ec["term"])[4] == frozenset(), (
         "and its EC states only three levels however similar a reader's neighbour is"
     )
+    # ⭐ The sixteen-voter vocabulary carries the SAME kind of statement as the one-voter one —
+    # only its first clause differs. That is the A1 decision, and it is the whole fix.
+    assert ec["propagation"]["prevalence_band"] == "CORE"
+    assert ec["propagation"]["rate"] is not None
+
+
+def test_the_band_rate_does_NOT_depend_on_how_many_genes_carried_the_call(client, session):
+    """⭐ One node resting on ONE COG and one resting on many quote the IDENTICAL band cell.
+
+    ⛔ The rate answers "is the modal call right for the members that do not carry it", and that
+    question does not change with the number that do. A rate that moved between the two cases would
+    mean the page was quoting a property of the node rather than of its reference class.
+    """
+    crowded = session.execute(
+        text("""
+            select l.node_label
+              from locus l join pangenome p using (pangenome_id)
+             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'CORE'
+               and l.cog_annotated_member_count >= 50
+             order by l.node_label limit 1
+        """)
+    ).scalar_one()
+
+    def cog_own(label):
+        payload = client.get(f"/api/v1/species/kp/loci/{label}/function").get_json()
+        by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+        return by_kind["cog_orthogroup"]["own"]
+
+    one_gene, many = cog_own("722"), cog_own(crowded)
+    assert one_gene["annotated_gene_count"] == 1 and many["annotated_gene_count"] >= 50, (
+        "non-vacuity: the two nodes really are the two cases"
+    )
+    assert one_gene["checkable"] is False and many["checkable"] is True
+    assert one_gene["propagation"] == many["propagation"], "the same reference class, the same rate"
+
+
+def test_a_RARE_node_is_told_the_rate_is_NOT_MEASURABLE_and_never_zero(client, session):
+    """⛔⛔ The distinction the whole three-state design exists for.
+
+    RARE holds most of the one-gene nodes (367 of them on kp COG) and has **zero** checkable ones,
+    because a singleton node has one gene to check. `0.0` there would read as *measured, and the
+    label propagates nowhere* — the opposite of *there is no reference class*, which is the truth.
+    It is the mistake `no_homology` was retired for, in a new place.
+    """
+    label = session.execute(
+        text("""
+            select l.node_label
+              from locus l join pangenome p using (pangenome_id)
+             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'RARE'
+               and l.cog_distinct_id_count > 0
+             order by l.node_label limit 1
+        """)
+    ).scalar_one()
+    payload = client.get(f"/api/v1/species/kp/loci/{label}/function").get_json()
+    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+    band = by_kind["cog_orthogroup"]["own"]["propagation"]
+
+    assert band["prevalence_band"] == "RARE"
+    assert band["checkable_node_count"] == 0, "a singleton node has one gene to check"
+    assert band["rate"] is None, "⛔ not measurable"
+    assert band["rate"] != 0.0, "⛔ and certainly not measured as zero"
+    assert band["interval_low"] is None and band["interval_high"] is None
+    assert band["one_gene_node_count"] > 0, "non-vacuity: the band this applies to is populated"
+
+
+def test_the_DONOR_card_quotes_the_DONORS_band_and_not_the_recipients(client, session):
+    """⛔ A transferred call propagates inside the DONOR's node, so it is the donor's band that
+    governs — and the two bands differ often enough that taking the recipient's would be wrong
+    rather than merely imprecise.
+
+    Chosen by a query that says what it exercises, like the walk test below, rather than by a pinned
+    label that could quietly stop exercising it.
+    """
+    row = session.execute(
+        text("""
+            select focal.node_label as focal, focal.prevalence_band::text as focal_band,
+                   donor.node_label as donor, donor.prevalence_band::text as donor_band
+              from locus focal
+              join pangenome p on p.pangenome_id = focal.pangenome_id
+              join locus_nearest_locus n
+                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
+              join locus donor on donor.locus_id = n.neighbour_locus_id
+             where p.catalogue_key = 'kp-nuna4'
+               and focal.cog_distinct_id_count = 0
+               and donor.cog_distinct_id_count > 0
+               and donor.prevalence_band <> focal.prevalence_band
+               and not exists (
+                     select 1 from locus_nearest_locus earlier
+                       join locus e on e.locus_id = earlier.neighbour_locus_id
+                      where earlier.locus_id = focal.locus_id
+                        and earlier.representation = 'ESM'
+                        and earlier.rank < n.rank
+                        and e.cog_distinct_id_count > 0)
+             order by focal.node_label limit 1
+        """)
+    ).first()
+    assert row is not None, "the catalogue has focal/donor band mismatches, or this test is vacuous"
+
+    payload = client.get(f"/api/v1/species/kp/loci/{row.focal}/function").get_json()
+    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+    candidate = by_kind["cog_orthogroup"]["candidate"]
+    assert candidate["donor"]["node_label"] == row.donor
+    assert candidate["donor"]["propagation"]["prevalence_band"] == row.donor_band
+    assert row.donor_band != row.focal_band, "non-vacuity: the two bands really do differ here"
+
+
+def test_the_propagation_cache_is_per_catalogue_like_the_ladder_above(session):
+    """⛔ The trap `clear_calibration_cache` exists for, in a second cache: one catalogue's base rate
+    answering for another's would be invisible on the page and wrong in both.
+    """
+    clear_propagation_cache()
+    kinds = {"pangenome_id": 2, "annotation_kind": AnnotationKind.COG_ORTHOGROUP}
+    kp = propagation_for(session, prevalence_band=PrevalenceBand.CORE, **kinds)
+    ecoli = propagation_for(
+        session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP,
+        prevalence_band=PrevalenceBand.CORE,
+    )
+    assert kp.checkable != ecoli.checkable, "two catalogues, two measurements"
+    assert kp.checkable >= MIN_NODES and ecoli.checkable >= MIN_NODES
+
+
+def test_a_band_the_catalogue_never_measured_arrives_as_NOT_MEASURABLE_not_MISSING():
+    """⛔ Missing key and not-measurable must reach the page as the SAME shape.
+
+    ⚠ Seeds the private cache deliberately: the published catalogues populate all five bands, so the
+    absent-band branch has no live case and would otherwise go untested — and it is the branch that
+    decides whether the page has to tell *no such band* from *too few nodes*. With the cache seeded
+    the session is never touched, which is why `None` is a safe argument here.
+    """
+    clear_propagation_cache()
+    _PROPAGATION[(-1, AnnotationKind.KEGG_ORTHOLOGY)] = {}
+    cell = propagation_for(
+        None, pangenome_id=-1, annotation_kind=AnnotationKind.KEGG_ORTHOLOGY,
+        prevalence_band=PrevalenceBand.SOFT_CORE,
+    )
+    clear_propagation_cache()
+    assert cell.prevalence_band == "SOFT_CORE"
+    assert (cell.checkable, cell.unanimous, cell.one_gene) == (0, 0, 0)
+    assert cell.rate is None and cell.interval is None
+    assert cell.as_json()["rate"] is None
 
 
 def test_a_node_with_its_own_call_is_never_offered_a_neighbours(client):

@@ -7,7 +7,10 @@ let them read alike (`nuna/docs/model_evaluation/function_inference.md`):
   says whether that vote had more than one voter. ⛔ A node with exactly ONE annotated gene is
   unanimous *by construction*; 518 of 4,993 *E. coli* COG nodes are in that state, `gumC` among them
   (COG3206 on 1 of 100 genes), and a card that showed it like any other would be claiming a check
-  that never happened.
+  that never happened. ⭐ **But that is a missing check, NOT a missing claim** — the call still
+  covers the node's other 99 genes, and `propagation` is the measured rate at which it is right to.
+  (David, 2026-10-04: *"the whole point of our method is effectively the carrying by one is
+  enough."*)
 * **a neighbour.** Walk the stored ESM neighbours outward until one carries the vocabulary, then
   quote it only as deep as its similarity earns — and carry the **measured** agreement rate for that
   depth so the reader judges the suggestion instead of trusting it.
@@ -37,7 +40,11 @@ from bacatlas_backend.instruments.annotation_transfer import (
     single_rung,
     tier_for,
 )
-from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation
+from bacatlas_backend.instruments.within_node_propagation import (
+    PropagationRate,
+    compute_propagation,
+)
+from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation, PrevalenceBand
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
@@ -50,15 +57,24 @@ from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 #: another's — the trap `gene_sequence_service.clear_parsed_genome_cache` exists for.
 _CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibration] = {}
 
-#: ⚠ **Moved to `instruments/annotation_transfer.py`** (2026-10-04) and re-exported here, because the
-#: new `within_node_propagation` instrument needs the same mapping and an instrument cannot import a
-#: service. It is derived there from `GENE_VALUE_COLUMN`, so the column and the predicate are one fact.
-#: One bounded statement over at most six loci (the focal node and its five neighbours) gives all four
-#: axes on the same definition.
-
+#: ⚠ The same stance as `_CALIBRATIONS` and the same justification, but a **heavier** scan: it reads
+#: every annotated GENE rather than every stored edge, measured at **0.22-1.94 s** per (catalogue,
+#: vocabulary) on the published catalogues — so a cold *E. coli* Function tab pays ~5.8 s across the
+#: four, once per process. ⛔ Keyed WITHOUT a representation, which is a finding and not an omission:
+#: within-node unanimity is 99.8-100 % at every band of BOTH representations (ESM's within-node
+#: similarity is saturated at p50 1.000 and cannot discriminate at all), so no similarity enters this
+#: number. See `within_node_propagation`'s header.
+_PROPAGATION: dict[tuple[int, AnnotationKind], dict[str, PropagationRate]] = {}
 
 def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
-    """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`."""
+    """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`.
+
+    One bounded statement over at most six loci (the focal node and its five neighbours) gives all
+    four axes on the same definition. ⚠ `ANNOTATED_COUNT_PREDICATE` lives in
+    `instruments/annotation_transfer.py` (moved 2026-10-04) because `within_node_propagation` needs
+    the same mapping and an instrument cannot import a service; it is derived there from
+    `GENE_VALUE_COLUMN`, so the column and the predicate are one fact in one place.
+    """
     if not locus_ids:
         return {}
     columns = ", ".join(
@@ -82,6 +98,42 @@ def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[A
 def clear_calibration_cache() -> None:
     """Drop every cached ladder. Call between catalogues in tests."""
     _CALIBRATIONS.clear()
+
+
+def clear_propagation_cache() -> None:
+    """Drop every cached base rate. ⛔ Call between catalogues in tests, like its twin above."""
+    _PROPAGATION.clear()
+
+
+def propagation_for(
+    session: Session,
+    *,
+    pangenome_id: int,
+    annotation_kind: AnnotationKind,
+    prevalence_band: PrevalenceBand,
+) -> PropagationRate:
+    """How often a call in this band covers the node's unannotated members — one band of one pass.
+
+    ⛔ **A band absent from the tally is returned as zeros, never dropped.** A band with no annotated
+    node at all and a band with 29 checkable ones must reach the page as the SAME shape carrying the
+    same `rate: None`, or the page has to distinguish *missing key* from *not measurable* — and three
+    states collapsing into two is the mistake `no_homology` was retired for.
+    """
+    key = (pangenome_id, annotation_kind)
+    if key not in _PROPAGATION:
+        _PROPAGATION[key] = compute_propagation(
+            session, pangenome_id=pangenome_id, annotation_kind=annotation_kind
+        )
+    measured = _PROPAGATION[key].get(prevalence_band.name)
+    if measured is not None:
+        return measured
+    return PropagationRate(
+        annotation_kind=annotation_kind,
+        prevalence_band=prevalence_band.name,
+        checkable=0,
+        unanimous=0,
+        one_gene=0,
+    )
 
 
 def calibration_for(
@@ -161,6 +213,9 @@ def load_inference(
             Locus.display_name,
             Locus.member_gene_count,
             Locus.modal_cog_categories,
+            # ⚠ Read for the DONOR's propagation rate: a donor resting on one annotated gene is a
+            # valid donor, and the reason is its own band's base rate, not the focal node's.
+            Locus.prevalence_band,
         )
         .join(Locus, Locus.locus_id == LocusNearestLocus.neighbour_locus_id)
         .where(
@@ -188,6 +243,16 @@ def load_inference(
                 "member_gene_count": locus.member_gene_count,
                 # ⛔ The whole point of the field: one voter is not a vote.
                 "checkable": annotated >= 2,
+                # ⭐ And the whole point of THIS one: whether or not the vote could be checked, the
+                # call covers the node's unannotated members, at the measured rate for its band.
+                # Reported on every node that carries a call, not only the one-gene ones — the claim
+                # and the number are the same in both cases and only the first clause differs.
+                "propagation": propagation_for(
+                    session,
+                    pangenome_id=pangenome_id,
+                    annotation_kind=annotation_kind,
+                    prevalence_band=locus.prevalence_band,
+                ).as_json(),
             }
         vocabularies.append(
             {
@@ -263,6 +328,14 @@ def _walk(
                 "annotated_gene_count": donor_annotated,
                 "member_gene_count": row.member_gene_count,
                 "checkable": donor_annotated >= 2,
+                # ⛔ The DONOR's band, not the recipient's — what is being claimed here is that the
+                # donor's call covers the donor's node, which is a statement about that node alone.
+                "propagation": propagation_for(
+                    session,
+                    pangenome_id=pangenome_id,
+                    annotation_kind=annotation_kind,
+                    prevalence_band=row.prevalence_band,
+                ).as_json(),
             },
             # `null` where the tier is too remote to call, or the donor states nothing this deep.
             "level": level,
