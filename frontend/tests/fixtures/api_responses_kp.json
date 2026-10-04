@@ -614,6 +614,17 @@
         "gene_count": 100,
         "member_gene_count": 100,
         "name": null,
+        "propagation": {
+         "annotation_kind": "ec_number",
+         "checkable_node_count": 1411,
+         "interval_high": 0.9988970573618808,
+         "interval_low": 0.9927333838125941,
+         "min_nodes": 30,
+         "one_gene_node_count": 14,
+         "prevalence_band": "core",
+         "rate": 0.997165131112686,
+         "unanimous_node_count": 1407
+        },
         "term": "2.4.2.1"
        },
        "walk": []
@@ -627,6 +638,17 @@
         "gene_count": 99,
         "member_gene_count": 100,
         "name": "Purine-nucleoside phosphorylase",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 3253,
+         "interval_high": 0.9993433037855307,
+         "interval_low": 0.9964066890910034,
+         "min_nodes": 30,
+         "one_gene_node_count": 43,
+         "prevalence_band": "core",
+         "rate": 0.9984629572702121,
+         "unanimous_node_count": 3248
+        },
         "term": "COG0813"
        },
        "walk": []
@@ -640,6 +662,17 @@
         "gene_count": 100,
         "member_gene_count": 100,
         "name": "transferase activity",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 2024,
+         "interval_high": 0.9994957976012924,
+         "interval_low": 0.9956509633685979,
+         "min_nodes": 30,
+         "one_gene_node_count": 13,
+         "prevalence_band": "core",
+         "rate": 0.9985177865612648,
+         "unanimous_node_count": 2021
+        },
         "term": "GO:0016740"
        },
        "walk": []
@@ -653,6 +686,17 @@
         "gene_count": 1,
         "member_gene_count": 100,
         "name": null,
+        "propagation": {
+         "annotation_kind": "kegg_orthology",
+         "checkable_node_count": 444,
+         "interval_high": 0.9996023217069467,
+         "interval_low": 0.9873537806292365,
+         "min_nodes": 30,
+         "one_gene_node_count": 81,
+         "prevalence_band": "core",
+         "rate": 0.9977477477477478,
+         "unanimous_node_count": 443
+        },
         "term": "K03784"
        },
        "walk": []
@@ -2117,6 +2161,17 @@
          "member_gene_count": 100,
          "name": "Cell division protein ZapD, interacts with FtsZ",
          "node_label": "1888",
+         "propagation": {
+          "annotation_kind": "cog_orthogroup",
+          "checkable_node_count": 3253,
+          "interval_high": 0.9993433037855307,
+          "interval_low": 0.9964066890910034,
+          "min_nodes": 30,
+          "one_gene_node_count": 43,
+          "prevalence_band": "core",
+          "rate": 0.9984629572702121,
+          "unanimous_node_count": 3248
+         },
          "term": "COG4582"
         },
         "level": 2,
@@ -2184,6 +2239,17 @@
         "gene_count": 100,
         "member_gene_count": 100,
         "name": "nucleic acid binding",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 2024,
+         "interval_high": 0.9994957976012924,
+         "interval_low": 0.9956509633685979,
+         "min_nodes": 30,
+         "one_gene_node_count": 13,
+         "prevalence_band": "core",
+         "rate": 0.9985177865612648,
+         "unanimous_node_count": 2021
+        },
         "term": "GO:0003676"
        },
        "walk": []
@@ -3870,6 +3936,17 @@
         "gene_count": 76,
         "member_gene_count": 76,
         "name": null,
+        "propagation": {
+         "annotation_kind": "ec_number",
+         "checkable_node_count": 160,
+         "interval_high": 0.9965654008438989,
+         "interval_low": 0.9555737384223193,
+         "min_nodes": 30,
+         "one_gene_node_count": 11,
+         "prevalence_band": "shell",
+         "rate": 0.9875,
+         "unanimous_node_count": 158
+        },
         "term": "2.7.7.49"
        },
        "walk": []
@@ -3883,6 +3960,17 @@
         "gene_count": 76,
         "member_gene_count": 76,
         "name": "Retron-type reverse transcriptase",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 764,
+         "interval_high": 0.9997689154844664,
+         "interval_low": 0.9926232654028415,
+         "min_nodes": 30,
+         "one_gene_node_count": 33,
+         "prevalence_band": "shell",
+         "rate": 0.9986910994764397,
+         "unanimous_node_count": 763
+        },
         "term": "COG3344"
        },
        "walk": []
@@ -3896,6 +3984,17 @@
         "gene_count": 76,
         "member_gene_count": 76,
         "name": "nucleotidyltransferase activity",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 358,
+         "interval_high": 0.9995067570478581,
+         "interval_low": 0.984349162227316,
+         "min_nodes": 30,
+         "one_gene_node_count": 6,
+         "prevalence_band": "shell",
+         "rate": 0.9972067039106145,
+         "unanimous_node_count": 357
+        },
         "term": "GO:0016779"
        },
        "walk": []
@@ -3924,6 +4023,17 @@
          "member_gene_count": 16,
          "name": null,
          "node_label": "6247",
+         "propagation": {
+          "annotation_kind": "kegg_orthology",
+          "checkable_node_count": 168,
+          "interval_high": 0.9967292591352631,
+          "interval_low": 0.9576380186368249,
+          "min_nodes": 30,
+          "one_gene_node_count": 31,
+          "prevalence_band": "shell",
+          "rate": 0.9880952380952381,
+          "unanimous_node_count": 166
+         },
          "term": "K00986"
         },
         "level": 1,
@@ -6893,6 +7003,17 @@
          "member_gene_count": 24,
          "name": "Translation elongation factor EF-Tu, a GTPase",
          "node_label": "5548",
+         "propagation": {
+          "annotation_kind": "cog_orthogroup",
+          "checkable_node_count": 764,
+          "interval_high": 0.9997689154844664,
+          "interval_low": 0.9926232654028415,
+          "min_nodes": 30,
+          "one_gene_node_count": 33,
+          "prevalence_band": "shell",
+          "rate": 0.9986910994764397,
+          "unanimous_node_count": 763
+         },
          "term": "COG0050"
         },
         "level": 1,
@@ -6942,6 +7063,17 @@
         "gene_count": 112,
         "member_gene_count": 112,
         "name": "molecular_function",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 358,
+         "interval_high": 0.9995067570478581,
+         "interval_low": 0.984349162227316,
+         "min_nodes": 30,
+         "one_gene_node_count": 6,
+         "prevalence_band": "shell",
+         "rate": 0.9972067039106145,
+         "unanimous_node_count": 357
+        },
         "term": "GO:0003674"
        },
        "walk": []
@@ -8380,6 +8512,17 @@
          "member_gene_count": 18,
          "name": "biological_process",
          "node_label": "15580",
+         "propagation": {
+          "annotation_kind": "gene_ontology_slim",
+          "checkable_node_count": 358,
+          "interval_high": 0.9995067570478581,
+          "interval_low": 0.984349162227316,
+          "min_nodes": 30,
+          "one_gene_node_count": 6,
+          "prevalence_band": "shell",
+          "rate": 0.9972067039106145,
+          "unanimous_node_count": 357
+         },
          "term": "GO:0008150"
         },
         "level": 1,

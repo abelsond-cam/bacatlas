@@ -3716,15 +3716,33 @@ td.fam-sym {
     text-decoration-style: solid;
 }
 
-/* ⚠ A call resting on ONE gene. Not an error state and not styled as one — it is a true statement
-   about what the annotation can support, and it reads above the cards it qualifies. */
-.infer-onegene {
+/* ⭐ What the call covers, above the cards it qualifies. Renamed from `.infer-onegene` (2026-10-04)
+   because the block stopped being a caveat about one gene and became the claim itself: a call
+   carried by some members covers all of them, at a measured rate. Still not an error state and
+   still not styled as one — it is the method, stated. */
+.infer-spread {
     margin: 0 0 var(--s4);
     padding: 8px 10px;
     border-left: 3px solid var(--rule-2);
     background: var(--panel-2);
     font-size: 13px;
     color: var(--ink-2);
+}
+
+.infer-spread-lead {
+    margin: 0;
+}
+
+/* The per-vocabulary lines. No bullets: four of them with discs read as a to-do list rather than a
+   set of parallel statements, and the vocabulary name in bold is already the marker. */
+.infer-spread > ul {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.infer-spread > ul > li + li {
+    margin-top: 4px;
 }
 
 .infer-ladder {

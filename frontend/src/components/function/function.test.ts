@@ -11,6 +11,8 @@ import type {
   FunctionResponse,
   GoVerdict,
   InferenceKind,
+  OwnSupport,
+  PropagationRate,
   VocabularyInference,
   WalkStep,
 } from "@/api/types";
@@ -63,6 +65,27 @@ function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
     calibration: Object.fromEntries(
       INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
     ) as FunctionResponse["calibration"],
+  };
+}
+
+/**
+ * ⛔ **Required on every `own` and every donor, so a fixture must carry it** — and `core` with a
+ * real rate by default, because that is the published catalogues' ordinary case. The
+ * not-measurable branch is the one a test has to ask for, which is the right way round: a fixture
+ * that defaulted to `rate: null` would make every card under test look unmeasured.
+ */
+function propagation(overrides: Partial<PropagationRate> = {}): PropagationRate {
+  return {
+    annotation_kind: "cog_orthogroup",
+    prevalence_band: "core",
+    checkable_node_count: 3_253,
+    unanimous_node_count: 3_248,
+    one_gene_node_count: 43,
+    rate: 0.9985,
+    interval_low: 0.9967,
+    interval_high: 0.9993,
+    min_nodes: 30,
+    ...overrides,
   };
 }
 
@@ -473,6 +496,7 @@ describe("the inferred-function card", () => {
               annotated_gene_count: 97,
               member_gene_count: 99,
               checkable: true,
+              propagation: propagation(),
             },
             level: 2,
             value: ["COG0450"],
@@ -510,6 +534,7 @@ describe("the inferred-function card", () => {
               annotated_gene_count: 4,
               member_gene_count: 4,
               checkable: true,
+              propagation: propagation(),
             },
             level: null,
             value: null,
@@ -532,9 +557,15 @@ describe("the inferred-function card", () => {
     const card = tab.find(".infer");
     expect(card.text()).toContain("None of the 5 nearest nodes");
     expect(card.find(".infer-value").exists()).toBe(false);
+    // ⚠ Three of the four vocabularies take "a" and the fourth takes "an", so a hardcoded article
+    // rendered "carries a EC number" on exactly one card.
+    const everyCard = tab.findAll(".infer").map((one) => one.text());
+    expect(everyCard.some((one) => one.includes("carries an EC number either"))).toBe(true);
+    expect(everyCard.some((one) => one.includes("carries a COG either"))).toBe(true);
+    expect(everyCard.join(" ")).not.toContain("a EC number");
   });
 
-  it("⚠ flags a donor whose OWN call rests on one gene, by the same rule", () => {
+  it("⭐ says the DONOR's own call covers the donor's whole node, at the donor's rate", () => {
     const tab = mountTab({
       block: withInference(
         inference({
@@ -553,6 +584,7 @@ describe("the inferred-function card", () => {
               annotated_gene_count: 1,
               member_gene_count: 120,
               checkable: false,
+              propagation: propagation(),
             },
             level: 2,
             value: ["COG4733"],
@@ -561,7 +593,87 @@ describe("the inferred-function card", () => {
         }),
       ),
     });
-    expect(tab.find(".infer").text()).toContain("never checked against itself");
+    const card = tab.find(".infer");
+    expect(card.text()).toContain("carried by 1 of its 120 genes and covers that whole node");
+    expect(card.text()).toContain("which is why a neighbour resting on one annotated gene is still a donor");
+    // ⚠ That clause is for the ONE-gene donor only; a donor resting on 57 of 100 gets the general
+    // rule instead, because the striking case read as a non-sequitur beside it.
+    expect(card.text()).not.toContain("the rule by which it counts as a donor at all");
+    // ⚠ The donor card DOES name the band: it quotes the donor's, and has no lead to carry it.
+    expect(card.text()).toContain("99.85 % of 3,253 comparable core syntelogues agree.");
+    // ⛔ The retired claim, named so it cannot come back: a one-gene donor is not a weaker donor,
+    // which is the whole reason a donor "carries" a vocabulary by the any-gene rule.
+    expect(card.text()).not.toContain("never checked against itself");
+  });
+
+  it("⛔ a donor EVERY gene of which carries the call says nothing about propagation", () => {
+    // ⚠ There is no propagation on that side to report, and a sentence saying so on every card
+    // would be noise — this is the common case (a 100-of-100 donor).
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.985, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.985,
+            tier: "0.98-0.99",
+            donor: {
+              node_label: "n1",
+              catalogue_ordinal: 1,
+              display_name: null,
+              term: "COG4733",
+              name: null,
+              gene_count: 100,
+              annotated_gene_count: 100,
+              member_gene_count: 100,
+              checkable: true,
+              propagation: propagation(),
+            },
+            level: 2,
+            value: ["COG4733"],
+            calibration: cell(),
+          },
+        }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.text()).toContain("COG4733");
+    expect(card.text()).not.toContain("covers that whole node");
+    expect(card.text()).not.toContain("comparable core syntelogues agree");
+  });
+
+  it("⚠ a donor carried by MANY of its genes gets the general rule, not the one-gene case", () => {
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.985, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.985,
+            tier: "0.98-0.99",
+            donor: {
+              node_label: "n1",
+              catalogue_ordinal: 1,
+              display_name: null,
+              term: "COG4733",
+              name: null,
+              gene_count: 57,
+              annotated_gene_count: 57,
+              member_gene_count: 100,
+              checkable: true,
+              propagation: propagation(),
+            },
+            level: 2,
+            value: ["COG4733"],
+            calibration: cell(),
+          },
+        }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.text()).toContain("carried by 57 of its 100 genes and covers that whole node");
+    expect(card.text()).toContain("the rule by which it counts as a donor at all");
+    expect(card.text()).not.toContain("resting on one annotated gene");
   });
 
   it("⛔ a node with its own call is offered no suggestion at all", () => {
@@ -574,6 +686,7 @@ describe("the inferred-function card", () => {
       annotated_gene_count: 60,
       member_gene_count: 100,
       checkable: true,
+      propagation: propagation(),
     };
     const tab = mountTab({
       block: block({
@@ -590,11 +703,21 @@ describe("the inferred-function card", () => {
       }),
     });
     expect(tab.find(".infer").exists()).toBe(false);
-    expect(tab.find(".infer-onegene").exists()).toBe(false);
+    // ⭐ But the propagation note DOES appear, once per vocabulary — the claim is made wherever a
+    // node carries a call, not only where a single gene carries it.
+    expect(tab.findAll(".infer-spread li")).toHaveLength(INFERENCE_KINDS.length);
   });
 
-  it("⛔ a call resting on ONE gene says so, above the cards it qualifies", () => {
-    const tab = mountTab({
+/*
+ * ⭐⭐ The block this tab was rewritten for. It previously said a call resting on one gene meant the
+ * members *"cannot be checked against each other"* — true, and the inverse of the method's central
+ * claim, which is that carrying by one is enough. The tests below pin the new claim in all three
+ * states; the old assertion ("agrees with itself") is replaced rather than deleted, because it is
+ * the sentence being retired and a deletion would leave nothing saying so.
+ */
+describe("⭐ the call propagates across the whole syntelogue", () => {
+  function propagationNote(own: Partial<OwnSupport>) {
+    return mountTab({
       block: withInference(
         inference({
           own: {
@@ -604,15 +727,81 @@ describe("the inferred-function card", () => {
             annotated_gene_count: 1,
             member_gene_count: 100,
             checkable: false,
+            propagation: propagation(),
+            ...own,
           },
         }),
       ),
-    });
-    const note = tab.find(".infer-onegene");
+    }).find(".infer-spread");
+  }
+
+  it("⛔ says a call on ONE gene APPLIES to all 100 — the claim, not a caveat", () => {
+    const note = propagationNote({});
     expect(note.exists()).toBe(true);
-    expect(note.text()).toContain("1 of 100");
-    expect(note.text()).toContain("agrees with itself");
+    expect(note.text()).toContain("Each of these applies to the whole syntelogue.");
+    expect(note.text()).toContain("that propagation is the method, not a gap in it");
+    expect(note.text()).toContain("COG — carried by 1 of 100 genes");
+    expect(note.text()).toContain("99.85 % of 3,253 comparable syntelogues agree");
+    // ⚠ The band is named ONCE, in the lead, and not on every line — the first render repeated it
+    // three times on one screen.
+    expect(note.text()).toContain("this catalogue's core syntelogues agree where two or more");
+    // ⛔ The retired sentence, named so this test fails if it ever comes back.
+    expect(note.text()).not.toContain("cannot be checked");
+    expect(note.text()).not.toContain("agrees with itself");
   });
+
+  it("⭐ says the SAME thing where seventeen genes carry it — only the count differs", () => {
+    const note = propagationNote({ annotated_gene_count: 17, gene_count: 17, checkable: true });
+    expect(note.text()).toContain("COG — carried by 17 of 100 genes");
+    expect(note.text()).toContain("99.85 % of 3,253 comparable syntelogues agree");
+    expect(note.text()).toContain("Each of these applies to the whole syntelogue.");
+  });
+
+  it("⛔ a band with NO comparable node reads as unmeasured, never as 0 %", () => {
+    const note = propagationNote({
+      member_gene_count: 1,
+      propagation: propagation({
+        prevalence_band: "rare",
+        checkable_node_count: 0,
+        unanimous_node_count: 0,
+        one_gene_node_count: 367,
+        rate: null,
+        interval_low: null,
+        interval_high: null,
+      }),
+    });
+    expect(note.text()).toContain("carried by its single gene");
+    expect(note.text()).toContain("no other member to carry it to");
+    expect(note.text()).toContain("no comparable syntelogue in this catalogue, so no rate");
+    expect(note.text()).toContain("unmeasured, which is not the same as unreliable");
+    expect(note.text()).not.toContain("0.00 %");
+    expect(note.text()).not.toContain("0 %");
+    // ⛔ And no sentence explaining a figure that is not there.
+    expect(note.text()).not.toContain("The figure beside each");
+  });
+
+  it("⚠ too few comparable nodes says HOW few, and still quotes no rate", () => {
+    const note = propagationNote({
+      propagation: propagation({
+        prevalence_band: "soft_core",
+        checkable_node_count: 12,
+        rate: null,
+        interval_low: null,
+        interval_high: null,
+      }),
+    });
+    expect(note.text()).toContain("only 12 comparable syntelogues");
+    expect(note.text()).toContain("fewer than the 30 needed for a rate");
+    expect(note.text()).not.toContain("The figure beside each");
+  });
+
+  it("⚠ a node every gene of which carries the call propagates NOWHERE, and says so", () => {
+    const note = propagationNote({ annotated_gene_count: 100, gene_count: 100, checkable: true });
+    expect(note.text()).toContain("carried by every one of its 100 genes");
+    expect(note.text()).toContain("nothing left to propagate to");
+    expect(note.text()).not.toContain("applies to all 100");
+  });
+});
 
   it("walks to the donor, so a reader can go and judge it", async () => {
     const tab = mountTab({
@@ -633,6 +822,7 @@ describe("the inferred-function card", () => {
               annotated_gene_count: 9,
               member_gene_count: 9,
               checkable: true,
+              propagation: propagation(),
             },
             level: 2,
             value: ["COG0450"],

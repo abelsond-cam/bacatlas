@@ -13,7 +13,8 @@
  * (`InferredFunctionCard.vue`) with the four things it needed before it could: a transfer rule (the
  * similarity ladder David chose, 2026-10-03), a confidence measure (the agreement rate measured on
  * the loaded catalogue), a decision about discordant and unverifiable loci (a call resting on one
- * gene is marked as unchecked), and a marking that cannot be mistaken for a Bakta call. ⚠ **Keep
+ * gene is marked as unchecked, and the measured rate at which it still covers the node is stated
+ * above the cards), and a marking that cannot be mistaken for a Bakta call. ⚠ **Keep
  * that separation.** Nothing inferred belongs on this card; the two sit side by side so a reader can
  * see which is which, which is the whole reason the transfer was held back until it could be.
  *
@@ -45,9 +46,13 @@ const coverage = computed(() =>
 const headroom = computed(() => {
   const unlabelled = geneCount.value - annotated.value;
   if (annotated.value === 0 || unlabelled <= 0) return null;
+  // ⚠ The closing clause points at the propagation note above rather than restating it. Without it
+  // the card reads as though the 40 unlabelled genes were still waiting for something: the note has
+  // already said the locus's own call covers them, and at what measured rate.
   return (
     `COG is assigned by best hit, not by a profile, so the remaining ${unlabelled} are unlabelled ` +
-    "rather than different — the gap this locus could fill, not a gap in it."
+    "rather than different — the gap this locus could fill, not a gap in it, and the note above " +
+    "says at what rate it does."
   );
 });
 

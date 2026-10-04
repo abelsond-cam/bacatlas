@@ -18,10 +18,17 @@ import type {
   AnnotationKind,
   FunctionResponse,
   InferenceKind,
+  OwnSupport,
   VocabularyInference,
 } from "@/api/types";
 import { INFERENCE_KINDS } from "@/api/types";
-import { GENE_ONTOLOGY_NAMESPACES, coverageSentence } from "@/lib/functionVocabulary";
+import {
+  GENE_ONTOLOGY_NAMESPACES,
+  coverageSentence,
+  propagationCarriage,
+  propagationRateSentence,
+} from "@/lib/functionVocabulary";
+import { prevalenceBandLabel } from "@/lib/prevalence";
 
 import CogCard from "./CogCard.vue";
 import EnzymeAndKeggCard from "./EnzymeAndKeggCard.vue";
@@ -62,16 +69,51 @@ const inferable = computed(() =>
 );
 
 /**
- * ⛔ **The vocabularies whose own call rests on ONE gene.** Such a node is unanimous *by
- * construction*, so there is no internal agreement to report — and a card that showed it like any
- * other would be claiming a check that never happened. 518 of 4,993 *E. coli* COG nodes are in this
- * state, `gumC` among them: COG3206 on 1 of its 100 genes.
+ * ⭐ **One line per vocabulary this node states: that the call covers the whole syntelogue, and the
+ * measured rate it is quoted at.**
+ *
+ * ⛔ **On EVERY node that carries a call, not only the one-gene ones.** This replaced a paragraph
+ * that appeared only where a single gene carried the vocabulary and said its members *"cannot be
+ * checked against each other"* — true, and the inverse of what the method claims. The claim and the
+ * number are the same whether 1 or 17 genes carry it, because the rate answers *is the call right
+ * for the members that carry nothing*, and that question does not change with the number that do.
+ * Only the first clause differs (David, 2026-10-04).
+ *
+ * ⛔ No similarity appears here, and that is measured rather than overlooked: within-node unanimity
+ * is 99.8-100 % at every band of both ESM and Bacformer, so a floor would be a gate doing no work.
  */
-const unverifiable = computed(() =>
-  INFERENCE_KINDS.map((kind) => ({ kind, entry: inferenceByKind.value.get(kind) })).filter(
-    ({ entry }) => entry?.own != null && !entry.own.checkable,
-  ),
+const propagationLines = computed(() =>
+  INFERENCE_KINDS.map((kind) => ({ kind, own: inferenceByKind.value.get(kind)?.own ?? null }))
+    .filter((row): row is { kind: InferenceKind; own: OwnSupport } => row.own !== null)
+    .map(({ kind, own }) => ({
+      kind,
+      label: VOCABULARY_LABELS[kind],
+      carriage: propagationCarriage(own),
+      // ⚠ Band-free: every line of one node shares that node's band, so the lead names it once.
+      rate: propagationRateSentence(own.propagation, { namesBand: false }),
+    })),
 );
+
+/**
+ * The lead's closing clause — what the figures beside the lines ARE.
+ *
+ * ⛔ `null` where no vocabulary has a rate at all, which is the ordinary state of a `rare` node:
+ * a sentence explaining a figure that is not there would be the page talking about itself. The
+ * lines then say, each for itself, why there is none.
+ */
+const propagationRateLead = computed(() => {
+  const band = propagationLines.value.length
+    ? (inferenceByKind.value.get(propagationLines.value[0]!.kind)!.own!.propagation.prevalence_band)
+    : null;
+  const measured = INFERENCE_KINDS.map((kind) => inferenceByKind.value.get(kind)?.own ?? null).some(
+    (own) => own !== null && own.propagation.rate !== null,
+  );
+  if (band === null || !measured) return null;
+  return (
+    `The figure beside each is how often this catalogue's ${prevalenceBandLabel(band)} ` +
+    "syntelogues agree where two or more of their genes do carry one."
+  );
+});
 
 function entriesOf(kind: AnnotationKind): readonly AnnotationEntry[] {
   return props.block?.annotations[kind] ?? [];
@@ -131,15 +173,22 @@ const noGeneOntologySentence = computed(() =>
 
     <template v-else>
       <!--
-        ⛔ Before any card: a call that rests on one gene is a different kind of claim from one that
-        rests on a hundred, and the difference has to be visible without opening anything.
+        ⛔ BEFORE any card, because it is the claim the cards below are instances of rather than a
+        footnote to them. A reader who scrolls no further should still have read it.
       -->
-      <p v-for="{ kind, entry } in unverifiable" :key="`one-gene-${kind}`" class="infer-onegene">
-        This locus's {{ VOCABULARY_LABELS[kind] }} rests on
-        <strong>1 of {{ entry!.own!.member_gene_count.toLocaleString() }}</strong> member genes, so
-        its members cannot be checked against each other — a single annotated gene agrees with itself
-        by construction.
-      </p>
+      <section v-if="propagationLines.length" class="infer-spread">
+        <p class="infer-spread-lead">
+          <strong>Each of these applies to the whole syntelogue.</strong> A syntelogue is one gene
+          seen in many genomes, so a function carried by some of its members is carried by all of
+          them — that propagation is the method, not a gap in it.
+          <template v-if="propagationRateLead">{{ propagationRateLead }}</template>
+        </p>
+        <ul>
+          <li v-for="line in propagationLines" :key="`propagates-${line.kind}`">
+            <strong>{{ line.label }}</strong> — {{ line.carriage }} · {{ line.rate }}
+          </li>
+        </ul>
+      </section>
 
       <CogCard :coverage="block.coverage" :entries="entriesOf('cog_orthogroup')" />
 

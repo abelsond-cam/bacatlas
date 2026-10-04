@@ -540,6 +540,39 @@ export interface CalibrationLadder {
   readonly cells: readonly CalibrationCell[];
 }
 
+/**
+ * ⭐ **How often a call in this node's prevalence band covers the members that do NOT carry it.**
+ *
+ * The measured base rate behind the whole propagation claim — and it is a BASE RATE rather than a
+ * similarity threshold on purpose. Within-node unanimity is 99.8-100 % at every band of **both**
+ * representations (ESM's within-node similarity is saturated at p50 1.000 and cannot discriminate
+ * at all), so a page that quoted a floor would be showing a gate that does no work.
+ *
+ * ⛔ The reference class is `prevalence_band` because the two populations differ in size by two
+ * orders of magnitude: nodes the rate can be measured on have a median of 100 genes, nodes resting
+ * on one annotated gene a median of 1. One catalogue-wide rate would quote the behaviour of
+ * 100-gene core nodes at a singleton.
+ */
+export interface PropagationRate {
+  readonly annotation_kind: InferenceKind;
+  /** The node's own band — `core` … `rare`, the same shape every other route serves. */
+  readonly prevalence_band: PrevalenceBand;
+  /** Nodes the rate is MEASURED on: two or more member genes carry the vocabulary. */
+  readonly checkable_node_count: number;
+  readonly unanimous_node_count: number;
+  /** Nodes the rate is APPLIED to: exactly one member gene carries it. */
+  readonly one_gene_node_count: number;
+  /**
+   * ⛔ `null` below `min_nodes`, and **never 0** — *not measurable* is a different statement from
+   * *not reliable*, and `rare` has zero checkable nodes in both catalogues while holding most of
+   * the one-gene ones. Collapsing the two is the mistake `no_homology` was retired for.
+   */
+  readonly rate: number | null;
+  readonly interval_low: number | null;
+  readonly interval_high: number | null;
+  readonly min_nodes: number;
+}
+
 /** What this node's OWN call rests on. */
 export interface OwnSupport {
   readonly term: string;
@@ -549,11 +582,19 @@ export interface OwnSupport {
   readonly annotated_gene_count: number;
   readonly member_gene_count: number;
   /**
-   * ⛔ `false` where exactly ONE gene carries a call. Such a node is unanimous *by construction*,
-   * which is the absence of evidence rather than evidence — 518 of 4,993 *E. coli* COG nodes, `gumC`
-   * among them. A card that rendered it like any other would claim a check that never happened.
+   * ⛔ `false` where exactly ONE gene carries a call: such a node is unanimous *by construction*,
+   * which is the absence of evidence rather than evidence — 518 of 4,993 *E. coli* COG nodes,
+   * `gumC` among them.
+   *
+   * ⭐ **It says a check did not happen, NOT that a claim cannot be made.** The call still applies
+   * to the members that carry nothing, and `propagation` is the measured rate at which that is
+   * right. This comment used to end at the first paragraph, and the page built on it read `gumC`'s
+   * single COG as a defect — the inverse of the method's central claim (David, 2026-10-04: *"the
+   * whole point of our method is effectively the carrying by one is enough"*).
    */
   readonly checkable: boolean;
+  /** The band base rate at which this call covers the members not carrying it. */
+  readonly propagation: PropagationRate;
 }
 
 /** One step of the outward walk, including the ranks that carried nothing. */

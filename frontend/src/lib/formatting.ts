@@ -18,6 +18,19 @@ export function sharePercent(share: number): string {
 }
 
 /** `n` with the singular or plural of `noun`, e.g. `1 neighbourhood` / `3 neighbourhoods`. */
+/**
+ * `"a"` or `"an"`, for a noun the caller does not control.
+ *
+ * ⚠ **The vocabulary labels are the reason this exists**: three of the four take "a" (COG, GO,
+ * KEGG) and the fourth takes "an" (EC number), so a hardcoded article renders *"carries a EC
+ * number"* on exactly one tab in exactly one place. The letter test is enough for these four —
+ * it is not a general English rule, and a noun whose spelling and sound disagree ("a UniRef50",
+ * "an hour") needs the article passed in rather than guessed.
+ */
+export function indefiniteArticle(noun: string): string {
+  return /^[aeiou]/i.test(noun) ? "an" : "a";
+}
+
 export function pluralise(count: number, noun: string, plural = `${noun}s`): string {
   return `${count} ${count === 1 ? noun : plural}`;
 }

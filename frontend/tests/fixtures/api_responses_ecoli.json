@@ -607,6 +607,17 @@
         "gene_count": 106,
         "member_gene_count": 106,
         "name": null,
+        "propagation": {
+         "annotation_kind": "ec_number",
+         "checkable_node_count": 1565,
+         "interval_high": 0.9969715791374161,
+         "interval_low": 0.9891063015103179,
+         "min_nodes": 30,
+         "one_gene_node_count": 4,
+         "prevalence_band": "core",
+         "rate": 0.9942492012779552,
+         "unanimous_node_count": 1556
+        },
         "term": "6.1.1.18"
        },
        "walk": []
@@ -620,6 +631,17 @@
         "gene_count": 106,
         "member_gene_count": 106,
         "name": "Glutamyl- or glutaminyl-tRNA synthetase",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 2634,
+         "interval_high": 0.9984602144375139,
+         "interval_low": 0.9940178782576654,
+         "min_nodes": 30,
+         "one_gene_node_count": 28,
+         "prevalence_band": "core",
+         "rate": 0.996962794229309,
+         "unanimous_node_count": 2626
+        },
         "term": "COG0008"
        },
        "walk": []
@@ -633,6 +655,17 @@
         "gene_count": 106,
         "member_gene_count": 106,
         "name": "ligase activity",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 2915,
+         "interval_high": 0.998374816012604,
+         "interval_low": 0.9941422154015023,
+         "min_nodes": 30,
+         "one_gene_node_count": 2,
+         "prevalence_band": "core",
+         "rate": 0.9969125214408233,
+         "unanimous_node_count": 2906
+        },
         "term": "GO:0016874"
        },
        "walk": []
@@ -646,6 +679,17 @@
         "gene_count": 53,
         "member_gene_count": 106,
         "name": null,
+        "propagation": {
+         "annotation_kind": "kegg_orthology",
+         "checkable_node_count": 412,
+         "interval_high": 0.9975206318867376,
+         "interval_low": 0.9788126642529464,
+         "min_nodes": 30,
+         "one_gene_node_count": 73,
+         "prevalence_band": "core",
+         "rate": 0.9927184466019418,
+         "unanimous_node_count": 409
+        },
         "term": "K01886"
        },
        "walk": []
@@ -3266,6 +3310,17 @@
          "member_gene_count": 100,
          "name": "Small neutral amino acid transporter SnatA, MarC family",
          "node_label": "2604",
+         "propagation": {
+          "annotation_kind": "cog_orthogroup",
+          "checkable_node_count": 2634,
+          "interval_high": 0.9984602144375139,
+          "interval_low": 0.9940178782576654,
+          "min_nodes": 30,
+          "one_gene_node_count": 28,
+          "prevalence_band": "core",
+          "rate": 0.996962794229309,
+          "unanimous_node_count": 2626
+         },
          "term": "COG2095"
         },
         "level": 2,
@@ -3321,6 +3376,17 @@
          "member_gene_count": 100,
          "name": "membrane",
          "node_label": "2604",
+         "propagation": {
+          "annotation_kind": "gene_ontology_slim",
+          "checkable_node_count": 2915,
+          "interval_high": 0.998374816012604,
+          "interval_low": 0.9941422154015023,
+          "min_nodes": 30,
+          "one_gene_node_count": 2,
+          "prevalence_band": "core",
+          "rate": 0.9969125214408233,
+          "unanimous_node_count": 2906
+         },
          "term": "GO:0016020"
         },
         "level": 1,
@@ -5433,6 +5499,17 @@
         "gene_count": 76,
         "member_gene_count": 76,
         "name": "Transposase (or an inactivated derivative), DDE domain",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 1001,
+         "interval_high": 0.9952627376773652,
+         "interval_low": 0.9830009010891826,
+         "min_nodes": 30,
+         "one_gene_node_count": 21,
+         "prevalence_band": "shell",
+         "rate": 0.991008991008991,
+         "unanimous_node_count": 992
+        },
         "term": "COG3316"
        },
        "walk": []
@@ -5446,6 +5523,17 @@
         "gene_count": 76,
         "member_gene_count": 76,
         "name": "transposase activity",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 1054,
+         "interval_high": 0.9941626586837768,
+         "interval_low": 0.9814087312105138,
+         "min_nodes": 30,
+         "one_gene_node_count": 21,
+         "prevalence_band": "shell",
+         "rate": 0.9895635673624289,
+         "unanimous_node_count": 1043
+        },
         "term": "GO:0004803"
        },
        "walk": []
@@ -8937,6 +9025,17 @@
         "gene_count": 103,
         "member_gene_count": 103,
         "name": null,
+        "propagation": {
+         "annotation_kind": "ec_number",
+         "checkable_node_count": 1565,
+         "interval_high": 0.9969715791374161,
+         "interval_low": 0.9891063015103179,
+         "min_nodes": 30,
+         "one_gene_node_count": 4,
+         "prevalence_band": "core",
+         "rate": 0.9942492012779552,
+         "unanimous_node_count": 1556
+        },
         "term": "3.5.1.88"
        },
        "walk": []
@@ -8950,6 +9049,17 @@
         "gene_count": 103,
         "member_gene_count": 103,
         "name": "Peptide deformylase",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 2634,
+         "interval_high": 0.9984602144375139,
+         "interval_low": 0.9940178782576654,
+         "min_nodes": 30,
+         "one_gene_node_count": 28,
+         "prevalence_band": "core",
+         "rate": 0.996962794229309,
+         "unanimous_node_count": 2626
+        },
         "term": "COG0242"
        },
        "walk": []
@@ -8963,6 +9073,17 @@
         "gene_count": 103,
         "member_gene_count": 103,
         "name": "hydrolase activity",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 2915,
+         "interval_high": 0.998374816012604,
+         "interval_low": 0.9941422154015023,
+         "min_nodes": 30,
+         "one_gene_node_count": 2,
+         "prevalence_band": "core",
+         "rate": 0.9969125214408233,
+         "unanimous_node_count": 2906
+        },
         "term": "GO:0016787"
        },
        "walk": []
@@ -11057,6 +11178,17 @@
         "gene_count": 111,
         "member_gene_count": 143,
         "name": "DNA repair protein RadC, contains a helix-hairpin-helix DNA-binding motif",
+        "propagation": {
+         "annotation_kind": "cog_orthogroup",
+         "checkable_node_count": 1001,
+         "interval_high": 0.9952627376773652,
+         "interval_low": 0.9830009010891826,
+         "min_nodes": 30,
+         "one_gene_node_count": 21,
+         "prevalence_band": "shell",
+         "rate": 0.991008991008991,
+         "unanimous_node_count": 992
+        },
         "term": "COG2003"
        },
        "walk": []
@@ -11070,6 +11202,17 @@
         "gene_count": 30,
         "member_gene_count": 143,
         "name": "nucleic acid binding",
+        "propagation": {
+         "annotation_kind": "gene_ontology_slim",
+         "checkable_node_count": 1054,
+         "interval_high": 0.9941626586837768,
+         "interval_low": 0.9814087312105138,
+         "min_nodes": 30,
+         "one_gene_node_count": 21,
+         "prevalence_band": "shell",
+         "rate": 0.9895635673624289,
+         "unanimous_node_count": 1043
+        },
         "term": "GO:0003676"
        },
        "walk": []

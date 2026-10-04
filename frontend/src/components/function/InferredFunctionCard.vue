@@ -23,6 +23,8 @@
 import { computed } from "vue";
 
 import type { CalibrationLadder, VocabularyInference } from "@/api/types";
+import { indefiniteArticle } from "@/lib/formatting";
+import { propagationRateSentence } from "@/lib/functionVocabulary";
 
 const props = defineProps<{
   inference: VocabularyInference;
@@ -76,14 +78,38 @@ const confidenceSentence = computed(() => {
   );
 });
 
-/** ⚠ The donor's OWN support, by the same rule the node's own call is judged by. */
-const donorCaveat = computed(() => {
+/**
+ * ⭐ **The donor's own node, judged by the same rule as the focal one.**
+ *
+ * ⛔ This used to fire only where the donor rested on ONE gene, and said it *"was never checked
+ * against itself either"* — the same retired claim the Function tab led with, in the place it does
+ * the most damage: it implied a one-gene donor was a weaker donor, when a donor carries a
+ * vocabulary by the **any-gene** rule precisely because the call covers its whole node. Now it
+ * fires wherever the donor's own call is itself propagated, and states the rate that justifies it.
+ *
+ * ⚠ `null` where every one of the donor's genes carries the call: there is no propagation on that
+ * side to report, and a sentence saying so on every card would be noise.
+ */
+const donorPropagation = computed(() => {
   const found = candidate.value;
-  if (found === null || found.donor.checkable) return null;
+  if (found === null) return null;
+  const donor = found.donor;
+  if (donor.annotated_gene_count >= donor.member_gene_count) return null;
+  const rate = propagationRateSentence(donor.propagation);
+  // ⚠ Two endings, because the general rule and the striking case are different sentences. "Why a
+  // neighbour resting on one annotated gene is still a donor" is a non-sequitur beside a donor
+  // whose call is carried by 57 of its 100 genes — it is the one-gene donor that needs saying.
+  const rule =
+    donor.annotated_gene_count === 1
+      ? "which is why a neighbour resting on one annotated gene is still a donor"
+      : "which is the rule by which it counts as a donor at all";
   return (
-    `⚠ The neighbour's own ${props.vocabularyLabel} rests on ` +
-    `${found.donor.annotated_gene_count} of its ${found.donor.member_gene_count.toLocaleString()} ` +
-    `genes, so it was never checked against itself either.`
+    `The neighbour's own ${props.vocabularyLabel} is carried by ` +
+    `${donor.annotated_gene_count.toLocaleString()} of its ` +
+    `${donor.member_gene_count.toLocaleString()} genes and covers that whole node — ${rule}. ` +
+    // ⚠ The helper returns a CLAUSE, because its other caller lists several after a dash. Here it
+    // ends a sentence of its own, so it is capitalised and stopped at the point of use.
+    `${rate[0]!.toUpperCase()}${rate.slice(1)}.`
   );
 });
 
@@ -106,8 +132,9 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
 
     <!-- 3 · nothing within reach. A finding, stated as one. -->
     <p v-if="candidate === null" class="muted cover">
-      None of the {{ inference.walk.length }} nearest nodes by ESM similarity carries a
-      {{ vocabularyLabel }} either, so there is nothing to transfer. That is common and it is
+      None of the {{ inference.walk.length }} nearest nodes by ESM similarity carries
+      {{ indefiniteArticle(vocabularyLabel) }} {{ vocabularyLabel }} either, so there is nothing to
+      transfer. That is common and it is
       informative: unannotated nodes sit next to unannotated nodes far more often than chance, which
       is why widening the neighbour list is not the missing piece.
     </p>
@@ -120,7 +147,7 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
       </p>
       <!-- 2 · a donor too remote, or too shallow, to quote -->
       <p v-else class="muted cover">
-        The nearest node carrying a {{ vocabularyLabel }} is at
+        The nearest node carrying {{ indefiniteArticle(vocabularyLabel) }} {{ vocabularyLabel }} is at
         {{ cosine(candidate.cosine) }} similarity — too remote to call, so nothing is suggested.
       </p>
 
@@ -139,7 +166,7 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
       </p>
 
       <p v-if="confidenceSentence" class="infer-rate">{{ confidenceSentence }}</p>
-      <p v-if="donorCaveat" class="muted cover">{{ donorCaveat }}</p>
+      <p v-if="donorPropagation" class="muted cover">{{ donorPropagation }}</p>
 
       <!--
         ⛔ The ranks that carried nothing. For *E. coli* COG only 1,679 of 4,143 transfers come from

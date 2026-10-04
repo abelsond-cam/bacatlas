@@ -9,7 +9,8 @@
  * names to the reference tables.
  */
 
-import type { GeneOntologyNamespace, GoVerdict } from "@/api/types";
+import type { GeneOntologyNamespace, GoVerdict, OwnSupport, PropagationRate } from "@/api/types";
+import { prevalenceBandLabel } from "./prevalence";
 import type { Verdict } from "./evidenceVocabulary";
 
 /** The three namespaces, in the order the published page lays them out. */
@@ -151,4 +152,57 @@ export function coverageParts(
 export function coverageSentence(annotated: number, geneCount: number, what: string): string {
   const parts = coverageParts(annotated, geneCount, what);
   return `${parts.emphasis ?? ""}${parts.rest}`;
+}
+
+/**
+ * ⭐ **How many of a node's genes carry the call, and what follows for the ones that do not.**
+ *
+ * ⛔ **Three cases, and the third is not a weaker version of the others.** A node every one of whose
+ * genes already carries the call propagates nothing — there is nowhere to propagate to — and a
+ * one-member node has no other gene at all. "Applies to all 1" there would be true and useless,
+ * which is how a page starts sounding like it is reciting rather than reporting.
+ *
+ * ⚠ **Deliberately terse: the WARRANT is stated once, in the block's lead**, not on every line. The
+ * first render repeated *"that propagation is the method, not a gap in it"* three times on one
+ * screen, which reads as insistence rather than explanation.
+ */
+export function propagationCarriage(own: OwnSupport): string {
+  const members = own.member_gene_count.toLocaleString();
+  if (own.member_gene_count <= 1) {
+    return "carried by its single gene — a one-genome syntelogue has no other member to carry it to";
+  }
+  if (own.annotated_gene_count >= own.member_gene_count) {
+    return `carried by every one of its ${members} genes — nothing left to propagate to`;
+  }
+  return `carried by ${own.annotated_gene_count.toLocaleString()} of ${members} genes`;
+}
+
+/**
+ * The measured rate the propagation is quoted at, or **why there is none**.
+ *
+ * ⛔ The absence of a rate is a sentence, never a `0 %`. `rare` has zero comparable nodes in both
+ * published catalogues while holding most of the one-gene ones, so this branch is the common case
+ * there rather than an edge: *unmeasured* and *unreliable* are different claims and the page may
+ * not let one read as the other.
+ *
+ * ⚠ `namesBand` is false where the band has already been named once for the whole block, and true
+ * on the inferred-function card, which quotes the DONOR's band with no lead to carry it.
+ */
+export function propagationRateSentence(
+  propagation: PropagationRate,
+  { namesBand = true }: { namesBand?: boolean } = {},
+): string {
+  const band = namesBand ? `${prevalenceBandLabel(propagation.prevalence_band)} ` : "";
+  const comparable = propagation.checkable_node_count.toLocaleString();
+  if (propagation.rate === null) {
+    return propagation.checkable_node_count === 0
+      ? `no comparable ${band}syntelogue in this catalogue, so no rate — unmeasured, which is not ` +
+          "the same as unreliable"
+      : `only ${comparable} comparable ${band}syntelogues, fewer than the ${propagation.min_nodes} ` +
+          "needed for a rate — unmeasured, which is not the same as unreliable";
+  }
+  return (
+    `${(propagation.rate * 100).toFixed(2)} % of ${comparable} comparable ` +
+    `${band}syntelogues agree`
+  );
 }
