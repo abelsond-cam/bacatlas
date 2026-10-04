@@ -296,6 +296,114 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
     assert ec["propagation"]["rate"] is not None
 
 
+# ── the TWO mechanisms, and the populations they serve ──────────────────────────────────────────
+@pytest.mark.parametrize("catalogue,pangenome_id", [("ecoli-nuna4", 1), ("kp-nuna4", 2)])
+def test_the_two_mechanisms_PARTITION_the_catalogue_with_nothing_left_over(
+    client, session, catalogue, pangenome_id
+):
+    """⛔ Step 1 (its own genes) and step 2 (a neighbour) are DISJOINT and together exhaust the
+    catalogue — the coverage statement the two-mechanism claim rests on.
+
+    David, 2026-10-04: *"1/ Impute within the node… THEN 2/ Impute between nodes."* The service runs
+    the walk only where `own is None`, so a node is served by exactly one mechanism; if these
+    populations did not sum, some nodes would be served by neither and nothing would say so.
+    """
+    counted = session.execute(
+        text("""
+            select count(*) as loci,
+                   count(*) filter (where carries) as step_one,
+                   count(*) filter (where not carries) as step_two
+              from (select exists (
+                       select 1 from locus_annotation_entry e
+                        where e.locus_id = l.locus_id
+                          and e.annotation_kind = 'COG_ORTHOGROUP'
+                          and e.rank_within_locus = 0) as carries
+                      from locus l where l.pangenome_id = :pangenome_id) as node
+        """),
+        {"pangenome_id": pangenome_id},
+    ).one()
+    assert counted.step_one > 0 and counted.step_two > 0, (
+        "non-vacuity: both populations are non-empty in this catalogue"
+    )
+    assert counted.step_one + counted.step_two == counted.loci
+
+    # ⭐ And the SERVICE agrees with that split, which is the half SQL cannot assert: one node from
+    # each population, served by exactly one mechanism and never by both or neither.
+    for carries in (True, False):
+        label = session.execute(
+            text(f"""
+                select l.node_label from locus l
+                 where l.pangenome_id = :pangenome_id
+                   and {'' if carries else 'not'} exists (
+                       select 1 from locus_annotation_entry e
+                        where e.locus_id = l.locus_id
+                          and e.annotation_kind = 'COG_ORTHOGROUP'
+                          and e.rank_within_locus = 0)
+                 order by l.member_gene_count desc limit 1
+            """),
+            {"pangenome_id": pangenome_id},
+        ).scalar_one()
+        species = "ecoli" if catalogue.startswith("ecoli") else "kp"
+        payload = client.get(f"/api/v1/species/{species}/loci/{label}/function").get_json()
+        served = next(
+            entry for entry in payload["inference"]["vocabularies"]
+            if entry["annotation_kind"] == "cog_orthogroup"
+        )
+        assert (served["own"] is not None) is carries
+        assert (served["walk"] == []) is carries, (
+            "⛔ a node with its own call is never walked, and one without it always is"
+        )
+
+
+def test_a_donor_CARRIES_a_vocabulary_by_the_ANY_GENE_rule_not_by_a_medoid(client, session):
+    """⭐ A node whose COG rests on ONE of its hundred genes is a valid donor, and is used.
+
+    ⛔ **A test rather than a comment.** The medoid lookup is gone from `services/`, `api/` and
+    `annotation_transfer.py` — every remaining mention records its removal — but a removal recorded
+    only in prose is a removal that can come back. If a donor had to carry the call at its medoid, a
+    1-of-100 donor would be skipped and the walk would run on to a further neighbour, which is a
+    silent change in what the page suggests rather than an error.
+    """
+    row = session.execute(
+        text("""
+            select focal.node_label as focal, donor.node_label as donor,
+                   donor.cog_annotated_member_count as annotated,
+                   donor.member_gene_count as members
+              from locus focal
+              join pangenome p on p.pangenome_id = focal.pangenome_id
+              join locus_nearest_locus n
+                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
+              join locus donor on donor.locus_id = n.neighbour_locus_id
+             where p.catalogue_key = 'kp-nuna4'
+               and focal.cog_distinct_id_count = 0
+               and donor.cog_distinct_id_count > 0
+               and donor.cog_annotated_member_count = 1
+               and donor.member_gene_count >= 10
+               and not exists (
+                     select 1 from locus_nearest_locus earlier
+                       join locus e on e.locus_id = earlier.neighbour_locus_id
+                      where earlier.locus_id = focal.locus_id
+                        and earlier.representation = 'ESM'
+                        and earlier.rank < n.rank
+                        and e.cog_distinct_id_count > 0)
+             order by focal.node_label limit 1
+        """)
+    ).first()
+    assert row is not None, "the catalogue has one-gene donors, or this test is vacuous"
+    assert row.annotated == 1 and row.members >= 10
+
+    payload = client.get(f"/api/v1/species/kp/loci/{row.focal}/function").get_json()
+    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+    candidate = by_kind["cog_orthogroup"]["candidate"]
+    assert candidate is not None, "⛔ a 1-of-100 donor was skipped — the any-gene rule is not in force"
+    assert candidate["donor"]["node_label"] == row.donor
+    assert candidate["donor"]["annotated_gene_count"] == 1
+    assert candidate["donor"]["checkable"] is False, "and it is still marked as unchecked"
+    assert candidate["donor"]["propagation"]["rate"] is not None, (
+        "⭐ which is exactly why it is a valid donor: its call covers its node at a measured rate"
+    )
+
+
 def test_the_band_the_propagation_names_is_the_SAME_STRING_the_locus_view_serves(client):
     """⛔ One field, one shape, across two routes.
 
