@@ -796,8 +796,8 @@ def uniref_first_then_esm(
     syntelogues will match the same uniref 50. BUT given the syntelogue node itself is very strongly
     uniform … we can then annotate the whole node from it"*): the genes **actually carrying** a shared
     family, and the **whole node** that a within-node imputation then covers. The second is the one that
-    moves the coverage dial, and it rests on the measured 99.5-99.9 % within-node unanimity
-    (`function_inference.md` §2), not on an assumption.
+    moves the coverage dial, and it rests on within-node unanimity measured per prevalence band by
+    `instruments/within_node_propagation.py`, not on an assumption.
     """
     # an inverted index over the donor catalogue: family -> the donor loci that carry it
     holders: dict[str, set[int]] = defaultdict(set)
@@ -915,7 +915,8 @@ def uniref_first_then_esm(
     print("     ⛔ Arm A uses NO embedding and is NOT limited to the ESM shortlist — it is the baseline")
     print("        cross-species ESM has to beat. Arm B is ESM's MARGINAL contribution over it.")
     print("     ⭐ 'bridged genes' are the genes actually carrying a shared family; 'whole-node genes'")
-    print("        is what a within-node imputation then covers, at the measured 99.5-99.9 % unanimity.")
+    print("        is what a within-node imputation then covers, at the unanimity measured per band by")
+    print("        instruments/within_node_propagation.py — run measure_cog_function_inference.py §1.")
     if examples:
         print("     arm-A cases (shared genes / node genes):")
         for node, donor_node, shared, node_genes in examples:

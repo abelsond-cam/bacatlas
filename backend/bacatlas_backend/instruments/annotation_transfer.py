@@ -3,9 +3,15 @@
 Two mechanisms, and the page must never blur them (`nuna/docs/model_evaluation/function_inference.md`):
 
 * **internal inference** — some of the node's own genes carry a call, so the modal call covers the
-  rest. Measured at 99.5 % / 99.9 % within-node unanimity; this is where the lift is.
+  rest. This is where the lift is, and the rate is **measured per prevalence band** by
+  `instruments/within_node_propagation.py` — 98.67-100.00 % over the 32 (catalogue, vocabulary,
+  band) cells of the two published catalogues, `rare` excluded because it has none to measure.
+  ⚠ The figure here used to read *"99.5 % / 99.9 %"* with no computation behind it anywhere and a
+  citation to a section that did not contain it; that is the thing this module's own rule at the
+  foot of this docstring forbids, and it stood in five places.
   ⛔ A node with exactly ONE annotated gene is unanimous **by construction** — the absence of
-  evidence, not evidence — so `own_support.checkable` is False and the page says so.
+  evidence, not evidence — so `own_support.checkable` is False and the page says so. ⭐ That is a
+  missing CHECK and not a missing claim: the call still covers the node, at the band's rate.
 * **neighbour transfer** — no member gene carries a call, so the nearest ESM neighbour that does
   supplies one, at a depth set by how similar it is.
 

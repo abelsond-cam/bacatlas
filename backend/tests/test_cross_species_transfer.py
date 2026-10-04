@@ -634,7 +634,8 @@ def test_arm_A_is_not_limited_to_the_ESM_shortlist(walk_inputs, capsys):
 
 def test_the_whole_node_gene_count_is_reported_beside_the_bridged_one(capsys):
     """⭐ David's point: a bridge can rest on a MINORITY of a node's genes, and the node is then
-    annotated whole on the measured 99.5-99.9 % within-node unanimity. Both counts are reported.
+    annotated whole on the within-node unanimity measured per band by `within_node_propagation`.
+    Both counts are reported.
 
     Here the bridge covers 22 of 100 genes — below the strict threshold, so the permissive arm counts
     it and the strict one does not, which is exactly the sensitivity check that choice needs.

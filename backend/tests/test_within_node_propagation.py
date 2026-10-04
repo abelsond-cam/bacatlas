@@ -140,6 +140,39 @@ def session():
 
 
 @pytest.mark.parametrize("pangenome_id", [1, 2])
+@pytest.mark.parametrize("kind", SUPPORTED_KINDS, ids=lambda kind: kind.value)
+def test_every_vocabulary_is_measured_on_ITS_OWN_column(session, pangenome_id, kind):
+    """⛔⛔ The defect this instrument replaced, kept as a gate.
+
+    `measure_cog_function_inference.gene_level_values` selected `f.cog_id` and `f.ec_numbers` and
+    nothing else, so its GO and KEGG rows measured **COG** agreement over a GO- or KEGG-filtered
+    subset of genes. It went unnoticed for a year of edits because the numbers looked entirely
+    reasonable — COG agreement is also ~99.5 %, so a wrong measurement of the right shape reads as
+    a right one.
+
+    ⭐ **The tell is the POPULATION, not the rate.** A gene carrying a GO term and no COG folds to
+    nothing, so its node states no rung at all, falls out of `checkable` AND `one_gene`, and the two
+    stop summing to the number of nodes carrying the vocabulary. That identity is exact on both
+    catalogues for all four vocabularies, and it is also this module's coverage statement: every
+    node the rate is quoted for is in exactly one of the two columns.
+    """
+    rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind)
+    carrying = session.execute(
+        text(f"""
+            select count(distinct m.locus_id)
+              from gene_locus_membership m
+              join locus l on l.locus_id = m.locus_id
+              join gene_functional_annotation f
+                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
+             where l.pangenome_id = :pangenome_id and {ANNOTATED_COUNT_PREDICATE[kind]}
+        """),
+        {"pangenome_id": pangenome_id},
+    ).scalar_one()
+    assert carrying > 0, "non-vacuity: this catalogue does carry this vocabulary"
+    assert sum(one.checkable + one.one_gene for one in rates.values()) == carrying
+
+
+@pytest.mark.parametrize("pangenome_id", [1, 2])
 def test_the_COG_rates_match_a_recount_done_entirely_in_SQL(session, pangenome_id):
     """⭐ The anti-vacuity oracle: `count(distinct cog_id) = 1`, which shares none of the folding.
 

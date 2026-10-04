@@ -22,6 +22,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
+    ANNOTATED_COUNT_PREDICATE,
     LEVEL_LABEL,
     MIN_PAIRS,
     NOT_CALLED,
@@ -34,6 +35,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     tally_cells,
     tier_for,
 )
+from bacatlas_backend.instruments.within_node_propagation import MIN_NODES, compute_propagation
 from bacatlas_backend.models.enumerations import AnnotationKind
 
 CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
@@ -48,12 +50,10 @@ BARS = (0.95, 0.90, 0.80)
 #: namespace, and a gene annotated in two of them would be counted twice by their sum. Verified
 #: against the columns that do exist: 0 mismatching nodes out of 17,531 and 15,670 on COG, EC and
 #: KEGG, so the two routes agree wherever both are available.
-GENE_PREDICATE = {
-    AnnotationKind.EC_NUMBER: "f.ec_numbers is not null",
-    AnnotationKind.COG_ORTHOGROUP: "f.cog_id is not null",
-    AnnotationKind.GENE_ONTOLOGY_SLIM: "f.gene_ontology_terms is not null",
-    AnnotationKind.KEGG_ORTHOLOGY: "f.kegg_orthology_id is not null",
-}
+#: ⛔ **Imported, not restated.** This was a fifth hand-written copy of the same four predicates;
+#: the instrument derives them from `GENE_VALUE_COLUMN`, so the column and the predicate are one
+#: fact. A local copy is how a script and the API come to filter on different things.
+GENE_PREDICATE = ANNOTATED_COUNT_PREDICATE
 
 
 def load(session: Session, catalogue: str, kind: AnnotationKind):
@@ -127,70 +127,39 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
     return members, bands, levels, neighbours, gene_calls
 
 
-def gene_level_values(session: Session, catalogue: str, kind: AnnotationKind):
-    """Per node, its annotated genes' values grouped with a count — for the within-node check."""
-    rows = session.execute(
-        text(f"""
-            select m.locus_id, f.cog_id, f.ec_numbers, count(*)
-              from gene_locus_membership m
-              join locus l on l.locus_id = m.locus_id
-              join pangenome p on p.pangenome_id = l.pangenome_id
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where p.catalogue_key = :catalogue and {GENE_PREDICATE[kind]}
-             group by 1, 2, 3
-        """),
-        {"catalogue": catalogue},
-    ).all()
-    grouped = defaultdict(list)
-    for locus_id, cog_id, ec_numbers, n in rows:
-        values = frozenset(ec_numbers or ()) if kind is AnnotationKind.EC_NUMBER else (
-            frozenset([cog_id]) if cog_id else frozenset())
-        grouped[locus_id].append((values, n))
-    return grouped
+def within_node(session: Session, pangenome_id: int, kind: AnnotationKind) -> None:
+    """Section 1 — among a node's annotated genes, do they agree, and how often per band?
 
+    ⛔⛔ **This section was WRONG for GO and KEGG until 2026-10-04, and silently.** It read its
+    values from a statement that selected `f.cog_id` and `f.ec_numbers` only, so the GO and KEGG
+    rows measured **COG** agreement over a GO- or KEGG-filtered subset of genes. The numbers looked
+    entirely reasonable — around 99.5 %, which is what COG agreement is — which is why nothing
+    caught it: a wrong measurement of the right shape reads as a right one.
 
-def within_node(grouped, kind: AnnotationKind) -> None:
-    """Section 1 — among a node's annotated genes, do they agree at each rung?"""
-    print("\n  1. WITHIN-NODE CONSISTENCY — do a node's annotated genes agree?")
-    print(f"     {'level':<17}{'nodes':>8}{'1 gene':>9}{'checkable':>11}{'unanimous':>11}{'support':>9}")
-    for level in sorted(LEVEL_LABEL[kind], reverse=True):
-        single = checkable = unanimous = 0
-        support = []
-        for values in grouped.values():
-            folded = []
-            for raw, n in values:
-                if kind is AnnotationKind.EC_NUMBER:
-                    kept = frozenset(filter(None, (_prefix(code, level) for code in raw)))
-                else:
-                    kept = raw if level == 2 else raw        # L1 needs the locus-level category set
-                if kept:
-                    folded.append((kept, n))
-            genes = sum(n for _, n in folded)
-            if genes == 0:
-                continue
-            if genes == 1:
-                single += 1
-                continue
-            tally: Counter[str] = Counter()
-            for kept, n in folded:
-                for value in kept:
-                    tally[value] += n
-            checkable += 1
-            top = tally.most_common(1)[0][1]
-            support.append(top / genes)
-            unanimous += top == genes
-        print(f"     {LEVEL_LABEL[kind][level]:<17}{single + checkable:>8,}{single:>9,}"
-              f"{checkable:>11,}{(f'{100 * unanimous / checkable:.1f}%' if checkable else '—'):>11}"
-              f"{(f'{sum(support) / len(support):.3f}' if support else '—'):>9}")
-        if kind is not AnnotationKind.EC_NUMBER:
-            break       # one rung per gene for COG, GO and KEGG; only EC has a ladder in the string
+    ⭐ It now calls `instruments/within_node_propagation.compute_propagation`, the same code the
+    Function tab serves its rate from, so there is ONE implementation and it cannot drift from the
+    page again. Two things changed with it, both deliberate:
 
-
-def _prefix(code: str, level: int) -> str | None:
-    fields = code.split(".")
-    return ".".join(fields[:level]) if len(fields) >= level and all(
-        f.isdigit() for f in fields[:level]) else None
+    * **per prevalence band, not pooled.** Nodes where unanimity can be checked have a median of 100
+      genes and nodes resting on one annotated gene a median of 1, so a single rate quotes the
+      behaviour of core nodes at a singleton. `rare` has zero checkable nodes and reports no rate.
+    * **at the deepest rung all the genes state, not one rung at a time.** That is the test
+      `tally_cells` applies to a pair, generalised to a node's N genes; the per-rung ladder it
+      replaced could call `1.1.1.1` and `1.1.1.2` agreement by dropping to L3.
+    """
+    print("\n  1. WITHIN-NODE CONSISTENCY — do a node's annotated genes agree, per prevalence band?")
+    print(f"     {'band':<12}{'one gene':>10}{'checkable':>11}{'unanimous':>11}{'rate':>9}{'95% CI':>16}")
+    rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind)
+    for band in ("CORE", "SOFT_CORE", "SHELL", "CLOUD", "RARE"):
+        measured = rates.get(band)
+        if measured is None:
+            continue
+        interval = measured.interval
+        # ⛔ A dash, never a 0.0: below the floor the band has a COUNT and no rate.
+        print(f"     {band.lower().replace('_', ' '):<12}{measured.one_gene:>10,}{measured.checkable:>11,}"
+              f"{measured.unanimous:>11,}"
+              f"{(f'{100 * measured.rate:.2f}%' if measured.rate is not None else '—'):>9}"
+              f"{(f'{100 * interval[0]:.2f}-{100 * interval[1]:.2f}%' if interval else f'< {MIN_NODES} nodes'):>16}")
 
 
 def assign(members, levels, neighbours, gene_calls, kind: AnnotationKind):
@@ -236,6 +205,10 @@ def assign(members, levels, neighbours, gene_calls, kind: AnnotationKind):
 
 def report(session: Session, catalogue: str, kind: AnnotationKind) -> dict:
     """Print sections 1-7 for one catalogue and one vocabulary."""
+    pangenome_id = session.execute(
+        text("select pangenome_id from pangenome where catalogue_key = :catalogue"),
+        {"catalogue": catalogue},
+    ).scalar_one()
     members, bands, levels, neighbours, gene_calls = load(session, catalogue, kind)
     cells = tally_cells(levels, [(lid, nb, c) for lid, rows in neighbours.items()
                                  for _r, nb, c in rows], kind)
@@ -243,7 +216,7 @@ def report(session: Session, catalogue: str, kind: AnnotationKind) -> dict:
         members, levels, neighbours, gene_calls, kind)
 
     print(f"\n{'=' * 100}\n{catalogue} · {kind.value}")
-    within_node(gene_level_values(session, catalogue, kind), kind)
+    within_node(session, pangenome_id, kind)
 
     print("\n  2. THE LADDER — nodes with no call of their own, labelled from a neighbour")
     print(f"     {'tier':<12}{'quoted':<20}{'nodes':>7}{'genes':>9}{'agree':>8}{'95% CI':>10}"
