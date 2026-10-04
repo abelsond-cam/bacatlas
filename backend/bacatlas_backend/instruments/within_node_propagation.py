@@ -46,7 +46,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     ec_levels,
     single_rung,
 )
-from bacatlas_backend.models.enumerations import AnnotationKind
+from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
 
 #: Below this many checkable nodes a band reports its count and **no rate**. The same stance and the
 #: same number as `annotation_transfer.MIN_PAIRS`: a rate off a handful of nodes is not a rate.
@@ -63,6 +63,8 @@ class PropagationRate:
     """
 
     annotation_kind: AnnotationKind
+    #: ⚠ The enum's **NAME** (`CORE`), because that is what Postgres stores and what the group-by
+    #: key has to match. `as_json` emits the `.value` instead — see there.
     prevalence_band: str
     checkable: int
     unanimous: int
@@ -92,11 +94,18 @@ class PropagationRate:
         return (max(0.0, centre - half), min(1.0, centre + half))
 
     def as_json(self) -> dict:
-        """What the page reads — every rate accompanied by the node count it rests on."""
+        """What the page reads — every rate accompanied by the node count it rests on.
+
+        ⛔ **`prevalence_band` goes out as the enum's VALUE (`core`), not its name.** Every other
+        route serves this field that way (`locus_detail_service:593`, `locus_search_service:147`,
+        `audit_residual_service:105`) and the page reads it through one `bandLabel`; a second shape
+        for the same field would need a second mapping, and the first reader to miss that gets
+        `CORE` rendered raw beside `soft core`.
+        """
         interval = self.interval
         return {
             "annotation_kind": self.annotation_kind.value,
-            "prevalence_band": self.prevalence_band,
+            "prevalence_band": PrevalenceBand[self.prevalence_band].value,
             "checkable_node_count": self.checkable,
             "unanimous_node_count": self.unanimous,
             "one_gene_node_count": self.one_gene,

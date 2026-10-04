@@ -265,7 +265,7 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
     # carries a COG at all — `checkable` is what the rate is MEASURED on, `one_gene` what it is
     # APPLIED to, and a rate quoted without them would be a number from an unnamed denominator.
     band = cog["propagation"]
-    assert band["prevalence_band"] == "CORE", "gumC is a 100-genome core node, not a singleton"
+    assert band["prevalence_band"] == "core", "gumC is a 100-genome core node, not a singleton"
     carrying = session.execute(
         text("""
             select count(*)
@@ -292,8 +292,27 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
     )
     # ⭐ The sixteen-voter vocabulary carries the SAME kind of statement as the one-voter one —
     # only its first clause differs. That is the A1 decision, and it is the whole fix.
-    assert ec["propagation"]["prevalence_band"] == "CORE"
+    assert ec["propagation"]["prevalence_band"] == "core"
     assert ec["propagation"]["rate"] is not None
+
+
+def test_the_band_the_propagation_names_is_the_SAME_STRING_the_locus_view_serves(client):
+    """⛔ One field, one shape, across two routes.
+
+    The instrument keys its tally on the enum NAME, because that is what Postgres stores; every
+    route that has ever served `prevalence_band` serves the enum VALUE, and the page reads all of
+    them through one `bandLabel`. A second shape for the same field is invisible on the wire and
+    renders `CORE` raw beside `soft core` on the first page that forgets.
+    """
+    locus = client.get("/api/v1/species/kp/loci/722").get_json()["locus"]["prevalence_band"]
+    payload = client.get("/api/v1/species/kp/loci/722/function").get_json()
+    stated = {
+        entry["own"]["propagation"]["prevalence_band"]
+        for entry in payload["inference"]["vocabularies"]
+        if entry["own"] is not None
+    }
+    assert stated, "non-vacuity: this node does carry calls to propagate"
+    assert stated == {locus}, "the Function tab and the locus view name the band identically"
 
 
 def test_the_band_rate_does_NOT_depend_on_how_many_genes_carried_the_call(client, session):
@@ -347,7 +366,7 @@ def test_a_RARE_node_is_told_the_rate_is_NOT_MEASURABLE_and_never_zero(client, s
     by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
     band = by_kind["cog_orthogroup"]["own"]["propagation"]
 
-    assert band["prevalence_band"] == "RARE"
+    assert band["prevalence_band"] == "rare"
     assert band["checkable_node_count"] == 0, "a singleton node has one gene to check"
     assert band["rate"] is None, "⛔ not measurable"
     assert band["rate"] != 0.0, "⛔ and certainly not measured as zero"
@@ -365,8 +384,8 @@ def test_the_DONOR_card_quotes_the_DONORS_band_and_not_the_recipients(client, se
     """
     row = session.execute(
         text("""
-            select focal.node_label as focal, focal.prevalence_band::text as focal_band,
-                   donor.node_label as donor, donor.prevalence_band::text as donor_band
+            select focal.node_label as focal, lower(focal.prevalence_band::text) as focal_band,
+                   donor.node_label as donor, lower(donor.prevalence_band::text) as donor_band
               from locus focal
               join pangenome p on p.pangenome_id = focal.pangenome_id
               join locus_nearest_locus n
@@ -426,7 +445,8 @@ def test_a_band_the_catalogue_never_measured_arrives_as_NOT_MEASURABLE_not_MISSI
         prevalence_band=PrevalenceBand.SOFT_CORE,
     )
     clear_propagation_cache()
-    assert cell.prevalence_band == "SOFT_CORE"
+    assert cell.prevalence_band == "SOFT_CORE", "the dataclass keeps the Postgres NAME"
+    assert cell.as_json()["prevalence_band"] == "soft_core", "and the wire carries the value"
     assert (cell.checkable, cell.unanimous, cell.one_gene) == (0, 0, 0)
     assert cell.rate is None and cell.interval is None
     assert cell.as_json()["rate"] is None
