@@ -61,18 +61,13 @@ NOT_CALLED = "< 0.90"
 #: agree by construction. A graded middle for GO needs the GO DAG, which is `function_inference`
 #: §9's deferred work.
 QUOTED_LEVEL: dict[AnnotationKind, dict[str, int]] = {
-    AnnotationKind.EC_NUMBER: {">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1,
-                              "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.COG_ORTHOGROUP: {">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1,
-                                   "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.GENE_ONTOLOGY_SLIM: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1,
-                                        "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.KEGG_ORTHOLOGY: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1,
-                                    "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.EC_NUMBER: {">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.COG_ORTHOGROUP: {">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.GENE_ONTOLOGY_SLIM: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.KEGG_ORTHOLOGY: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
 }
 LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
-    AnnotationKind.EC_NUMBER: {4: "full EC code", 3: "EC sub-subclass", 2: "EC subclass",
-                              1: "EC class"},
+    AnnotationKind.EC_NUMBER: {4: "full EC code", 3: "EC sub-subclass", 2: "EC subclass", 1: "EC class"},
     AnnotationKind.COG_ORTHOGROUP: {2: "COG orthogroup", 1: "COG category"},
     AnnotationKind.GENE_ONTOLOGY_SLIM: {1: "GO slim term"},
     AnnotationKind.KEGG_ORTHOLOGY: {1: "KEGG orthology"},
@@ -80,6 +75,30 @@ LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
 #: Below this a cell reports its pair count and NO rate. A rate off 7 pairs is not a rate.
 MIN_PAIRS = 30
 SUPPORTED_KINDS = tuple(QUOTED_LEVEL)
+
+#: Which `gene_functional_annotation` column holds each vocabulary's per-GENE value.
+#: ⛔ **One mapping, and the "is this gene annotated" predicate is DERIVED from it** — the pair was
+#: written out separately in four places (`services/function_inference_service.py`,
+#: `scripts/measure_within_node_inference.py`, `scripts/measure_cog_function_inference.py`,
+#: `scripts/measure_cross_species_transfer.py`) and a fifth was about to be added. They cannot now
+#: disagree about which column a vocabulary lives in.
+#: ⚠ It lives **here**, in the instrument layer, rather than in the service that first needed it:
+#: instruments are imported BY services and never import them back, so a service-level home would
+#: have made this module depend upwards.
+GENE_VALUE_COLUMN: dict[AnnotationKind, str] = {
+    AnnotationKind.COG_ORTHOGROUP: "cog_id",
+    AnnotationKind.GENE_ONTOLOGY_SLIM: "gene_ontology_terms",
+    AnnotationKind.EC_NUMBER: "ec_numbers",
+    AnnotationKind.KEGG_ORTHOLOGY: "kegg_orthology_id",
+}
+
+#: ⛔ **Counted from the gene rows, never read from `locus.*_annotated_member_count`.** Those columns
+#: exist for COG, EC and KEGG but NOT for GO: GO has three, one per namespace, and summing them double
+#: counts every gene annotated in more than one.
+#: ⚠ Verified against the three columns that do exist: 0 mismatching nodes out of 17,531 and 15,670.
+ANNOTATED_COUNT_PREDICATE: dict[AnnotationKind, str] = {
+    kind: f"f.{column} is not null" for kind, column in GENE_VALUE_COLUMN.items()
+}
 
 
 def tier_for(cosine: float | None) -> str:
@@ -156,8 +175,7 @@ class Cell:
             return None
         proportion, divisor = self.agreeing / self.pairs, 1 + 1.96**2 / self.pairs
         centre = (proportion + 1.96**2 / (2 * self.pairs)) / divisor
-        half = 1.96 * ((proportion * (1 - proportion) / self.pairs
-                        + 1.96**2 / (4 * self.pairs**2)) ** 0.5) / divisor
+        half = 1.96 * ((proportion * (1 - proportion) / self.pairs + 1.96**2 / (4 * self.pairs**2)) ** 0.5) / divisor
         return (max(0.0, centre - half), min(1.0, centre + half))
 
     @property
@@ -209,8 +227,10 @@ class Calibration:
             "annotated_locus_count": self.annotated_locus_count,
             "locus_count": self.locus_count,
             "min_pairs": MIN_PAIRS,
-            "cells": [self.cells[key].as_json() for key in sorted(
-                self.cells, key=lambda key: ([name for name, _, _ in TIERS].index(key[0]), -key[1]))],
+            "cells": [
+                self.cells[key].as_json()
+                for key in sorted(self.cells, key=lambda key: ([name for name, _, _ in TIERS].index(key[0]), -key[1]))
+            ],
         }
 
 
@@ -226,9 +246,13 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
     every GO claim discarded, with nothing to show for it but a slightly lower agreement rate.
     """
     rows = session.execute(
-        select(Locus.locus_id, Locus.modal_cog_categories,
-               LocusAnnotationEntry.term_value, LocusAnnotationEntry.term_name,
-               LocusAnnotationEntry.member_gene_count)
+        select(
+            Locus.locus_id,
+            Locus.modal_cog_categories,
+            LocusAnnotationEntry.term_value,
+            LocusAnnotationEntry.term_name,
+            LocusAnnotationEntry.member_gene_count,
+        )
         .join(
             LocusAnnotationEntry,
             (LocusAnnotationEntry.locus_id == Locus.locus_id)
@@ -263,9 +287,7 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
     return levels, terms, len(categories)
 
 
-def _chance_by_level(
-    levels: dict[int, dict[int, frozenset[str]]], level: int, *, self_excluded: bool = True
-):
+def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int, *, self_excluded: bool = True):
     """An exact chance function for one level: P(a random annotated node of `levels` intersects S).
 
     Memoised on the claim set, because a catalogue holds only ~118 distinct COG category values —
@@ -327,9 +349,7 @@ def tally_cells(
     """
     ladder = sorted(LEVEL_LABEL[annotation_kind], reverse=True)
     pool, self_excluded = (levels, True) if donor_pool is None else (donor_pool, False)
-    chance_functions = {
-        level: _chance_by_level(pool, level, self_excluded=self_excluded) for level in ladder
-    }
+    chance_functions = {level: _chance_by_level(pool, level, self_excluded=self_excluded) for level in ladder}
     tally: dict[tuple[str, int], list[float]] = defaultdict(lambda: [0, 0, 0.0])
     for locus_id, neighbour_id, cosine in edges:
         mine = levels.get(locus_id)
@@ -347,9 +367,16 @@ def tally_cells(
             row[1] += bool(mine[level] & theirs[level])
             row[2] += chance_functions[level](mine[level])
     return {
-        key: Cell(tier=key[0], level=key[1], level_label=LEVEL_LABEL[annotation_kind][key[1]],
-                  pairs=int(row[0]), agreeing=int(row[1]), chance=row[2] / row[0])
-        for key, row in tally.items() if row[0]
+        key: Cell(
+            tier=key[0],
+            level=key[1],
+            level_label=LEVEL_LABEL[annotation_kind][key[1]],
+            pairs=int(row[0]),
+            agreeing=int(row[1]),
+            chance=row[2] / row[0],
+        )
+        for key, row in tally.items()
+        if row[0]
     }
 
 
@@ -370,8 +397,7 @@ def compute_calibration(
     """
     levels, _terms, locus_count = _claims(session, pangenome_id, annotation_kind)
     edges = session.execute(
-        select(LocusNearestLocus.locus_id, LocusNearestLocus.neighbour_locus_id,
-               LocusNearestLocus.cross_similarity)
+        select(LocusNearestLocus.locus_id, LocusNearestLocus.neighbour_locus_id, LocusNearestLocus.cross_similarity)
         .join(Locus, Locus.locus_id == LocusNearestLocus.locus_id)
         .where(
             Locus.pangenome_id == pangenome_id,
@@ -389,8 +415,7 @@ def compute_calibration(
     )
 
 
-def quotable_level(annotation_kind: AnnotationKind, tier: str,
-                   donor_levels: dict[int, frozenset[str]]) -> int | None:
+def quotable_level(annotation_kind: AnnotationKind, tier: str, donor_levels: dict[int, frozenset[str]]) -> int | None:
     """The tier's level, **or the deepest the donor actually states, whichever is shallower**.
 
     ⛔ Not a refinement — without it the page promises a depth the donor cannot supply. Of 84

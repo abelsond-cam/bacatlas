@@ -26,6 +26,7 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
+    ANNOTATED_COUNT_PREDICATE,
     NOT_CALLED,
     SUPPORTED_KINDS,
     Calibration,
@@ -49,17 +50,11 @@ from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 #: another's — the trap `gene_sequence_service.clear_parsed_genome_cache` exists for.
 _CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibration] = {}
 
-#: ⛔ **Counted from the gene rows, not read from `locus.*_annotated_member_count`.** Those columns
-#: exist for COG, EC and KEGG but NOT for GO: GO has three, one per namespace, and summing them
-#: double counts every gene annotated in more than one. One bounded statement over at most six loci
-#: (the focal node and its five neighbours) gives all four axes on the same definition.
-#: ⚠ Verified against the three columns that do exist: 0 mismatching nodes out of 17,531 and 15,670.
-ANNOTATED_COUNT_PREDICATE = {
-    AnnotationKind.COG_ORTHOGROUP: "f.cog_id is not null",
-    AnnotationKind.GENE_ONTOLOGY_SLIM: "f.gene_ontology_terms is not null",
-    AnnotationKind.EC_NUMBER: "f.ec_numbers is not null",
-    AnnotationKind.KEGG_ORTHOLOGY: "f.kegg_orthology_id is not null",
-}
+#: ⚠ **Moved to `instruments/annotation_transfer.py`** (2026-10-04) and re-exported here, because the
+#: new `within_node_propagation` instrument needs the same mapping and an instrument cannot import a
+#: service. It is derived there from `GENE_VALUE_COLUMN`, so the column and the predicate are one fact.
+#: One bounded statement over at most six loci (the focal node and its five neighbours) gives all four
+#: axes on the same definition.
 
 
 def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
@@ -81,10 +76,7 @@ def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[A
         """),
         {"locus_ids": list(locus_ids)},
     ).all()
-    return {
-        row.locus_id: {kind: getattr(row, kind.name.lower()) for kind in ANNOTATED_COUNT_PREDICATE}
-        for row in rows
-    }
+    return {row.locus_id: {kind: getattr(row, kind.name.lower()) for kind in ANNOTATED_COUNT_PREDICATE} for row in rows}
 
 
 def clear_calibration_cache() -> None:
@@ -204,8 +196,7 @@ def load_inference(
                 # ⚠ Only ever offered where the node has NO call of its own — a suggestion beside a
                 # real annotation would compete with it.
                 **(
-                    _walk(annotation_kind, neighbours, entries, annotated_counts,
-                          session, pangenome_id, representation)
+                    _walk(annotation_kind, neighbours, entries, annotated_counts, session, pangenome_id, representation)
                     if own is None
                     else {"walk": [], "candidate": None}
                 ),
