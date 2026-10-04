@@ -2,11 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   COG_CATEGORIES,
+  ENZYME_CLASSES,
   GENE_ONTOLOGY_NAMESPACES,
   GENE_ONTOLOGY_VERDICTS,
   cogCategoryNames,
   coverageParts,
   coverageSentence,
+  enzymeClassSummary,
   geneOntologyVerdict,
   keggOrthologyUrl,
 } from "./functionVocabulary";
@@ -129,5 +131,40 @@ describe("⚠ the coverage COUNT is emphasised on its own", () => {
       const parts = coverageParts(annotated, size, "a GO term");
       expect(`${parts.emphasis ?? ""}${parts.rest}`).toBe(coverageSentence(annotated, size, "a GO term"));
     }
+  });
+});
+
+describe("⭐ an EC code reads as words, and KEGG deliberately does not", () => {
+  it("names the class and says which fields are NOT stated", () => {
+    // ⚠ 2,257 of 9,398 values in the published catalogues are dash-padded, so this is the common
+    // shape rather than the edge: `gumC`'s own EC is `2.7.10.-`.
+    expect(enzymeClassSummary("2.7.10.-")).toBe("transferase · 4th level not stated");
+    expect(enzymeClassSummary("3.1.-.-")).toBe("hydrolase · 3rd and 4th levels not stated");
+    expect(enzymeClassSummary("6.-.-.-")).toBe("ligase · only the class is stated");
+  });
+
+  it("says nothing about depth where all four fields ARE stated", () => {
+    expect(enzymeClassSummary("6.1.1.18")).toBe("ligase");
+    expect(enzymeClassSummary("7.1.1.2")).toBe("translocase");
+  });
+
+  it("⛔ a value is a SET: it splits on commas and takes the SHALLOWEST depth", () => {
+    // The same two shapes that make `split_part` return a code neither side holds.
+    expect(enzymeClassSummary("1.6.5.9,7.1.1.-")).toBe(
+      "oxidoreductase · translocase · 4th level not stated",
+    );
+    expect(enzymeClassSummary("2.7.1.1,2.7.10.1")).toBe("transferase");
+  });
+
+  it("returns null rather than inventing a class it does not have", () => {
+    expect(enzymeClassSummary("-.-.-.-")).toBeNull();
+    expect(enzymeClassSummary("")).toBeNull();
+    expect(enzymeClassSummary("9.1.1.1")).toBeNull();
+  });
+
+  it("⛔ has SEVEN classes and no eighth — it is the numbering, not a database", () => {
+    // Vendoring ExPASy's ~8,000 names would be a CC BY-ND derivative; seven generic words are not.
+    expect(Object.keys(ENZYME_CLASSES)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
+    for (const name of Object.values(ENZYME_CLASSES)) expect(name.split(" ")).toHaveLength(1);
   });
 });

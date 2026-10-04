@@ -9,11 +9,15 @@
  *
  * ⚠ **The count is SEPARATED from the accession.** Run together it reads as one token: `K15540`
  * beside a count of 77 came back from a reader as the question *"what is K1554077?"*
+ *
+ * ⚠ **The two rows are different KINDS of claim, and sharing a card invites confusing them.** An EC
+ * number classifies a *reaction* on four hierarchical levels; a KEGG KO identifies a *gene family*.
+ * Neither implies the other, and the card says so once rather than leaving the heading to imply it.
  */
 import { computed } from "vue";
 
 import type { AnnotationEntry, FunctionResponse } from "@/api/types";
-import { enzymeCommissionUrl, keggOrthologyUrl } from "@/lib/functionVocabulary";
+import { enzymeClassSummary, enzymeCommissionUrl, keggOrthologyUrl } from "@/lib/functionVocabulary";
 
 const props = defineProps<{
   coverage: FunctionResponse["coverage"];
@@ -30,6 +34,8 @@ const lines = computed(() =>
       annotated: props.coverage.ec_annotated_gene_count,
       url: enzymeCommissionUrl,
       title: (term: string) => `EC ${term} on ExPASy`,
+      // ⭐ The seven classes, in words. ⛔ KEGG's row deliberately has no counterpart — see above.
+      gloss: enzymeClassSummary,
     },
     {
       key: "kegg",
@@ -38,6 +44,8 @@ const lines = computed(() =>
       annotated: props.coverage.kegg_annotated_gene_count,
       url: keggOrthologyUrl,
       title: (term: string) => `${term} on KEGG — the description lives there, not here`,
+      // ⛔ `null`, always, and this is the licence rather than an unfinished row. Do not "fix" it.
+      gloss: () => null,
     },
   ].filter((line) => line.entries.length > 0),
 );
@@ -63,9 +71,15 @@ const geneCount = computed(() => props.coverage.gene_count);
             :title="line.title(entry.term)"
           >{{ entry.term }}</a>
           <span class="alt-n">×{{ entry.gene_count }}</span>
+          <span v-if="line.gloss(entry.term)" class="ec-gloss">{{ line.gloss(entry.term) }}</span>
         </template>
       </span>
       <span class="cov">{{ line.annotated }} of {{ geneCount }} annotated</span>
     </div>
+    <p class="muted cover">
+      An EC number classifies the reaction, on four levels; a KEGG KO identifies a gene family.
+      They are different vocabularies and neither implies the other — a locus can carry one, both or
+      neither, and this card is absent where it carries neither.
+    </p>
   </div>
 </template>

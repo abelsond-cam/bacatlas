@@ -3716,6 +3716,14 @@ td.fam-sym {
     text-decoration-style: solid;
 }
 
+/* The EC class in words, beside the code. Quieter than the accession it glosses — the code is the
+   identifier a reader copies, the gloss is what tells them whether to bother. */
+.ec-gloss {
+    margin-left: 4px;
+    color: var(--ink-2);
+    font-size: 12px;
+}
+
 /* ⭐ What the call covers, above the cards it qualifies. Renamed from `.infer-onegene` (2026-10-04)
    because the block stopped being a caveat about one gene and became the claim itself: a call
    carried by some members covers all of them, at a measured rate. Still not an error state and

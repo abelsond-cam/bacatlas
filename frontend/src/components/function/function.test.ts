@@ -322,6 +322,35 @@ describe("⛔ a KEGG KO is linked and never named", () => {
     expect(kegg.text()).not.toContain("name");
   });
 
+  it("⭐ glosses the EC code in words — and the KEGG KO NOT, which is the licence", () => {
+    const card = mount(EnzymeAndKeggCard, {
+      props: {
+        coverage: coverage({ ec_annotated_gene_count: 30, kegg_annotated_gene_count: 20 }),
+        enzymeEntries: [entry("2.7.10.-", 30, { name: null })],
+        keggEntries: [entry("K01886", 20, { name: null })],
+      },
+    });
+    const [ec, kegg] = card.findAll(".kv");
+    expect(ec!.find(".ec-gloss").text()).toBe("transferase · 4th level not stated");
+    // ⛔⛔ The licence decision, as a gate: KEGG's terms permit linking but not redistributing, and
+    // ~880 KO descriptions in a published page is redistribution. A future "fix" that glosses this
+    // row the way the one above it is glossed fails here, which is the point.
+    expect(kegg!.find(".ec-gloss").exists()).toBe(false);
+    expect(kegg!.text()).toBe("KEGG KOK01886×2020 of 100 annotated");
+  });
+
+  it("⚠ says the two rows are different KINDS of claim", () => {
+    const card = mount(EnzymeAndKeggCard, {
+      props: {
+        coverage: coverage({ ec_annotated_gene_count: 30 }),
+        enzymeEntries: [entry("6.1.1.18", 30, { name: null })],
+        keggEntries: [],
+      },
+    });
+    expect(card.text()).toContain("An EC number classifies the reaction, on four levels");
+    expect(card.text()).toContain("a KEGG KO identifies a gene family");
+  });
+
   it("⚠ SEPARATES the count from the accession", () => {
     // Run together it reads as one token: `K15540` beside a count of 77 came back from a reader as
     // the question "what is K1554077?"

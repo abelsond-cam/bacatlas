@@ -103,6 +103,68 @@ export function cogCategoryNames(categories: readonly string[] | null): string[]
   );
 }
 
+/**
+ * ⭐ **The seven top-level EC classes — and ONLY the seven.**
+ *
+ * `term_name` is populated for 100 % of this catalogue's COG and GO entries and **0 %** of its EC
+ * and KEGG ones, so an EC code reaches the page as `2.7.10.-` and nothing else. Naming the first
+ * field costs seven generic words and turns that into *"transferase"*, which is the difference
+ * between a reader recognising the locus and not.
+ *
+ * ⛔ **The deeper fields stay as digits, and that is a LICENCE decision.** ExPASy's ENZYME is
+ * CC BY-ND; folding its ~8,000 names onto our four rungs is plausibly a derivative, so it is not
+ * vendored. Seven class names are not a database — they are the definition of the numbering.
+ */
+export const ENZYME_CLASSES: Readonly<Record<string, string>> = {
+  "1": "oxidoreductase",
+  "2": "transferase",
+  "3": "hydrolase",
+  "4": "lyase",
+  "5": "isomerase",
+  "6": "ligase",
+  "7": "translocase",
+};
+
+/** How many of an EC code's four fields are actually stated — `3.1.-.-` states two. */
+function statedDepth(code: string): number {
+  const fields = code.split(".");
+  let depth = 0;
+  for (const field of fields.slice(0, 4)) {
+    if (!/^\d+$/.test(field)) break;
+    depth += 1;
+  }
+  return depth;
+}
+
+/**
+ * ⭐ An EC value in words: its class, and which of its four fields are not stated.
+ *
+ * ⛔ **A value is a SET, not a string.** 1,034 of 9,398 are comma-joined lists and 2,257 carry `-`
+ * placeholders, so this splits on commas and reads each code's own depth — the same two shapes that
+ * make `split_part` return a code neither side holds. `null` where no field is a class digit, which
+ * is the honest answer for a value this page does not understand.
+ */
+export function enzymeClassSummary(value: string): string | null {
+  const codes = value
+    .split(",")
+    .map((one) => one.trim())
+    .filter(Boolean);
+  const names = [...new Set(codes.map((code) => ENZYME_CLASSES[code.split(".")[0] ?? ""]))].filter(
+    (name): name is string => name !== undefined,
+  );
+  if (names.length === 0) return null;
+  const depth = Math.min(...codes.map(statedDepth));
+  const missing =
+    depth >= 4
+      ? null
+      : depth === 3
+        ? "4th level not stated"
+        : depth === 2
+          ? "3rd and 4th levels not stated"
+          : "only the class is stated";
+  return missing === null ? names.join(" · ") : `${names.join(" · ")} · ${missing}`;
+}
+
 export function cogEntryUrl(accession: string): string {
   return `https://www.ncbi.nlm.nih.gov/research/cog/cog/${encodeURIComponent(accession)}/`;
 }
