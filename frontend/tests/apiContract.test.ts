@@ -775,12 +775,22 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(checked).toBe(CASES.length * NAMESPACES.length);
     });
 
-    it("⛔ a KEGG row is present and NEVER named", () => {
-      // KEGG's terms permit linking, not redistribution. The server sends `name: null` for every KO
-      // row, and the page must have nothing to print even if it wanted to.
+    it("⭐ EC and KEGG arrive NAMED, on real bytes", () => {
+      // ⚠ This assertion is the inverse of the one it replaces. Until 2026-10-05 it read "a KEGG
+      // row is present and NEVER named" and the EC row carried `name: null` too — the first on a
+      // licence that is real but was never resolved either way, the second on one that does not
+      // exist (ExPASy ENZYME is CC BY 4.0, not CC BY-ND). Both are vendored now and joined
+      // server-side, so a regression that dropped the join would show here as a null.
+      const ec = CASES.flatMap((kind) => functionFor(kind).annotations.ec_number ?? []);
       const kegg = CASES.flatMap((kind) => functionFor(kind).annotations.kegg_orthology ?? []);
+      expect(ec.length).toBeGreaterThan(0);
       expect(kegg.length).toBeGreaterThan(0);
-      for (const entry of kegg) expect(entry.name).toBeNull();
+      for (const entry of [...ec, ...kegg]) {
+        expect(entry.name).not.toBeNull();
+        expect(entry.name!.length).toBeGreaterThan(0);
+        // ⛔ A name, not the code echoed back — which is what a half-wired join would produce.
+        expect(entry.name).not.toBe(entry.term);
+      }
     });
 
     it("renders the rich locus with all three namespaces, EC and KEGG", () => {
@@ -990,6 +1000,18 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
         `Every locus grouped on context alone (${recorded.residuals.grouped_on_context_alone.length})`,
       );
       expect(summaries).toContain(`Every Pfam conflict (${recorded.residuals.pfam_conflicts.length})`);
+    });
+
+    it("⛔⛔ the footer carries the KEGG licence flag on EVERY page", () => {
+      // This is a GATE on deployment, not a courtesy. KEGG requires an academic service provider
+      // licence from anyone offering a service, and this build names KO descriptions — so the
+      // unanswered question has to travel with the page. David, 2026-10-05: *"Just flag it on site.
+      // Will look at it later. This is a prototype only!"* A change that drops this paragraph while
+      // the names are still served is the one that quietly turns a prototype into a publication.
+      const footer = mount(SiteFooter, { props: { catalogue: recorded.species } }).text();
+      expect(footer).toContain("Internal build — not for publication");
+      expect(footer).toContain("academic service provider licence");
+      expect(footer).toContain("not yet confirmed");
     });
 
     it("⚠ the footer quotes the audit headline and prints no unformatted number", () => {

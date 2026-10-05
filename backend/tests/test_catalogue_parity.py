@@ -398,7 +398,17 @@ def test_T7_a_coverage_count_travels_with_every_verdict(parity):
 
 
 def test_T7_kegg_ids_are_present_and_never_NAMED(parity):
-    """⛔ KEGG permits linking freely but not redistributing its content."""
+    """⛔ No KEGG description is written INTO the catalogue — which is still true, and still matters.
+
+    ⚠ Read this one carefully before concluding it is stale. The service DOES name KOs now (David,
+    2026-10-05, for an internal prototype), but it does so by a **serve-time join** against
+    `kegg_orthology`. Nothing is written into `locus_annotation_entry`, and that is exactly what this
+    pins: the catalogue rows stay byte-identical to the frozen static payload, so
+    `test_payload_rebuild_from_database` keeps working and the two published pages stay reproducible.
+
+    A future change that denormalised the name into this column would pass every page test and
+    silently break the rollback for `ecoli.html` and `kp.html`. This is what catches that.
+    """
     _, session, _, pangenome, entry = parity
     rows = session.execute(
         select(LocusAnnotationEntry.term_value, LocusAnnotationEntry.term_name)

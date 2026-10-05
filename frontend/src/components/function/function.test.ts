@@ -447,7 +447,10 @@ describe("⛔ a KEGG KO is linked and never named", () => {
     expect(card.find(".card").exists()).toBe(false);
   });
 
-  it("shows only the row that HAS something", () => {
+  it("⭐ STATES the absent row rather than dropping it", () => {
+    // ⛔ `gumC` carries an EC and no KEGG, and the card used to simply omit the KEGG line — leaving
+    // a reader unable to tell "no KEGG here" from "KEGG not shown". That is the question David
+    // asked of this card: *"we don't need to infer KEGG do we??? We have it for our nodes??"*
     const card = mount(EnzymeAndKeggCard, {
       props: {
         coverage: coverage({ ec_annotated_gene_count: 30 }),
@@ -455,8 +458,23 @@ describe("⛔ a KEGG KO is linked and never named", () => {
         keggEntries: [],
       },
     });
-    expect(card.findAll(".kv")).toHaveLength(1);
-    expect(card.find(".k").text()).toBe("EC");
+    expect(card.findAll(".kv")).toHaveLength(2);
+    expect(card.findAll(".k").map((k) => k.text())).toEqual(["EC", "KEGG KO"]);
+    expect(card.text()).toContain("No KEGG orthology on any of this node's genes");
+    // ⚠ And WHY it is absent — measured over all 1,436,421 genes in the two catalogues, not asserted.
+    expect(card.text()).toContain("8.2 % of genes against COG's 67.7 %");
+    // The absent row carries no coverage count: "0 of 100 annotated" beside a sentence saying
+    // exactly that is the same fact twice.
+    expect(card.findAll(".cov")).toHaveLength(1);
+  });
+
+  it("⛔ is absent ENTIRELY where neither vocabulary has anything", () => {
+    // Two headings over two absences say less than no card at all, and the GO card already states
+    // the locus-wide "nothing here" case.
+    const card = mount(EnzymeAndKeggCard, {
+      props: { coverage: coverage({}), enzymeEntries: [], keggEntries: [] },
+    });
+    expect(card.find(".card").exists()).toBe(false);
   });
 });
 
@@ -859,9 +877,14 @@ describe("the inferred-function card", () => {
       }),
     });
     expect(tab.find(".infer").exists()).toBe(false);
-    // ⭐ But the propagation note DOES appear, once per vocabulary — the claim is made wherever a
-    // node carries a call, not only where a single gene carries it.
-    expect(tab.findAll(".infer-spread li")).toHaveLength(INFERENCE_KINDS.length);
+    // ⭐ But the propagation note DOES appear — the claim is made wherever a node carries a call,
+    // not only where a single gene carries it. ⛔ Once per vocabulary EXCEPT COG, whose own card
+    // states the rate in David's wording; listing it here as well printed the same figure in the
+    // same words a few lines above that card.
+    expect(tab.findAll(".infer-spread li")).toHaveLength(INFERENCE_KINDS.length - 1);
+    expect(tab.find(".infer-spread").text()).not.toContain("COG — carried by");
+    // … and the figure is still on the page exactly once, on the COG card itself.
+    expect(tab.text()).toContain("COG is assigned to the whole node from the hit within it");
   });
 
 /*
@@ -872,13 +895,18 @@ describe("the inferred-function card", () => {
  * the sentence being retired and a deletion would leave nothing saying so.
  */
 describe("⭐ the call propagates across the whole syntelogue", () => {
+  // ⛔ EC, not COG. COG states its rate on its OWN card now — David's wording, which the summary
+  // block was repeating a few lines above it — so it is deliberately absent from this list. The
+  // mechanics under test (the band named once, unmeasured vs 0 %, too-few-nodes, a node that
+  // propagates nowhere) are the same `propagationRateSentence` either way.
   function propagationNote(own: Partial<OwnSupport>) {
     return mountTab({
       block: withInference(
         inference({
+          annotation_kind: "ec_number",
           own: {
-            term: "COG3206",
-            name: "GumC",
+            term: "2.7.10.-",
+            name: "Protein-tyrosine kinases",
             gene_count: 1,
             annotated_gene_count: 1,
             member_gene_count: 100,
@@ -896,7 +924,7 @@ describe("⭐ the call propagates across the whole syntelogue", () => {
     expect(note.exists()).toBe(true);
     expect(note.text()).toContain("Each of these applies to the whole syntelogue.");
     expect(note.text()).toContain("that propagation is the method, not a gap in it");
-    expect(note.text()).toContain("COG — carried by 1 of 100 genes");
+    expect(note.text()).toContain("EC number — carried by 1 of 100 genes");
     expect(note.text()).toContain("99.85 % of 3,253 comparable syntelogues agree");
     // ⚠ The band is named ONCE, in the lead, and not on every line — the first render repeated it
     // three times on one screen.
@@ -908,7 +936,7 @@ describe("⭐ the call propagates across the whole syntelogue", () => {
 
   it("⭐ says the SAME thing where seventeen genes carry it — only the count differs", () => {
     const note = propagationNote({ annotated_gene_count: 17, gene_count: 17, checkable: true });
-    expect(note.text()).toContain("COG — carried by 17 of 100 genes");
+    expect(note.text()).toContain("EC number — carried by 17 of 100 genes");
     expect(note.text()).toContain("99.85 % of 3,253 comparable syntelogues agree");
     expect(note.text()).toContain("Each of these applies to the whole syntelogue.");
   });

@@ -49,6 +49,7 @@ from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepres
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
+from bacatlas_backend.services.reference_name_service import reference_names
 
 #: ⚠ A process-lifetime cache, legitimate only because this service is READ-ONLY and a catalogue
 #: cannot change without a re-ingest and a restart — the same ground the `ETag: "{pangenome_id}"` on
@@ -203,9 +204,15 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.term_value,
         )
     ).all()
+    # ⭐ The EC and KEGG names are filled HERE rather than in each consumer, because both the focal
+    # node's own term and every donor on the walk come out of this one statement — and a card that
+    # names the focal node's `2.7.10.-` while the suggestion beside it says only `K01991` is the
+    # asymmetry that made the licence look like an oversight. `term_name` still wins where it
+    # exists; see `serialise_annotation_entry` for why that ordering is the guarantee.
+    names = reference_names(session)
     grouped: dict[tuple[int, AnnotationKind], list] = defaultdict(list)
     for locus_id, kind, term, name, support in rows:
-        grouped[(locus_id, kind)].append((term, name, support))
+        grouped[(locus_id, kind)].append((term, name or names.name_for(kind, term), support))
     return grouped
 
 

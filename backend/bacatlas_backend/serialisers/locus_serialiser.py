@@ -28,18 +28,30 @@ from bacatlas_backend.services.locus_detail_service import (
     LocusDetail,
     membership_is_complete,
 )
+from bacatlas_backend.services.reference_name_service import ReferenceNames
 
 #: What a slot's absence means, when it has one. ⛔ A contig end is an OBSERVATION — the member
 #: genuinely has no gene there — and is not the same as a neighbour that fell outside the catalogue.
 ABSENCE_CONTIG_END = "contig_end"
 
 
-def serialise_annotation_entry(entry) -> dict:
-    """One (vocabulary, term) row. `term_name` is `null` where the vocabulary has no name to give."""
+def serialise_annotation_entry(entry, names: ReferenceNames | None = None) -> dict:
+    """One (vocabulary, term) row. `name` is `null` where nothing can name this term.
+
+    ⛔ **`term_name` first, the reference second — never the other way round.** Bakta's own name
+    is what this catalogue's genes were annotated with; a vendored reference is a later lookup of
+    the same code. Where both exist, preferring the reference would silently replace the recorded
+    annotation with a different release's wording and make the page disagree with the GFFs.
+
+    In practice they never collide: `term_name` is populated for 100 % of COG and GO entries and
+    0 % of EC and KEGG ones, which is exactly why `names` exists. The ordering is the guarantee that
+    it stays a gap-filler if that ever changes.
+    """
     return {
         "rank": entry.rank_within_locus,
         "term": entry.term_value,
-        "name": entry.term_name,
+        "name": entry.term_name
+        or (names.name_for(entry.annotation_kind, entry.term_value) if names else None),
         "gene_count": entry.member_gene_count,
         # ⛔ The NAME, never the stored 0/1/2. See `gene_ontology_namespace_name`: the coverage
         # block of this very response keys its namespaces by name, and a client grouping entries by
@@ -220,8 +232,11 @@ def serialise_projected_placement(placement, detail) -> dict:
     }
 
 
-def serialise_locus_detail(detail: LocusDetail) -> dict:
+def serialise_locus_detail(detail: LocusDetail, names: ReferenceNames | None = None) -> dict:
     """The whole locus response — one round trip, and the popover is then offline.
+
+    `names` fills in the EC and KEGG names Bakta never emitted. Optional, because an absent
+    reference must degrade a chip to a bare accession rather than fail the request.
 
     ⚠ `cosine_scale_factor` went with the map on 2026-09-24. The 6×6 cosines were stored as scaled
     int16 and had to be divided back; the similarities are plain floats, so nothing is scaled and
@@ -340,7 +355,7 @@ def serialise_locus_detail(detail: LocusDetail) -> dict:
             "interest_score": locus.interest_score,
         },
         "annotations": {
-            kind: [serialise_annotation_entry(entry) for entry in entries]
+            kind: [serialise_annotation_entry(entry, names) for entry in entries]
             for kind, entries in detail.card_annotations.items()
         },
         "uniref50_families": [serialise_uniref_family(family) for family in detail.uniref_families],

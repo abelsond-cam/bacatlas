@@ -146,7 +146,12 @@ describe("⭐ an EC code reads as words, and KEGG deliberately does not", () => 
   });
 
   it("⛔ has SEVEN classes and no eighth — it is the numbering, not a database", () => {
-    // Vendoring ExPASy's ~8,000 names would be a CC BY-ND derivative; seven generic words are not.
+    // ⚠ This used to be justified by a licence that does not exist — the note here read "vendoring
+    // ExPASy's ~8,000 names would be a CC BY-ND derivative". ExPASy ENZYME is CC BY 4.0, the names
+    // ARE vendored now, and these seven survive only as the fallback for a code the reference does
+    // not carry. The assertion stands for a different reason: this map is the DEFINITION of the
+    // first digit, so an eighth entry would mean someone had started growing a name table here
+    // instead of in the vendored reference, where it belongs and where it can be refreshed.
     expect(Object.keys(ENZYME_CLASSES)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
     for (const name of Object.values(ENZYME_CLASSES)) expect(name.split(" ")).toHaveLength(1);
   });

@@ -83,6 +83,20 @@ const omitted = computed(() => {
         number on this page is read from that model's own output and its accessory-fidelity audit — nothing
         is re-derived for display.
       </p>
+      <!--
+        ⛔⛔ **The licence flag, site-wide, and it is a GATE on deployment rather than a courtesy.**
+        David, 2026-10-05: *"Don't worry about KEGG licence! Just flag it on site. Will look at it
+        later. This is a prototype only! On my own device right now!"* KEGG's terms require an
+        academic service provider licence from anyone offering services, and serving a KO
+        description is offering one. This paragraph is what carries the unanswered question forward
+        so it cannot quietly become a public deployment; it is pinned by a test for that reason.
+        EC needs no flag — CC BY 4.0 — and is attributed on the card that uses it.
+      -->
+      <p class="foot-notice">
+        <strong>Internal build — not for publication.</strong> It names KEGG orthologies, and KEGG
+        requires an academic service provider licence from anyone offering a service. That licence is
+        <strong>not yet confirmed</strong>, so this build must not be served publicly until it is.
+      </p>
       <dl>
         <div v-for="([label, value], index) in provenance" :key="index">
           <dt>{{ label }}</dt>

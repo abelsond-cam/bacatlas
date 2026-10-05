@@ -38,7 +38,7 @@ from bacatlas_backend.ingest.ingest_nuna_model_registry import (
 from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for, ingest_pangenome_run
 from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_species
 from bacatlas_backend.ingest.ingest_projected_genomes import ProjectionRefused, load_projection
-from bacatlas_backend.ingest.ingest_reference_vocabularies import load_pfam_reference
+from bacatlas_backend.ingest.ingest_reference_vocabularies import load_reference_vocabularies
 from bacatlas_backend.ingest.publish_pangenome import PublishRefused, publish_pangenome
 from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation, GenomeNoncodingFeature
 from bacatlas_backend.models.genome import Genome, GenomeContig
@@ -339,7 +339,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.stage == "reference":
         engine = create_engine(args.database_url, future=True)
         with Session(engine) as session:
-            print(load_pfam_reference(session).render())
+            print(load_reference_vocabularies(session).render())
             session.commit()
         return 0
 
@@ -362,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         # printed either way, so a silently missing table is visible here rather than inferred from
         # blank chips three screens into the page.
         if args.stage == "all":
-            print(load_pfam_reference(session).render())
+            print(load_reference_vocabularies(session).render())
             session.commit()
         if args.stage in ("genomes", "all"):
             report = load_genome_layer(

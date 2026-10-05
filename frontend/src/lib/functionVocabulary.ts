@@ -74,16 +74,20 @@ export function cogCategoryNames(categories: readonly string[] | null): string[]
 }
 
 /**
- * ⭐ **The seven top-level EC classes — and ONLY the seven.**
+ * **The seven top-level EC classes — now a FALLBACK, not the answer.**
  *
- * `term_name` is populated for 100 % of this catalogue's COG and GO entries and **0 %** of its EC
- * and KEGG ones, so an EC code reaches the page as `2.7.10.-` and nothing else. Naming the first
- * field costs seven generic words and turns that into *"transferase"*, which is the difference
- * between a reader recognising the locus and not.
+ * ⛔ **The licence note that used to be here was wrong, and it cost the page real information.**
+ * It read *"ExPASy's ENZYME is CC BY-ND"* and used that to justify showing only seven generic
+ * words. ExPASy ENZYME is **CC BY 4.0** — permissive, derivatives included, on one condition,
+ * attribution — stated in one line of `enzuser.txt`. Nothing ever needed working around.
  *
- * ⛔ **The deeper fields stay as digits, and that is a LICENCE decision.** ExPASy's ENZYME is
- * CC BY-ND; folding its ~8,000 names onto our four rungs is plausibly a derivative, so it is not
- * vendored. Seven class names are not a database — they are the definition of the numbering.
+ * So the real names are vendored now (`nuna.tl.locus_browser.vendor_ec`, 8,882 codes at every level)
+ * and joined server-side, which is why an entry arrives carrying `name`. `2.7.10.-` is
+ * *Protein-tyrosine kinases*, not *"transferase · 4th level not stated"*.
+ *
+ * ⚠ This survives for the codes the reference does not name — **1 of the 1,410** in the two
+ * catalogues, which is a new EC the vendored release predates. Seven generic words beat a bare
+ * number, and the day that count grows it will be visible here rather than as blank glosses.
  */
 export const ENZYME_CLASSES: Readonly<Record<string, string>> = {
   "1": "oxidoreductase",

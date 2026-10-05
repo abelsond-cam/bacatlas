@@ -22,6 +22,8 @@ import pytest
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
+import bacatlas_backend.models  # noqa: F401  (registers every table on the metadata)
+from bacatlas_backend.database import Base
 from bacatlas_backend.instruments.column_census import (
     WIDTH_HEADROOM_WARNING,
     ask_the_questions,
@@ -53,14 +55,27 @@ def census(loaded_session):
 
 # ── coverage, stated ───────────────────────────────────────────────────────────────────────────
 def test_the_census_examines_every_column_and_NAMES_what_it_could_not(census, loaded_session):
-    """⛔ A census that omitted its empty tables would report full coverage over half the schema."""
+    """⛔ A census that omitted its empty tables would report full coverage over half the schema.
+
+    ⭐ **The oracle is the registered metadata, not a count.** This read `== 29` and had been red
+    since the 31st table landed — so the one test whose job is to notice a new table had stopped
+    noticing, and two tables were added through a permanently-failing assertion before a third and
+    fourth (`enzyme_class`, `kegg_orthology`) arrived on 2026-10-05. A hand-maintained integer is
+    the wrong instrument for "did the census cover everything": it goes stale silently, and the
+    staleness looks exactly like the failure it exists to report. `Base.metadata` already knows
+    every table, so the census is now compared against it by NAME, which says which table is
+    missing instead of by how many.
+    """
     observations = list(census.values())
     assert len(observations) >= 320, f"examined {len(observations)} columns"
-    # 28 since `locus_map_scatter_sprite` — the whole-catalogue dust, rendered once at ingest
-    # because it is the one part of the map that is O(catalogue). 29 since
-    # `pangenome_genome_locus_count` — the anchor picker's per-genome counts, stored because the
-    # aggregate behind them is ~412 M membership rows at the design target.
-    assert len({row.table for row in observations}) == 29
+    examined = {row.table for row in observations}
+    # ⚠ `alembic_version` is Alembic's, not ours — it carries no meaning to audit and is not a
+    # mapped model, so it is absent from the metadata and must be absent here too.
+    registered = set(Base.metadata.tables) - {"alembic_version"}
+    assert examined == registered, (
+        f"not censused: {sorted(registered - examined)}; "
+        f"censused but not registered: {sorted(examined - registered)}"
+    )
     unexamined = sorted({row.table for row in observations if row.is_empty})
     # ⚠ One table is legitimately empty: the roster build report belongs to the Klebsiella lineage.
     assert unexamined == ["genome_collection_build_report"]

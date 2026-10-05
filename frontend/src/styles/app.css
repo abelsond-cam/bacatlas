@@ -2217,6 +2217,20 @@ td.fam-sym {
     color: var(--ink-2);
 }
 
+/* ⛔ The standing licence condition, not an error — a left rule in the alarm colour rather than a
+   filled banner, because it is true of every page and a banner that is always on stops being read.
+   `--rust` is defined in all three theme blocks, so this needs no theme rule of its own. */
+.foot-notice {
+    margin: var(--s3) 0 0;
+    padding-left: var(--s3);
+    border-left: 3px solid var(--rust);
+    color: var(--ink-2);
+}
+
+.foot-notice strong {
+    color: var(--rust);
+}
+
 .foot dl {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));

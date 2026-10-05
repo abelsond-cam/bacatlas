@@ -47,6 +47,7 @@ from bacatlas_backend.services.projected_genome_service import (
     list_projected_genomes,
     resolve_projected_genome,
 )
+from bacatlas_backend.services.reference_name_service import reference_names
 from bacatlas_backend.services.species_catalogue_service import (
     SpeciesNotPublished,
     list_catalogues,
@@ -428,7 +429,7 @@ def get_locus(species_key: str, locus_label: str):
         except LocusNotFound as error:
             return _not_found(str(error))
 
-        payload = serialise_locus_detail(detail)
+        payload = serialise_locus_detail(detail, reference_names(session))
         payload["resolved_neighbour_count"] = detail.resolved_neighbour_count
         return _immutable(payload, pangenome.pangenome_id)
 
@@ -510,6 +511,7 @@ def get_locus_function(species_key: str, locus_label: str):
             return _not_found(str(error))
         locus = detail.locus
         grouped = load_function_block(session, locus_id=locus.locus_id)
+        names = reference_names(session)
         return _immutable(
             {
                 # ⛔ Separate from `annotations`, never merged into it: one is what this node's genes
@@ -525,7 +527,7 @@ def get_locus_function(species_key: str, locus_label: str):
                     for kind in SUPPORTED_KINDS
                 },
                 "annotations": {
-                    kind: [serialise_annotation_entry(entry) for entry in entries]
+                    kind: [serialise_annotation_entry(entry, names) for entry in entries]
                     for kind, entries in grouped.items()
                 },
                 # ⛔ Coverage BEFORE every verdict, and against the LOCUS size — a share against the

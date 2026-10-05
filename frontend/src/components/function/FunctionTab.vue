@@ -82,8 +82,24 @@ const inferable = computed(() =>
  * ⛔ No similarity appears here, and that is measured rather than overlooked: within-node unanimity
  * is 99.8-100 % at every band of both ESM and Bacformer, so a floor would be a gate doing no work.
  */
+/**
+ * ⛔ **A vocabulary whose own card states its rate is NOT listed here as well.**
+ *
+ * The COG card carries David's own sentence — *"COG is assigned to the whole node from the hit
+ * within it — 99.85 % of 3,253 comparable core syntelogues agree"* — and this block was printing
+ * the same figure in the same words a few lines above it. One rule, so the duplication cannot come
+ * back: the summary lists what no card below says for itself, and a vocabulary joins this set the
+ * day its card gains a rate sentence.
+ *
+ * ⚠ GO will NOT join it soon, and the reason is worth knowing: its propagation rate is pooled
+ * across all three namespaces, so there is no single GO card that could honestly host it. Stage 2
+ * is what splits that; until then the pooled figure belongs above the three cards, not on one.
+ */
+const STATED_ON_ITS_OWN_CARD = new Set<InferenceKind>(["cog_orthogroup"]);
+
 const propagationLines = computed(() =>
-  INFERENCE_KINDS.map((kind) => ({ kind, own: inferenceByKind.value.get(kind)?.own ?? null }))
+  INFERENCE_KINDS.filter((kind) => !STATED_ON_ITS_OWN_CARD.has(kind))
+    .map((kind) => ({ kind, own: inferenceByKind.value.get(kind)?.own ?? null }))
     .filter((row): row is { kind: InferenceKind; own: OwnSupport } => row.own !== null)
     .map(({ kind, own }) => ({
       kind,

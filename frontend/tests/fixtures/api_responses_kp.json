@@ -53,7 +53,7 @@
      "ec_number": [
       {
        "gene_count": 100,
-       "name": null,
+       "name": "purine-nucleoside phosphorylase",
        "rank": 0,
        "term": "2.4.2.1"
       }
@@ -98,7 +98,7 @@
      "kegg_orthology": [
       {
        "gene_count": 1,
-       "name": null,
+       "name": "purine-nucleoside phosphorylase [EC:2.4.2.1]",
        "rank": 0,
        "term": "K03784"
       }
@@ -612,7 +612,7 @@
         "checkable": true,
         "gene_count": 100,
         "member_gene_count": 100,
-        "name": null,
+        "name": "purine-nucleoside phosphorylase",
         "propagation": {
          "annotation_kind": "ec_number",
          "checkable_node_count": 1411,
@@ -684,7 +684,7 @@
         "checkable": false,
         "gene_count": 1,
         "member_gene_count": 100,
-        "name": null,
+        "name": "purine-nucleoside phosphorylase [EC:2.4.2.1]",
         "propagation": {
          "annotation_kind": "kegg_orthology",
          "checkable_node_count": 444,
@@ -3395,7 +3395,7 @@
      "ec_number": [
       {
        "gene_count": 76,
-       "name": null,
+       "name": "RNA-directed DNA polymerase",
        "rank": 0,
        "term": "2.7.7.49"
       }
@@ -3932,7 +3932,7 @@
         "checkable": true,
         "gene_count": 76,
         "member_gene_count": 76,
-        "name": null,
+        "name": "RNA-directed DNA polymerase",
         "propagation": {
          "annotation_kind": "ec_number",
          "checkable_node_count": 160,
@@ -4018,7 +4018,7 @@
          "display_name": "ltrA",
          "gene_count": 15,
          "member_gene_count": 16,
-         "name": null,
+         "name": "RNA-directed DNA polymerase [EC:2.7.7.49]",
          "node_label": "6247",
          "propagation": {
           "annotation_kind": "kegg_orthology",
