@@ -18,17 +18,21 @@ from sqlalchemy.orm import Session
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.instruments.annotation_transfer import (
+    CALLING_FLOOR,
     MIN_PAIRS,
     NOT_CALLED,
     QUOTED_LEVEL,
     TIERS,
+    Calibration,
+    Cell,
+    callable_level,
     cog_levels,
     ec_levels,
     quotable_level,
     tier_for,
 )
 from bacatlas_backend.instruments.within_node_propagation import MIN_NODES
-from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
+from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation, PrevalenceBand
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
 from bacatlas_backend.services.function_inference_service import (
     _PROPAGATION,
@@ -133,6 +137,104 @@ def test_a_tier_quotes_no_deeper_than_the_DONOR_actually_states():
     )
     assert quotable_level(AnnotationKind.COG_ORTHOGROUP, ">= 0.99",
                           cog_levels(None, None)) is None
+
+
+# ── ⛔ the floor: whether to speak at all, which is NOT how deep ─────────────────────────────────
+def _ladder(kind, rates: dict[tuple[str, int], float | None]) -> Calibration:
+    """A hand-built ladder. ⚠ `None` means a cell under `MIN_PAIRS` — a count and no rate."""
+    cells = {}
+    for (tier, level), rate in rates.items():
+        pairs = 1_000 if rate is not None else MIN_PAIRS - 1
+        agreeing = round((rate or 0) * pairs)
+        cells[(tier, level)] = Cell(tier=tier, level=level, level_label="x", pairs=pairs,
+                                    agreeing=agreeing, chance=0.01)
+    return Calibration(annotation_kind=kind, representation=EmbeddingRepresentation.ESM, cells=cells,
+                       annotated_locus_count=1, locus_count=1)
+
+
+def test_the_floor_is_a_SEPARATE_decision_from_the_depth():
+    """⛔⛔ David, 2026-10-05. `QUOTED_LEVEL` says how deep a tier may be read; it never said whether
+    the call was worth making, and nothing else did either — so `gumC` was offered a KEGG orthology
+    from a 0.929 neighbour where agreement is **24.3 %**.
+
+    ⭐ The floor is applied as one more rung of the SAME fallback, not as a gate beside it: a level
+    nobody can be quoted at accurately is a level the donor cannot usefully supply.
+    """
+    assert CALLING_FLOOR == 0.80
+    complete = ec_levels("2.7.10.1")
+
+    # every rung of the >= 0.99 EC cell clears the floor, so the full code still goes out
+    rich = _ladder(AnnotationKind.EC_NUMBER, {(">= 0.99", level): 0.99 for level in (1, 2, 3, 4)})
+    assert callable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete, rich) == 4
+    assert quotable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete) == 4, "unchanged by the floor"
+
+    # ⭐ the deepest rung misses it and a shallower one clears: quote the shallower one
+    mixed = _ladder(AnnotationKind.EC_NUMBER,
+                    {(">= 0.99", 4): 0.60, (">= 0.99", 3): 0.97, (">= 0.99", 2): 0.99, (">= 0.99", 1): 0.99})
+    assert callable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete, mixed) == 3
+
+    # ⛔ COG category at 0.97-0.98 is 78.1 % ecoli / 79.9 % kp with NO shallower rung — say nothing
+    thin = _ladder(AnnotationKind.COG_ORTHOGROUP, {("0.97-0.98", 1): 0.781})
+    assert callable_level(AnnotationKind.COG_ORTHOGROUP, "0.97-0.98", cog_levels("COG1", ["J"]), thin) is None
+
+    # ⛔ a cell with no measured rate cannot clear a floor. The card used to print the value anyway.
+    unmeasured = _ladder(AnnotationKind.KEGG_ORTHOLOGY, {("0.90-0.96", 1): None})
+    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.90-0.96",
+                          {1: frozenset({"K01991"})}, unmeasured) is None
+    # and a cell that is simply absent
+    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.96-0.97",
+                          {1: frozenset({"K01991"})}, unmeasured) is None
+
+    assert callable_level(AnnotationKind.EC_NUMBER, NOT_CALLED, complete, rich) is None
+
+
+def test_gumC_is_no_longer_offered_a_KEGG_it_would_be_wrong_about(client):
+    """⭐ The worked case for the floor: `wza` is a rank-5 neighbour at **0.9293** — close, carrying
+    a KEGG — and kp KEGG agreement at that tier is **24.3 % over 481 pairs**.
+
+    ⛔ The donor is still NAMED and the rate still carried, because "too remote to call" would be
+    false here and the reader is owed the number that refused it.
+    """
+    payload = client.get("/api/v1/species/kp/loci/722/function").get_json()
+    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+    candidate = by_kind["kegg_orthology"]["candidate"]
+
+    assert candidate is not None, "the donor is still found and still reported"
+    assert candidate["donor"]["display_name"] == "wza" and candidate["rank"] == 5
+    assert candidate["cosine"] > 0.92, "non-vacuity: this donor is CLOSE, not remote"
+    assert candidate["tier"] != NOT_CALLED
+    assert candidate["level"] is None and candidate["value"] is None, "⛔ nothing is suggested"
+    assert candidate["calibration"]["agreement"] < CALLING_FLOOR, (
+        "and the measured rate that refused it travels with the refusal"
+    )
+    assert payload["calibration"]["kegg_orthology"]["calling_floor"] == CALLING_FLOOR
+
+
+def test_the_floor_is_not_vacuous_a_STRONG_neighbour_still_suggests(client, session):
+    """⛔ A floor that suppressed everything would pass every test above and serve a blank page."""
+    label = session.execute(
+        text("""
+            select focal.node_label
+              from locus focal
+              join pangenome p on p.pangenome_id = focal.pangenome_id
+              join locus_nearest_locus n
+                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
+              join locus donor on donor.locus_id = n.neighbour_locus_id
+             where p.catalogue_key = 'kp-nuna4'
+               and focal.cog_distinct_id_count = 0
+               and donor.cog_distinct_id_count > 0
+               and n.cross_similarity >= 0.99
+               and n.rank = 1
+             order by focal.node_label limit 1
+        """)
+    ).scalar()
+    assert label is not None, "the catalogue has >= 0.99 COG donors, or this test is vacuous"
+    payload = client.get(f"/api/v1/species/kp/loci/{label}/function").get_json()
+    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
+    candidate = by_kind["cog_orthogroup"]["candidate"]
+    assert candidate["level"] is not None and candidate["value"], (
+        "a >= 0.99 COG neighbour agrees 99.4 % of the time and is still quoted"
+    )
 
 
 # ── the calibration is MEASURED, and an independent oracle says so ──────────────────────────────

@@ -40,27 +40,6 @@ export type GeneOntologyNamespace =
  * agreement nor disagreement, and counting it as either invents a finding.
  */
 /**
- * ⛔⛔ **The Pfam ladder, not a yes/no** — and this type said `"agree" | "disagree" | "no_coverage"`
- * until the function tab was built against it.
- *
- * The server stores and sends `GeneOntologyAgreementVerdict`, six values, because GO agreement means
- * the same thing Pfam agreement does and one vocabulary serves both. Nothing caught the error: no
- * component read `go_verdicts` until now, and when one did every chip would have rendered blank —
- * `VERDICTS["single"]` is `undefined` in a table keyed on `"agree"` — with the page showing a locus
- * whose members agree as a locus with no verdict at all.
- *
- * ⚠ `no_coverage` is a VALUE, never a null: fewer than two annotated members is neither agreement
- * nor disagreement and must not be counted as either.
- */
-export type GoVerdict =
-  | "no_coverage"
-  | "single"
-  | "same_domains"
-  | "nested"
-  | "overlapping"
-  | "disjoint";
-
-/**
  * ⛔ **The annotation vocabulary, pinned — `backend/bacatlas_backend/models/enumerations.py`'s
  * `AnnotationKind`, all seven members.**
  *
@@ -537,6 +516,11 @@ export interface CalibrationLadder {
   readonly annotated_locus_count: number;
   readonly locus_count: number;
   readonly min_pairs: number;
+  /**
+   * ⛔ The measured-agreement bar a suggestion must clear to be made at all — a DIFFERENT thing
+   * from how deep it may be quoted. Served so the page can name the bar a refusal missed.
+   */
+  readonly calling_floor: number;
   readonly cells: readonly CalibrationCell[];
 }
 
@@ -648,7 +632,6 @@ export interface FunctionResponse {
     readonly kegg_annotated_gene_count: number;
     readonly go_annotated_gene_count: Readonly<Record<GeneOntologyNamespace, number>>;
   };
-  readonly go_verdicts: Readonly<Record<GeneOntologyNamespace, GoVerdict | null>>;
 }
 
 export interface ModelStep {

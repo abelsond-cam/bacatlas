@@ -9,7 +9,6 @@ import type {
   CalibrationCell,
   CalibrationLadder,
   FunctionResponse,
-  GoVerdict,
   InferenceKind,
   OwnSupport,
   PropagationRate,
@@ -96,6 +95,7 @@ function ladder(annotation_kind: InferenceKind): CalibrationLadder {
     annotated_locus_count: 0,
     locus_count: 0,
     min_pairs: 30,
+    calling_floor: 0.8,
     cells: [],
   };
 }
@@ -111,11 +111,6 @@ function block(overrides: Partial<FunctionResponse> = {}): FunctionResponse {
     },
     coverage: coverage(),
     ...emptyInference(),
-    go_verdicts: {
-      molecular_function: "single",
-      biological_process: "nested",
-      cellular_component: "no_coverage",
-    },
     ...overrides,
   };
 }
@@ -133,44 +128,57 @@ function mountTab(props: Partial<InstanceType<typeof FunctionTab>["$props"]> = {
 }
 
 // ── COG ────────────────────────────────────────────────────────────────────────────────────────
-describe("⭐ partial COG coverage is HEADROOM, not a caveat", () => {
-  it("says the unlabelled genes are unlabelled rather than different", () => {
-    // David, 2026-08-20. COG is assigned by best hit, not by a profile, so a gene without one is
-    // much weaker evidence of absence than a Pfam miss — which really is a profile failing to match.
-    const card = mount(CogCard, { props: { coverage: coverage(), entries: [entry("COG1132", 60)] } });
+describe("⭐ partial COG coverage is what the node's call COVERS", () => {
+  it("says the call reaches the whole node, at the measured rate", () => {
+    // ⛔ This asserted *"the remaining 40 are unlabelled rather than different — the gap this locus
+    // could fill, not a gap in it"* (David, 2026-08-20). That sentence is about the ANNOTATOR's
+    // method; the reader's question is what this locus is. David, 2026-10-05: "It can just be COG
+    // is assigned to the whole node from the hit within it with measured accuracy > 99.5 %. That
+    // is it." Rewritten rather than deleted, because it is the sentence being replaced.
+    const card = mount(CogCard, { props: { propagation: propagation(), coverage: coverage(), entries: [entry("COG1132", 60)] } });
     expect(card.text()).toContain("60 of 100 genes carry a COG assignment");
-    expect(card.text()).toContain(
-      "the remaining 40 are unlabelled rather than different — the gap this locus could fill, not a gap in it",
-    );
+    expect(card.text()).toContain("COG is assigned to the whole node from the hit within it");
+    expect(card.text()).toContain("99.85 % of 3,253 comparable core syntelogues agree");
+    expect(card.text()).not.toContain("unlabelled rather than different");
+  });
+
+  it("⛔ says nothing about propagation where the rate is not measurable", () => {
+    // A `rare` band has no comparable node, so there is no rate — and a sentence quoting one would
+    // be inventing it. The coverage line still stands on its own.
+    const card = mount(CogCard, {
+      props: { propagation: null, coverage: coverage(), entries: [entry("COG1132", 60)] },
+    });
+    expect(card.text()).toContain("60 of 100 genes carry a COG assignment");
+    expect(card.text()).not.toContain("assigned to the whole node");
   });
 
   it("⛔ does NOT predict a label for them", () => {
     // Propagating a COG from the annotated members is annotation transfer: it needs a transfer
     // rule, a confidence measure, a decision about discordant loci and a marking that can never be
     // mistaken for a Bakta call. None of that is shipped, so neither is a predicted label.
-    const card = mount(CogCard, { props: { coverage: coverage(), entries: [entry("COG1132", 60)] } });
+    const card = mount(CogCard, { props: { propagation: propagation(), coverage: coverage(), entries: [entry("COG1132", 60)] } });
     const rows = card.findAll("tbody tr");
     expect(rows).toHaveLength(1);
     expect(card.text()).not.toContain("predicted");
   });
 
-  it("omits the headroom sentence when every gene is annotated", () => {
+  it("omits it when every gene is annotated — there is nowhere left to propagate", () => {
     const card = mount(CogCard, {
-      props: { coverage: coverage({ cog_annotated_gene_count: 100 }), entries: [entry("COG1132", 100)] },
+      props: { propagation: propagation(), coverage: coverage({ cog_annotated_gene_count: 100 }), entries: [entry("COG1132", 100)] },
     });
-    expect(card.text()).not.toContain("unlabelled rather than different");
+    expect(card.text()).not.toContain("assigned to the whole node");
   });
 
   it("⛔ says what NO coverage means, and shows no chips at all", () => {
     const card = mount(CogCard, {
-      props: {
+      props: { propagation: propagation(),
         coverage: coverage({ cog_annotated_gene_count: 0, cog_distinct_id_count: 0, modal_cog_categories: null }),
         entries: [],
       },
     });
     expect(card.text()).toContain("no coverage here, so it can neither support nor contradict");
     expect(card.findAll(".chip")).toHaveLength(0);
-    expect(card.text()).not.toContain("unlabelled rather than different");
+    expect(card.text()).not.toContain("assigned to the whole node");
   });
 });
 
@@ -179,7 +187,7 @@ describe("⛔ the distinct-group count is a COUNT, never a relation", () => {
     // More than one orthologous group is an ordinary consequence of grouping above the family
     // level, which is what this method does.
     const card = mount(CogCard, {
-      props: { coverage: coverage({ cog_distinct_id_count: 2 }), entries: [entry("COG1132", 40), entry("COG0642", 20)] },
+      props: { propagation: propagation(), coverage: coverage({ cog_distinct_id_count: 2 }), entries: [entry("COG1132", 40), entry("COG0642", 20)] },
     });
     expect(card.text()).toContain("2 orthologous groups");
     expect(card.text()).toContain("an ordinary consequence of grouping above the family level");
@@ -187,17 +195,34 @@ describe("⛔ the distinct-group count is a COUNT, never a relation", () => {
   });
 
   it("marks a single group as the quiet win, with no explanatory note", () => {
-    const card = mount(CogCard, { props: { coverage: coverage(), entries: [entry("COG1132", 60)] } });
+    const card = mount(CogCard, { props: { propagation: propagation(), coverage: coverage(), entries: [entry("COG1132", 60)] } });
     expect(card.text()).toContain("one orthologous group");
     expect(card.text()).not.toContain("ordinary consequence");
     expect(card.find(".chip.win").exists()).toBe(true);
+  });
+
+  it("⛔⛔ claims NOTHING where one gene carries the COG — one voter is not a vote", () => {
+    // `nunique` over a single row is 1, so the card printed a `win`-toned "one orthologous group"
+    // off a single voter, on 518 ecoli / 498 kp loci. David, 2026-10-05: "The one orthologous group
+    // is silly. There is one gene." The rest of the codebase already refuses this claim.
+    const card = mount(CogCard, {
+      props: {
+        propagation: propagation(),
+        coverage: coverage({ cog_annotated_gene_count: 1, cog_distinct_id_count: 1 }),
+        entries: [entry("COG3206", 1)],
+      },
+    });
+    expect(card.text()).not.toContain("orthologous group");
+    expect(card.find(".chip.win").exists()).toBe(false);
+    // ⭐ But the category — what the locus IS — is still shown, and now as the lead chip.
+    expect(card.find(".chip.lead").exists()).toBe(true);
   });
 });
 
 describe("⚠ a COG category is one letter OR SEVERAL", () => {
   it("names each letter of a multi-letter category", () => {
     const card = mount(CogCard, {
-      props: { coverage: coverage({ modal_cog_categories: ["EP"] }), entries: [entry("COG1132", 60)] },
+      props: { propagation: propagation(), coverage: coverage({ modal_cog_categories: ["EP"] }), entries: [entry("COG1132", 60)] },
     });
     expect(card.text()).toContain(
       "EP — Amino acid transport and metabolism · Inorganic ion transport and metabolism",
@@ -206,49 +231,72 @@ describe("⚠ a COG category is one letter OR SEVERAL", () => {
 
   it("shows no category chip where the locus has none", () => {
     const card = mount(CogCard, {
-      props: { coverage: coverage({ modal_cog_categories: null }), entries: [entry("COG1132", 60)] },
+      props: { propagation: propagation(), coverage: coverage({ modal_cog_categories: null }), entries: [entry("COG1132", 60)] },
     });
     expect(card.findAll(".chip")).toHaveLength(1);
+    expect(card.find(".chip.lead").exists()).toBe(false);
+  });
+
+  it("⭐ gives the category the LEAD tone, not the quietest one the sheet has", () => {
+    // David, 2026-10-05: "This is the most important thing and yet it is grey."
+    const card = mount(CogCard, {
+      props: { propagation: propagation(), coverage: coverage(), entries: [entry("COG1132", 60)] },
+    });
+    const category = card.find(".chip.lead");
+    expect(category.exists()).toBe(true);
+    expect(category.text()).toContain("Cell motility");
+    expect(category.classes()).not.toContain("neutral");
   });
 });
 
 // ── GO ─────────────────────────────────────────────────────────────────────────────────────────
-describe("⛔ GO: coverage before the verdict, and `no_coverage` gets no chip", () => {
-  function mountGo(verdict: GoVerdict | null, annotated = 40) {
+describe("⛔⛔ GO: coverage, the classes, and NO verdict chip", () => {
+  function mountGo(annotated = 40, entries = [entry("GO:0016874", 40, { name: "ligase activity" })]) {
     return mount(GeneOntologyCard, {
       props: {
         namespace: "molecular_function" as const,
         annotatedGeneCount: annotated,
         geneCount: 100,
-        verdict,
-        entries: [entry("GO:0016874", 40, { name: "ligase activity" })],
+        entries,
       },
     });
   }
 
-  it("shows a chip for every verdict on the ladder", () => {
-    expect(mountGo("single").find(".chip").text()).toBe("one class");
-    expect(mountGo("nested").find(".chip").text()).toBe("partial annotation");
-    expect(mountGo("disjoint").find(".chip").text()).toBe("classes differ");
+  it("⛔ renders NO chip at all — the verdict is retired", () => {
+    // David, 2026-10-05. The chip said "classes differ" for 16 genes saying plasma membrane and one
+    // saying membrane — parent and child, compared by `worst_relation`, which has no ontology. It
+    // also said "one class" over two classes, because `classify_sets` returns `single` for one
+    // distinct SET. ⚠ Asserted rather than deleted: this is what stops it coming back.
+    expect(mountGo().find(".chip").exists()).toBe(false);
+    for (const word of ["one class", "partial annotation", "classes overlap", "classes differ"]) {
+      expect(mountGo().text()).not.toContain(word);
+    }
   });
 
-  it("⛔ shows NO chip for no_coverage — it is the absence of a verdict, not one", () => {
-    const card = mountGo("no_coverage", 0);
-    expect(card.find(".chip").exists()).toBe(false);
-    expect(card.text()).toContain("no coverage here, so it can neither support nor contradict");
+  it("still leads with coverage, against the LOCUS size", () => {
+    expect(mountGo().text()).toContain("40 of 100");
+    expect(mountGo(0, []).text()).toContain(
+      "no coverage here, so it can neither support nor contradict",
+    );
   });
 
-  it("names the namespace in both the heading and the coverage line", () => {
-    const card = mountGo("single");
-    expect(card.find(".sub-head").text()).toBe("GO — molecular function");
-    expect(card.text()).toContain("40 of 100 genes carry a molecular function term");
+  it("⚠ does not imply the class list is complete — it is capped at 4 per namespace", () => {
+    // 688 ecoli / 269 kp loci hit `TOP_GO = 4` with nothing on the page saying so, which is how
+    // `fcl` showed four identical-looking rows beside a chip claiming the classes differed.
+    expect(mountGo().text()).toContain("The commonest classes here");
+    expect(mountGo(0, []).text()).not.toContain("The commonest classes here");
   });
 
-  it("⚠ shows the class NAME and the accession, because neither alone is usable", () => {
-    // `GO:0016020` alone is unreadable; "membrane" alone is unlookupable.
-    const card = mountGo("single");
-    expect(card.find("tbody").text()).toContain("ligase activity");
-    expect(card.find("tbody .acc-link").text()).toBe("GO:0016874");
+  it("⭐ shows EVERY class — the thing the chip used to contradict", () => {
+    // `gumC`'s molecular function is two classes on every annotated gene and the chip said
+    // "one class". The table was right all along; the chip was the wrong half.
+    const card = mountGo(16, [
+      entry("GO:0016301", 16, { name: "kinase activity" }),
+      entry("GO:0043167", 16, { name: "ion binding" }),
+    ]);
+    expect(card.findAll("tbody tr")).toHaveLength(2);
+    expect(card.text()).toContain("kinase activity");
+    expect(card.text()).toContain("ion binding");
   });
 });
 
@@ -285,8 +333,11 @@ describe("⛔ all three namespaces, or one line — never three empty cards", ()
       .map((node) => node.text());
     expect(coverageHeadings.filter((heading) => heading.startsWith("GO"))).toEqual(["GO"]);
     expect(tab.text()).toContain("None of these 100 genes carries a GO term");
-    // and the inferred card is the other one, clearly marked as such
-    expect(tab.find(".infer .infer-tag").text()).toBe("inferred");
+    // ⚠ And the other GO heading is the inference card's, which here suggests nothing — so it
+    // carries NO "inferred" tag. The tag marks a suggestion that was made, not a card that could
+    // have made one; announcing one over a paragraph withholding it is the bug this guards.
+    expect(tab.find(".infer").text()).toContain("nothing near enough to infer from");
+    expect(tab.find(".infer .infer-tag").exists()).toBe(false);
   });
 
   it("⛔ files each term under ITS OWN namespace, not by position", () => {
@@ -300,9 +351,18 @@ describe("⛔ all three namespaces, or one line — never three empty cards", ()
     expect(biological.props("entries").map((e: AnnotationEntry) => e.term)).toEqual(["GO:0006412"]);
   });
 
-  it("⚠ gives each namespace its OWN verdict, never the first one three times", () => {
+  it("⚠ gives each namespace its OWN entries, never the first one three times", () => {
+    // ⛔ They arrive in ONE `gene_ontology_slim` list carrying their own namespace; reading them
+    // positionally would file a cellular-component class under molecular function, with three cards
+    // that all look right. (This pinned the per-namespace VERDICT until 2026-10-05. The verdict is
+    // retired; the per-namespace split it was really exercising is not.)
     const cards = mountTab().findAllComponents(GeneOntologyCard);
-    expect(cards.map((card) => card.props("verdict"))).toEqual(["single", "nested", "no_coverage"]);
+    expect(cards.map((card) => card.props("namespace"))).toEqual([
+      "molecular_function",
+      "biological_process",
+      "cellular_component",
+    ]);
+    expect(cards.map((card) => card.props("entries").length)).toEqual([1, 1, 0]);
   });
 });
 
@@ -539,9 +599,62 @@ describe("the inferred-function card", () => {
     const rate = card.find(".infer-rate").text();
     expect(rate).toContain("90.8%");
     expect(rate).toContain("770");
-    expect(rate).toContain("382×");
+    // ⛔ The LIFT left this sentence (David, 2026-10-05). "agree 24.3 % of the time, which is 145×
+    // more often than a random annotated node" is two true numbers telling opposite stories, and
+    // the reader carries away the second. Lift stays in the ladder table below, where comparing a
+    // 0.2 % baseline with a 16 % one is the whole point.
+    expect(rate).not.toContain("×");
+    expect(rate).not.toContain("more often than a random");
+    expect(card.find(".infer-table").text()).toContain("382×");
     // ⛔ the rank that carried nothing is named — a card showing only the donor would imply rank 1
     expect(card.text()).toContain("rank 1 at 0.999");
+  });
+
+  it("⛔⛔ refuses a CLOSE donor on the measured rate, and says which bar it missed", () => {
+    // David, 2026-10-05, on `gumC`: the page suggested a KEGG orthology from `wza`, a rank-5
+    // neighbour at cosine 0.9293, where kp KEGG agreement is 24.3 % over 481 pairs — wrong about
+    // three times in four. ⛔ "Too remote to call" would be false here: 0.929 is close. It is the
+    // measurement that refuses, and the reader is owed the number that did it.
+    const tab = mountTab({
+      block: withInference(
+        inference({
+          walk: [step(1, 0.9293, true)],
+          candidate: {
+            rank: 1,
+            cosine: 0.9293,
+            tier: "0.90-0.96",
+            donor: {
+              node_label: "3511",
+              catalogue_ordinal: 3511,
+              display_name: "wza",
+              term: "K01991",
+              name: null,
+              gene_count: 96,
+              annotated_gene_count: 96,
+              member_gene_count: 99,
+              checkable: true,
+              propagation: propagation(),
+            },
+            level: null,
+            value: null,
+            calibration: cell({ agreement: 0.243, pairs: 481, lift: 145, level_label: "KEGG orthology" }),
+          },
+        }),
+      ),
+    });
+    const card = tab.find(".infer");
+    expect(card.find(".infer-value").exists()).toBe(false);
+    expect(card.text()).toContain("agree on their KEGG orthology only 24.3% of the time");
+    expect(card.text()).toContain("481 measured pairs");
+    expect(card.text()).toContain("below the 80% this page needs");
+    expect(card.text()).not.toContain("too remote to call");
+    // ⭐ and the donor is still named, so a reader can go and judge it
+    expect(card.text()).toContain("wza");
+    // ⛔ but the card must not announce a suggestion it is withholding, nor argue the donor's case
+    expect(card.text()).toContain("— nothing suggested");
+    expect(card.text()).not.toContain("inferred from a neighbour");
+    expect(card.find(".infer-tag").exists()).toBe(false);
+    expect(card.text()).not.toContain("counts as a donor at all");
   });
 
   it("⛔ says NOTHING is suggested where the only donor is too remote to call", () => {

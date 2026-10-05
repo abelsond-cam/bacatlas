@@ -1755,6 +1755,17 @@ a {
     color: var(--ink-3);
 }
 
+/* ⭐ The one chip on a card that says what the thing IS rather than how well it scored — today only
+   the COG functional category. It was `neutral` (grey, the quietest tone the sheet has) while being
+   the most important line on the card. Filled rather than merely coloured, so it reads as the
+   headline among chips that are verdicts. */
+.chip.lead {
+    color: var(--ink);
+    border-color: color-mix(in oklab, var(--ink-2) 35%, transparent);
+    background: color-mix(in oklab, var(--ink-2) 10%, transparent);
+    font-weight: 650;
+}
+
 /* a Pfam domain reads as the link it is — InterPro's own convention */
 .chip.pfam {
     color: var(--ramp-hi);

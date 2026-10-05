@@ -478,6 +478,16 @@ def get_locus_function(species_key: str, locus_label: str):
     out of the write-up. ~3.6 kB of cells on a cold-path response, so the reader can see the whole
     ladder instead of one rate presented without its neighbours.
 
+    ⛔ **It no longer carries `go_verdicts`, and that is a retirement rather than an omission**
+    (David, 2026-10-05). The verdict was `worst_relation` — Pfam's domain-architecture comparator —
+    applied to GO slim classes with no ontology: `goslim_metagenomics` keeps `membrane`, `plasma
+    membrane` and `outer membrane` as siblings, and the three namespace ROOTS besides, so two genes
+    making compatible statements at different depths scored `disjoint`. 11 of the 43 `disjoint`
+    verdicts in the two catalogues involve a root — a term that is an ancestor of everything.
+    ⚠ The columns, the enum and the ingest stay: `instruments/payload_serialiser.py` writes the
+    verdict into the STATIC payload the published pages read, and `test_catalogue_parity` pins the
+    two to each other. This route simply stops serving it.
+
     ⭐ And its **propagation** base rate, which rides INSIDE `inference` rather than beside the
     calibration — nested on `own` and on `candidate.donor`, because it qualifies one node's call
     (how often that call covers the members not carrying it) rather than the ladder as a whole. It
@@ -535,20 +545,9 @@ def get_locus_function(species_key: str, locus_label: str):
                         "cellular_component": locus.go_annotated_member_count_cellular_component,
                     },
                 },
-                "go_verdicts": {
-                    # ⛔ `no_coverage` is a VALUE, not a null: fewer than two annotated members is
-                    # neither agreement nor disagreement and must never be counted as either.
-                    "molecular_function": _verdict_value(locus.go_verdict_molecular_function),
-                    "biological_process": _verdict_value(locus.go_verdict_biological_process),
-                    "cellular_component": _verdict_value(locus.go_verdict_cellular_component),
-                },
             },
             pangenome.pangenome_id,
         )
-
-
-def _verdict_value(verdict):
-    return verdict.value if verdict is not None else None
 
 
 @species_blueprint.get("/catalogues/<species_key>/genomes/<sample_id>/loci/<path:locus_label>/sequence")

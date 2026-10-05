@@ -101,6 +101,7 @@
      "cog_orthogroup": {
       "annotated_locus_count": 4993,
       "annotation_kind": "cog_orthogroup",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9889883000688231,
@@ -220,6 +221,7 @@
      "ec_number": {
       "annotated_locus_count": 2539,
       "annotation_kind": "ec_number",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 1.0,
@@ -449,6 +451,7 @@
      "gene_ontology_slim": {
       "annotated_locus_count": 5450,
       "annotation_kind": "gene_ontology_slim",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.943519188993483,
@@ -513,6 +516,7 @@
      "kegg_orthology": {
       "annotated_locus_count": 1412,
       "annotation_kind": "kegg_orthology",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9842931937172775,
@@ -589,11 +593,6 @@
      "modal_cog_categories": [
       "J"
      ]
-    },
-    "go_verdicts": {
-     "biological_process": "single",
-     "cellular_component": "single",
-     "molecular_function": "nested"
     },
     "inference": {
      "representation": "esm",
@@ -2766,6 +2765,7 @@
      "cog_orthogroup": {
       "annotated_locus_count": 4993,
       "annotation_kind": "cog_orthogroup",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9889883000688231,
@@ -2885,6 +2885,7 @@
      "ec_number": {
       "annotated_locus_count": 2539,
       "annotation_kind": "ec_number",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 1.0,
@@ -3114,6 +3115,7 @@
      "gene_ontology_slim": {
       "annotated_locus_count": 5450,
       "annotation_kind": "gene_ontology_slim",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.943519188993483,
@@ -3178,6 +3180,7 @@
      "kegg_orthology": {
       "annotated_locus_count": 1412,
       "annotation_kind": "kegg_orthology",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9842931937172775,
@@ -3252,11 +3255,6 @@
      },
      "kegg_annotated_gene_count": 0,
      "modal_cog_categories": null
-    },
-    "go_verdicts": {
-     "biological_process": "no_coverage",
-     "cellular_component": "no_coverage",
-     "molecular_function": "no_coverage"
     },
     "inference": {
      "representation": "esm",
@@ -4941,6 +4939,7 @@
      "cog_orthogroup": {
       "annotated_locus_count": 4993,
       "annotation_kind": "cog_orthogroup",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9889883000688231,
@@ -5060,6 +5059,7 @@
      "ec_number": {
       "annotated_locus_count": 2539,
       "annotation_kind": "ec_number",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 1.0,
@@ -5289,6 +5289,7 @@
      "gene_ontology_slim": {
       "annotated_locus_count": 5450,
       "annotation_kind": "gene_ontology_slim",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.943519188993483,
@@ -5353,6 +5354,7 @@
      "kegg_orthology": {
       "annotated_locus_count": 1412,
       "annotation_kind": "kegg_orthology",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9842931937172775,
@@ -5429,11 +5431,6 @@
      "modal_cog_categories": [
       "X"
      ]
-    },
-    "go_verdicts": {
-     "biological_process": "no_coverage",
-     "cellular_component": "no_coverage",
-     "molecular_function": "single"
     },
     "inference": {
      "representation": "esm",
@@ -8519,6 +8516,7 @@
      "cog_orthogroup": {
       "annotated_locus_count": 4993,
       "annotation_kind": "cog_orthogroup",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9889883000688231,
@@ -8638,6 +8636,7 @@
      "ec_number": {
       "annotated_locus_count": 2539,
       "annotation_kind": "ec_number",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 1.0,
@@ -8867,6 +8866,7 @@
      "gene_ontology_slim": {
       "annotated_locus_count": 5450,
       "annotation_kind": "gene_ontology_slim",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.943519188993483,
@@ -8931,6 +8931,7 @@
      "kegg_orthology": {
       "annotated_locus_count": 1412,
       "annotation_kind": "kegg_orthology",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9842931937172775,
@@ -9007,11 +9008,6 @@
      "modal_cog_categories": [
       "J"
      ]
-    },
-    "go_verdicts": {
-     "biological_process": "single",
-     "cellular_component": "no_coverage",
-     "molecular_function": "single"
     },
     "inference": {
      "representation": "esm",
@@ -10620,6 +10616,7 @@
      "cog_orthogroup": {
       "annotated_locus_count": 4993,
       "annotation_kind": "cog_orthogroup",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9889883000688231,
@@ -10739,6 +10736,7 @@
      "ec_number": {
       "annotated_locus_count": 2539,
       "annotation_kind": "ec_number",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 1.0,
@@ -10968,6 +10966,7 @@
      "gene_ontology_slim": {
       "annotated_locus_count": 5450,
       "annotation_kind": "gene_ontology_slim",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.943519188993483,
@@ -11032,6 +11031,7 @@
      "kegg_orthology": {
       "annotated_locus_count": 1412,
       "annotation_kind": "kegg_orthology",
+      "calling_floor": 0.8,
       "cells": [
        {
         "agreement": 0.9842931937172775,
@@ -11108,11 +11108,6 @@
      "modal_cog_categories": [
       "L"
      ]
-    },
-    "go_verdicts": {
-     "biological_process": "nested",
-     "cellular_component": "no_coverage",
-     "molecular_function": "nested"
     },
     "inference": {
      "representation": "esm",

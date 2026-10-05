@@ -24,15 +24,22 @@
  */
 import { computed } from "vue";
 
-import type { AnnotationEntry, FunctionResponse } from "@/api/types";
+import type { AnnotationEntry, FunctionResponse, PropagationRate } from "@/api/types";
 import { pluralise } from "@/lib/formatting";
-import { cogCategoryNames, cogEntryUrl, coverageParts } from "@/lib/functionVocabulary";
+import {
+  cogCategoryNames,
+  cogEntryUrl,
+  coverageParts,
+  propagationRateSentence,
+} from "@/lib/functionVocabulary";
 
 import CountTable from "../shared/CountTable.vue";
 
 const props = defineProps<{
   coverage: FunctionResponse["coverage"];
   entries: readonly AnnotationEntry[];
+  /** The band base rate this node's COG propagates at — `null` where the node states none. */
+  propagation: PropagationRate | null;
 }>();
 
 const annotated = computed(() => props.coverage.cog_annotated_gene_count);
@@ -42,17 +49,22 @@ const coverage = computed(() =>
   coverageParts(annotated.value, geneCount.value, "a COG assignment"),
 );
 
-/** ⭐ The headroom sentence — present only when there IS headroom to describe. */
-const headroom = computed(() => {
-  const unlabelled = geneCount.value - annotated.value;
-  if (annotated.value === 0 || unlabelled <= 0) return null;
-  // ⚠ The closing clause points at the propagation note above rather than restating it. Without it
-  // the card reads as though the 40 unlabelled genes were still waiting for something: the note has
-  // already said the locus's own call covers them, and at what measured rate.
+/**
+ * ⭐ **What the COG on this node actually covers.** Present only where there is something to cover.
+ *
+ * ⛔ This replaced *"COG is assigned by best hit, not by a profile, so the remaining 99 are
+ * unlabelled rather than different — the gap this locus could fill, not a gap in it"* (David,
+ * 2026-10-05: *"Is awfully worded. It can just be COG is assigned to the whole node from the hit
+ * within it with measured accuracy > 99.5 %. That is it."*). The old sentence was about the
+ * annotator's method; the reader's question is what this locus is, and the answer is that the call
+ * covers every member at a rate we have measured.
+ */
+const propagates = computed(() => {
+  if (annotated.value === 0 || geneCount.value - annotated.value <= 0) return null;
+  if (props.propagation === null) return null;
   return (
-    `COG is assigned by best hit, not by a profile, so the remaining ${unlabelled} are unlabelled ` +
-    "rather than different — the gap this locus could fill, not a gap in it, and the note above " +
-    "says at what rate it does."
+    "COG is assigned to the whole node from the hit within it — " +
+    `${propagationRateSentence(props.propagation)}.`
   );
 });
 
@@ -64,8 +76,18 @@ const categoryChip = computed(() => {
   return { code: categories.join(""), names: cogCategoryNames(categories).join(" · ") };
 });
 
+/**
+ * ⛔ **`null` where fewer than TWO genes carry a COG — one voter is not a vote.**
+ *
+ * `cog_distinct_id_count` is `nunique` over the annotated members, so on a node where one gene
+ * carries a COG it is 1 by construction and the card was printing a `win`-toned *"one orthologous
+ * group"* — unanimity claimed from a single voter, on **518 ecoli / 498 kp** loci. The rest of the
+ * codebase already refuses that claim (`function_inference_service`'s `checkable`); this card did
+ * not. David, 2026-10-05: *"The one orthologous group is silly. There is one gene."*
+ */
 const groupChip = computed(() => {
   const distinct = props.coverage.cog_distinct_id_count;
+  if (annotated.value < 2) return null;
   return {
     tone: distinct <= 1 ? "win" : "neutral",
     label: distinct <= 1 ? "one orthologous group" : pluralise(distinct, "orthologous group"),
@@ -89,16 +111,19 @@ const rows = computed(() =>
     <!-- ⛔ Coverage first, always, and against the LOCUS size — a share against the annotated subset
          would read 100 % where one gene in forty carries a label. -->
     <p class="muted cover"><b v-if="coverage.emphasis">{{ coverage.emphasis }}</b>{{ coverage.rest }}</p>
-    <p v-if="headroom" class="muted cover">{{ headroom }}</p>
+    <p v-if="propagates" class="muted cover">{{ propagates }}</p>
 
     <template v-if="annotated > 0">
       <div class="chip-row">
+        <!-- ⭐ The category is what this locus IS, and it was styled `neutral` — grey, the
+             quietest tone the sheet has. David, 2026-10-05: "This is the most important thing and
+             yet it is grey." -->
         <span
           v-if="categoryChip"
-          class="chip neutral"
+          class="chip lead"
           :title="`COG functional category ${categoryChip.code}`"
         >{{ categoryChip.code }} — {{ categoryChip.names }}</span>
-        <span class="chip" :class="groupChip.tone">{{ groupChip.label }}</span>
+        <span v-if="groupChip" class="chip" :class="groupChip.tone">{{ groupChip.label }}</span>
       </div>
 
       <CountTable v-if="rows.length" :headings="['COG', 'what it is']" :rows="rows" :total="geneCount">
@@ -112,7 +137,7 @@ const rows = computed(() =>
         </template>
       </CountTable>
 
-      <p v-if="groupChip.isPlural" class="muted">
+      <p v-if="groupChip?.isPlural" class="muted">
         More than one orthologous group is an ordinary consequence of grouping above the family
         level, which is what this method does — read it beside the sequence and context evidence
         rather than as a fault.

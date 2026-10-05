@@ -7,23 +7,29 @@
  * evidence. A locus with no GO at all is the one case that collapses to a single line, because three
  * identical empty cards say the same thing three times.
  *
- * ⭐ **The terms are GO SLIM classes, not raw terms.** They are folded onto the metagenomics slim
- * *before* the members are compared, because a term and its own child are annotated at different
- * depths rather than in disagreement — comparing raw terms would report a disagreement that is
- * really a difference in annotation detail.
+ * ⭐ **The terms are GO SLIM classes, not raw terms**, folded onto the metagenomics slim because a
+ * term and its own child are annotated at different *depths* rather than in disagreement.
  *
- * ⛔ **Coverage before the verdict, every time.** `no_coverage` gets no chip at all: it is not a
- * verdict, it is the absence of one, and a chip would put it in the same visual position as
- * "classes differ".
+ * ⛔⛔ **The verdict chip is RETIRED (David, 2026-10-05), and the paragraph above says exactly why
+ * it had to be.** The principle was right and the fold did not deliver it: `goslim_metagenomics`
+ * keeps `membrane`, `plasma membrane` and `outer membrane` as *siblings*, and the three namespace
+ * ROOTS besides, so a term and its own parent survived the fold and were then compared by
+ * `worst_relation` — Pfam's domain-architecture comparator, which has no ontology and for which
+ * `disjoint` is the condemning verdict. `gumC` read *"classes differ"* for 16 genes saying plasma
+ * membrane and one saying membrane; 11 of the 43 `disjoint` verdicts across both catalogues involve
+ * a root, a term that is an ancestor of everything. A chip that is wrong on its loudest case is
+ * worse than no chip. ⚠ What replaces it is not silence but a **correct measurement** — the
+ * propagation rate above these cards — and that work is where the ontology now belongs.
+ *
+ * ⛔ **Coverage first, every time**, and it is still the thing the card leads with.
  */
 import { computed } from "vue";
 
-import type { AnnotationEntry, GeneOntologyNamespace, GoVerdict } from "@/api/types";
+import type { AnnotationEntry, GeneOntologyNamespace } from "@/api/types";
 import {
   GENE_ONTOLOGY_NAMESPACE_LABEL,
   coverageParts,
   geneOntologyTermUrl,
-  geneOntologyVerdict,
 } from "@/lib/functionVocabulary";
 
 import CountTable from "../shared/CountTable.vue";
@@ -32,12 +38,10 @@ const props = defineProps<{
   namespace: GeneOntologyNamespace;
   annotatedGeneCount: number;
   geneCount: number;
-  verdict: GoVerdict | null;
   entries: readonly AnnotationEntry[];
 }>();
 
 const label = computed(() => GENE_ONTOLOGY_NAMESPACE_LABEL[props.namespace]);
-const chip = computed(() => geneOntologyVerdict(props.verdict));
 const coverage = computed(() =>
   coverageParts(props.annotatedGeneCount, props.geneCount, `a ${label.value} term`),
 );
@@ -56,11 +60,18 @@ const rows = computed(() =>
 
 <template>
   <div class="card">
-    <div class="chip-row func-h">
-      <h3 class="sub-head">GO — {{ label }}</h3>
-      <span v-if="chip" class="chip" :class="chip.tone">{{ chip.label }}</span>
-    </div>
+    <h3 class="sub-head">GO — {{ label }}</h3>
     <p class="muted cover"><b v-if="coverage.emphasis">{{ coverage.emphasis }}</b>{{ coverage.rest }}</p>
+    <!--
+      ⚠ **"commonest", because the list is CAPPED and the card cannot yet say at what.** The export
+      keeps `TOP_GO = 4` classes per namespace and 688 ecoli / 269 kp loci hit that cap, with
+      nothing on the page saying classes were dropped — which is how `fcl` came to show four
+      identical-looking rows beside a chip claiming the classes differed. Stage 2 carries the total
+      so this can read "4 of 7"; until then the card must not imply the list is complete.
+    -->
+    <p v-if="rows.length" class="muted cover">
+      The commonest classes here, by how many member genes carry each.
+    </p>
     <CountTable v-if="rows.length" :headings="['class', 'GO']" :rows="rows" :total="geneCount">
       <template #cells="{ row }">
         <td>{{ row.name }}</td>

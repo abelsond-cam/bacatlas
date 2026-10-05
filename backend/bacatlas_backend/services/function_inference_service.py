@@ -33,6 +33,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     NOT_CALLED,
     SUPPORTED_KINDS,
     Calibration,
+    callable_level,
     cog_levels,
     compute_calibration,
     ec_levels,
@@ -188,6 +189,19 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.annotation_kind.in_(SUPPORTED_KINDS),
             LocusAnnotationEntry.rank_within_locus == 0,
         )
+        # ⛔ **ORDER BY, because `said[0]` is load-bearing.** `_fold` and `_walk` take the FIRST
+        # entry of each (locus, kind) list, and a GO-bearing locus has THREE rank-0 rows — one per
+        # namespace. With no ordering the term the card printed was whichever namespace Postgres
+        # happened to return first, which is arbitrary and can change between runs. Namespace order
+        # (molecular function, biological process, cellular component) then term, so it is at least
+        # the same answer every time. ⚠ Stage 2 replaces the choice with all three, faceted; until
+        # then determinism is the fix, not the final answer.
+        .order_by(
+            LocusAnnotationEntry.locus_id,
+            LocusAnnotationEntry.annotation_kind,
+            LocusAnnotationEntry.gene_ontology_namespace.nulls_first(),
+            LocusAnnotationEntry.term_value,
+        )
     ).all()
     grouped: dict[tuple[int, AnnotationKind], list] = defaultdict(list)
     for locus_id, kind, term, name, support in rows:
@@ -303,17 +317,23 @@ def _walk(
         #: does, or the cosine the rate is read from would no longer be the walk's own.
         donor_annotated = annotated_counts.get(row.locus_id, {}).get(annotation_kind, 0)
         folded = _fold(annotation_kind, [t for t, _n, _s in said], row.modal_cog_categories)
-        level = quotable_level(annotation_kind, tier, folded) if (folded and tier != NOT_CALLED) else None
-        cell = (
-            calibration_for(
-                session,
-                pangenome_id=pangenome_id,
-                annotation_kind=annotation_kind,
-                representation=representation,
-            ).cell(tier, level)
-            if level is not None
-            else None
+        ladder = calibration_for(
+            session,
+            pangenome_id=pangenome_id,
+            annotation_kind=annotation_kind,
+            representation=representation,
         )
+        #: ⭐ **Two levels, and the difference between them is the whole floor.** `quoted` is how
+        #: deep this tier and this donor COULD be read; `level` is how deep it may actually be
+        #: SUGGESTED, which also requires the measured rate at that depth to clear `CALLING_FLOOR`.
+        #: ⛔ Where they differ the card must still name the donor and quote the rate — otherwise a
+        #: refusal at 24.3 % agreement reads as "too remote to call", which it is not: the neighbour
+        #: is at 0.929 and perfectly close. It is the *measurement* that refuses, and the reader is
+        #: owed the number that did it.
+        measurable = folded and tier != NOT_CALLED
+        quoted = quotable_level(annotation_kind, tier, folded) if measurable else None
+        level = callable_level(annotation_kind, tier, folded, ladder) if measurable else None
+        cell = ladder.cell(tier, level if level is not None else quoted) if quoted is not None else None
         candidate = {
             "rank": row.rank,
             "cosine": row.cross_similarity,

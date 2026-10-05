@@ -1,6 +1,10 @@
 /**
- * The Function tab's vocabularies — COG categories, the GO verdict ladder, and where each
- * accession is looked up.
+ * The Function tab's vocabularies — COG categories, the EC classes, and where each accession is
+ * looked up.
+ *
+ * ⛔ **The GO verdict ladder was here and is RETIRED** (David, 2026-10-05). It mapped
+ * `worst_relation`'s Pfam rungs onto GO slim classes, and the slim keeps ancestor and descendant as
+ * siblings, so `disjoint` fired on a term and its own parent. See `GeneOntologyCard.vue`.
  *
  * ⭐ **Every one of these is a *link*, and that is a licensing decision as much as a design one.**
  * KEGG's terms permit linking freely but not redistributing its content, so a KO id is shown and
@@ -9,9 +13,8 @@
  * names to the reference tables.
  */
 
-import type { GeneOntologyNamespace, GoVerdict, OwnSupport, PropagationRate } from "@/api/types";
+import type { GeneOntologyNamespace, OwnSupport, PropagationRate } from "@/api/types";
 import { prevalenceBandLabel } from "./prevalence";
-import type { Verdict } from "./evidenceVocabulary";
 
 /** The three namespaces, in the order the published page lays them out. */
 export const GENE_ONTOLOGY_NAMESPACES = [
@@ -25,39 +28,6 @@ export const GENE_ONTOLOGY_NAMESPACE_LABEL: Readonly<Record<GeneOntologyNamespac
   biological_process: "biological process",
   cellular_component: "cellular component",
 };
-
-/**
- * ⭐ **The same ladder Pfam uses, because it means the same thing** — but worded for an ontology:
- * "architecture" is wrong for a GO term, so `single` reads *one class*, not *one architecture*.
- *
- * ⛔ `no_coverage` is a VALUE and is deliberately absent from this table: it is not a verdict, it is
- * the absence of one, and giving it a chip would put "no coverage" in the same visual position as
- * "classes differ". The coverage line above it already says so, in words, first.
- */
-/*
- * ⚠ Every `note` is empty, and that is faithful rather than unfinished: the published page renders
- * a GO verdict as a chip and nothing else (`app.js:3113`). The Pfam ladder carries notes because a
- * Pfam verdict is the §6.2 conflict argument; a GO verdict sits above a coverage line that has
- * already said the thing a note would say.
- */
-export const GENE_ONTOLOGY_VERDICTS: Readonly<Record<string, Verdict>> = {
-  single: { tone: "win", label: "one class", note: "" },
-  same_domains: { tone: "win", label: "one class", note: "" },
-  nested: { tone: "neutral", label: "partial annotation", note: "" },
-  overlapping: { tone: "warn", label: "classes overlap", note: "" },
-  disjoint: { tone: "bad", label: "classes differ", note: "" },
-};
-
-/**
- * The chip for a namespace's verdict, or `null` where there is nothing to say.
- *
- * ⛔ Returns `null` for `no_coverage` **and** for an unrecognised value, rather than inventing a
- * neutral chip: a verdict this page does not understand must not be rendered as one it does.
- */
-export function geneOntologyVerdict(verdict: GoVerdict | null): Verdict | null {
-  if (verdict === null || verdict === "no_coverage") return null;
-  return GENE_ONTOLOGY_VERDICTS[verdict] ?? null;
-}
 
 /**
  * The 26 COG functional categories.

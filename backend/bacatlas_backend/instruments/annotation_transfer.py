@@ -80,6 +80,21 @@ LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
 }
 #: Below this a cell reports its pair count and NO rate. A rate off 7 pairs is not a rate.
 MIN_PAIRS = 30
+
+#: ⛔⛔ **Whether to speak at all — a DIFFERENT constant from `QUOTED_LEVEL`, which is how DEEP.**
+#:
+#: `QUOTED_LEVEL` says a 0.90-0.96 neighbour may be quoted at level 1. It does **not** say the call
+#: is worth making, and until 2026-10-05 nothing did: the page printed *"Suggested KEGG orthology:
+#: K01991"* from a rank-5 neighbour at cosine 0.9293, where kp KEGG agreement is **24.3 % over 481
+#: pairs** — wrong about three times in four — with *"145x more often than a random annotated node"*
+#: underneath it. Both numbers were right and together they invited exactly the wrong reading.
+#: COG category at 0.90-0.96 (33.6 % / 35.6 %) and EC class (42.7 %) printed the same way.
+#:
+#: ⚠ **It costs a great deal of coverage and that was the point.** Of the suggestions made today,
+#: 10-39 % survive the floor. The one cell it turns on is COG/EC at `0.97-0.98` — 78.1 % ecoli,
+#: 79.9 % kp, 78.4 % EC — all three just under; nothing else sits between 0.75 and 0.80.
+#: David, 2026-10-05: *"Name the neighbour, suggest nothing below 80 %."*
+CALLING_FLOOR = 0.80
 SUPPORTED_KINDS = tuple(QUOTED_LEVEL)
 
 #: Which `gene_functional_annotation` column holds each vocabulary's per-GENE value.
@@ -233,6 +248,9 @@ class Calibration:
             "annotated_locus_count": self.annotated_locus_count,
             "locus_count": self.locus_count,
             "min_pairs": MIN_PAIRS,
+            #: ⛔ Served so the page can say WHICH bar a refused suggestion missed, in the page's
+            #: own words and from the same constant the refusal was made with.
+            "calling_floor": CALLING_FLOOR,
             "cells": [
                 self.cells[key].as_json()
                 for key in sorted(self.cells, key=lambda key: ([name for name, _, _ in TIERS].index(key[0]), -key[1]))
@@ -421,6 +439,35 @@ def compute_calibration(
     )
 
 
+def callable_level(
+    annotation_kind: AnnotationKind,
+    tier: str,
+    donor_levels: dict[int, frozenset[str]],
+    calibration: Calibration,
+) -> int | None:
+    """The deepest level the tier permits, **the donor states, AND whose measured rate clears the floor**.
+
+    ⭐ **One rule, not a gate bolted beside one.** `quotable_level` already falls back when the donor
+    states nothing that deep; this falls back for the same reason one rung further — a level nobody
+    can be quoted at accurately is a level the donor cannot supply *usefully*. So EC at `>= 0.99`
+    still reaches its full four-field code (every rung there clears 80 %), while COG category at
+    `0.97-0.98` has no shallower rung to fall to and nothing is suggested at all.
+
+    ⛔ **A cell with no measured rate cannot clear a floor**, so it suggests nothing. The card used
+    to print the value anyway, under a sentence telling the reader not to trust it.
+    """
+    permitted = QUOTED_LEVEL[annotation_kind].get(tier)
+    if permitted is None:
+        return None
+    for level in sorted(LEVEL_LABEL[annotation_kind], reverse=True):
+        if level > permitted or not donor_levels[level]:
+            continue
+        cell = calibration.cell(tier, level)
+        if cell is not None and cell.agreement is not None and cell.agreement >= CALLING_FLOOR:
+            return level
+    return None
+
+
 def quotable_level(annotation_kind: AnnotationKind, tier: str, donor_levels: dict[int, frozenset[str]]) -> int | None:
     """The tier's level, **or the deepest the donor actually states, whichever is shallower**.
 
@@ -429,6 +476,10 @@ def quotable_level(annotation_kind: AnnotationKind, tier: str, donor_levels: dic
     to L3, 15 to L2 and 1 to L1 because the donor's own EC is dash-padded. The fallbacks are well
     calibrated at the depth they land on (97-99.5 %), so this costs no accuracy — it only stops the
     card claiming a precision that was never there.
+
+    ⚠ **This is the DEPTH primitive and knows nothing about accuracy.** What the page serves is
+    `callable_level`, which adds the floor; the measuring scripts use this one, because a ladder
+    that suppressed its own weak cells could not show you they are weak.
     """
     permitted = QUOTED_LEVEL[annotation_kind].get(tier)
     if permitted is None:

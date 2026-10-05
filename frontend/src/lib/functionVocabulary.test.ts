@@ -4,45 +4,28 @@ import {
   COG_CATEGORIES,
   ENZYME_CLASSES,
   GENE_ONTOLOGY_NAMESPACES,
-  GENE_ONTOLOGY_VERDICTS,
   cogCategoryNames,
   coverageParts,
   coverageSentence,
   enzymeClassSummary,
-  geneOntologyVerdict,
   keggOrthologyUrl,
 } from "./functionVocabulary";
 
-describe("⛔ the GO verdict is the Pfam LADDER, not a yes/no", () => {
-  it("names every value the server can send", () => {
-    // ⛔⛔ This type read `"agree" | "disagree" | "no_coverage"` until the tab was built against it.
-    // The server sends `GeneOntologyAgreementVerdict` — six values — because GO agreement means what
-    // Pfam agreement means. Every chip would have rendered blank, and a locus whose members agree
-    // would have shown as one with no verdict at all.
-    for (const value of ["single", "same_domains", "nested", "overlapping", "disjoint"] as const) {
-      expect(geneOntologyVerdict(value)).not.toBeNull();
-    }
-  });
-
-  it("⛔ gives `no_coverage` NO chip — it is the absence of a verdict, not one", () => {
-    // A chip would put "no coverage" in the same visual position as "classes differ". The coverage
-    // line above has already said it, in words, first.
-    expect(geneOntologyVerdict("no_coverage")).toBeNull();
-    expect(geneOntologyVerdict(null)).toBeNull();
-  });
-
-  it("⛔ refuses a value it does not understand rather than inventing a neutral chip", () => {
-    expect(geneOntologyVerdict("mostly_agree" as never)).toBeNull();
-  });
-
-  it("⚠ carries no notes, and that is faithful", () => {
-    // The published page renders a GO verdict as a chip and nothing else (`app.js:3113`).
-    for (const verdict of Object.values(GENE_ONTOLOGY_VERDICTS)) expect(verdict.note).toBe("");
-  });
-
-  it("keeps `disjoint` the only loud one", () => {
-    expect(GENE_ONTOLOGY_VERDICTS.disjoint!.tone).toBe("bad");
-    expect(GENE_ONTOLOGY_VERDICTS.nested!.tone).toBe("neutral");
+describe("⛔⛔ the GO verdict ladder is RETIRED, and this is why", () => {
+  it("exports no verdict ladder and no verdict function", async () => {
+    // ⛔ David, 2026-10-05. The ladder was `worst_relation` — Pfam's domain-architecture comparator
+    // — applied to GO slim classes. Pfam passes a CLAN into it and families never nest; GO passed
+    // `null` and `goslim_metagenomics` keeps `membrane`, `plasma membrane` and `outer membrane` as
+    // siblings, plus the three namespace ROOTS. So a term and its own parent scored `disjoint`,
+    // the comparator's condemning verdict: `gumC` read "classes differ" for 16 genes saying plasma
+    // membrane and one saying membrane, and 11 of the 43 `disjoint` verdicts across the two
+    // catalogues involve a root — a term that is an ancestor of everything.
+    //
+    // ⚠ Asserted rather than deleted. A deletion leaves nothing saying the ladder must not come
+    // back, and the next reader who sees an unused `GoVerdict` in the schema would restore it.
+    const module = await import("./functionVocabulary");
+    expect("GENE_ONTOLOGY_VERDICTS" in module).toBe(false);
+    expect("geneOntologyVerdict" in module).toBe(false);
   });
 });
 

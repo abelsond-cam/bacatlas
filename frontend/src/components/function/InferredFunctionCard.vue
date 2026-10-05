@@ -69,12 +69,42 @@ const confidenceSentence = computed(() => {
       cell === null ? "" : ` (only ${cell.pairs.toLocaleString()})`
     } — treat it as a neighbour, not a suggestion.`;
   }
+  // ⛔ **The lift left this sentence** (David, 2026-10-05). "agree 24.3 % of the time, which is
+  // 145× more often than a random annotated node" is two true numbers telling opposite stories, and
+  // the second is the one a reader carries away. Lift belongs in the ladder below, where the
+  // vocabularies are compared with each other and a 0.2 % baseline against a 16 % one is the point.
   const percent = (cell.agreement * 100).toFixed(1);
-  const lift = cell.lift === null ? null : Math.round(cell.lift).toLocaleString();
   return (
     `Nodes this similar agree on their ${cell.level_label} ${percent}% of the time ` +
-    `(${cell.pairs.toLocaleString()} measured pairs in this catalogue)` +
-    (lift === null ? "." : `, which is ${lift}× more often than a random annotated node.`)
+    `(${cell.pairs.toLocaleString()} measured pairs in this catalogue).`
+  );
+});
+
+/**
+ * ⭐ **Why nothing is suggested, when a perfectly close neighbour was found.**
+ *
+ * ⛔ Two different refusals wore one sentence until 2026-10-05. *"Too remote to call"* is true of a
+ * neighbour below 0.90; it is false of `wza` at **0.929**, which is close, carries a KEGG, and is
+ * refused because nodes that similar agree only **24.3 %** of the time. Saying "too remote" there
+ * blames the geometry for what the measurement decided, and hides the number the reader needs.
+ */
+const refusalSentence = computed(() => {
+  const found = candidate.value;
+  if (found === null || found.level !== null) return null;
+  const cell = found.calibration;
+  if (cell === null || cell.agreement === null) {
+    return (
+      `The nearest node carrying ${indefiniteArticle(props.vocabularyLabel)} ` +
+      `${props.vocabularyLabel} is at ${cosine(found.cosine)} similarity — too remote to call, so ` +
+      "nothing is suggested."
+    );
+  }
+  const percent = (cell.agreement * 100).toFixed(1);
+  const floor = Math.round(props.ladder.calling_floor * 100);
+  return (
+    `Nodes this similar agree on their ${cell.level_label} only ${percent}% of the time ` +
+    `(${cell.pairs.toLocaleString()} measured pairs) — below the ${floor}% this page needs before ` +
+    "it will suggest a value, so nothing is suggested."
   );
 });
 
@@ -92,7 +122,9 @@ const confidenceSentence = computed(() => {
  */
 const donorPropagation = computed(() => {
   const found = candidate.value;
-  if (found === null) return null;
+  // ⛔ Silent where nothing is suggested. Explaining that the donor is a legitimate donor, directly
+  // under a paragraph refusing to take anything from it, reads as the card arguing with itself.
+  if (found === null || found.level === null) return null;
   const donor = found.donor;
   if (donor.annotated_gene_count >= donor.member_gene_count) return null;
   const rate = propagationRateSentence(donor.propagation);
@@ -113,6 +145,13 @@ const donorPropagation = computed(() => {
   );
 });
 
+/** Which of the card's three outcomes this is — see the template. */
+const heading = computed(() => {
+  if (candidate.value === null) return "nothing near enough to infer from";
+  if (candidate.value.level === null) return "nothing suggested";
+  return "inferred from a neighbour";
+});
+
 const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.agreement !== null));
 </script>
 
@@ -124,10 +163,15 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
       same finding twice, which is what the first render of this looked like. It says instead where
       the suggestion COMES FROM, which is the one thing the card above cannot say.
     -->
+    <!--
+      ⛔ THREE headings, because the card now has three outcomes and two of them suggest nothing.
+      It read "inferred from a neighbour … [inferred]" over a paragraph explaining that nothing was
+      inferred — the floor had refused the call. A card must not announce a suggestion it is about
+      to withhold, and the "inferred" tag belongs only where something was.
+    -->
     <h3 class="sub-head">
-      {{ vocabularyLabel }} —
-      {{ candidate === null ? "nothing near enough to infer from" : "inferred from a neighbour" }}
-      <span class="infer-tag">inferred</span>
+      {{ vocabularyLabel }} — {{ heading }}
+      <span v-if="candidate?.level !== null && candidate !== null" class="infer-tag">inferred</span>
     </h3>
 
     <!-- 3 · nothing within reach. A finding, stated as one. -->
@@ -145,11 +189,8 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
         <span class="infer-lead">Suggested {{ candidate.calibration?.level_label ?? "value" }}:</span>
         <strong>{{ candidate.value?.join(", ") }}</strong>
       </p>
-      <!-- 2 · a donor too remote, or too shallow, to quote -->
-      <p v-else class="muted cover">
-        The nearest node carrying {{ indefiniteArticle(vocabularyLabel) }} {{ vocabularyLabel }} is at
-        {{ cosine(candidate.cosine) }} similarity — too remote to call, so nothing is suggested.
-      </p>
+      <!-- 2 · nothing suggested: too remote, too shallow, or not accurate enough to say -->
+      <p v-else class="muted cover">{{ refusalSentence }}</p>
 
       <p class="infer-from">
         from

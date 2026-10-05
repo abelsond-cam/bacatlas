@@ -704,7 +704,6 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       "biological_process",
       "cellular_component",
     ] as const satisfies readonly GeneOntologyNamespace[];
-    const LADDER = ["no_coverage", "single", "same_domains", "nested", "overlapping", "disjoint"];
 
     function functionFor(kind: (typeof CASES)[number]): FunctionResponse {
       return recorded.loci[kind]!.function;
@@ -727,18 +726,15 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(seen).toBeGreaterThan(0);
     });
 
-    it("⛔ every GO verdict is on the six-value LADDER, not a yes/no", () => {
-      // The TypeScript type said `"agree" | "disagree" | "no_coverage"` until this tab was built.
-      let seen = 0;
+    it("⛔⛔ the response carries NO GO verdict — retired, on real bytes", () => {
+      // David, 2026-10-05. `worst_relation` is Pfam's domain-architecture comparator; GO passed it
+      // no ontology, and `goslim_metagenomics` keeps a term and its own parent as siblings, so
+      // `gumC` scored "classes differ" for plasma membrane vs membrane. ⚠ The recorded bytes are
+      // the only thing that can show the route still emitting it, which is why this is here and
+      // not only in the unit tests.
       for (const kind of CASES) {
-        for (const namespace of NAMESPACES) {
-          const verdict = functionFor(kind).go_verdicts[namespace];
-          if (verdict === null) continue;
-          expect(LADDER).toContain(verdict);
-          seen += 1;
-        }
+        expect("go_verdicts" in (functionFor(kind) as Record<string, unknown>)).toBe(false);
       }
-      expect(seen).toBe(CASES.length * NAMESPACES.length);
     });
 
     it("⛔ no coverage count can exceed the locus, and each matches the locus response", () => {
@@ -759,17 +755,20 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       }
     });
 
-    it("⛔ a verdict of `no_coverage` is exactly where the namespace has no annotated genes", () => {
-      // ⚠ The two are computed independently — one is a stored verdict, the other a stored count — so
-      // this is a real cross-check rather than a restatement. A namespace with coverage and a
-      // `no_coverage` verdict would put a chipless card over a populated table.
+    it("⛔ a namespace with CLASSES has the coverage to support them", () => {
+      // ⚠ Replaces a cross-check between the stored verdict and the stored count. The verdict is
+      // retired, but the pair it guarded is still worth checking from the other side: a namespace
+      // that lists classes must have genes carrying them, or the table stands over nothing.
       let checked = 0;
       for (const kind of CASES) {
         const block = functionFor(kind);
         for (const namespace of NAMESPACES) {
           const annotated = block.coverage.go_annotated_gene_count[namespace];
-          if (block.go_verdicts[namespace] === "no_coverage") expect(annotated).toBeLessThan(2);
-          else expect(annotated).toBeGreaterThanOrEqual(2);
+          const classes = (block.annotations.gene_ontology_slim ?? []).filter(
+            (entry) => entry.gene_ontology_namespace === namespace,
+          );
+          if (classes.length > 0) expect(annotated).toBeGreaterThan(0);
+          for (const entry of classes) expect(entry.gene_count).toBeLessThanOrEqual(annotated);
           checked += 1;
         }
       }

@@ -190,7 +190,11 @@ const noGeneOntologySentence = computed(() =>
         </ul>
       </section>
 
-      <CogCard :coverage="block.coverage" :entries="entriesOf('cog_orthogroup')" />
+      <CogCard
+        :coverage="block.coverage"
+        :entries="entriesOf('cog_orthogroup')"
+        :propagation="inferenceByKind.get('cog_orthogroup')?.own?.propagation ?? null"
+      />
 
       <div v-if="!hasAnyGeneOntology" class="card">
         <h3 class="sub-head">GO</h3>
@@ -202,7 +206,6 @@ const noGeneOntologySentence = computed(() =>
         :namespace="namespace"
         :annotated-gene-count="block.coverage.go_annotated_gene_count[namespace]"
         :gene-count="block.coverage.gene_count"
-        :verdict="block.go_verdicts[namespace]"
         :entries="geneOntologyEntries.get(namespace) ?? []"
       />
 

@@ -73,6 +73,7 @@ function ladder(annotation_kind: InferenceKind): CalibrationLadder {
     annotated_locus_count: 0,
     locus_count: 0,
     min_pairs: 30,
+    calling_floor: 0.8,
     cells: [],
   };
 }
@@ -93,11 +94,6 @@ function functionBlock(cogCount: number): FunctionResponse {
         biological_process: 0,
         cellular_component: 0,
       },
-    },
-    go_verdicts: {
-      molecular_function: "no_coverage",
-      biological_process: "no_coverage",
-      cellular_component: "no_coverage",
     },
   };
 }
