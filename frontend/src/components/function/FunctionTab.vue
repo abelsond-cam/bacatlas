@@ -242,9 +242,11 @@ const noGeneOntologySentence = computed(() =>
         <div>
           <dt>GO slim</dt>
           <dd>
-            GO terms are folded onto the metagenomics GO slim before the members are compared,
-            because a term and its own child are annotated at different depths rather than in
-            disagreement.
+            GO terms are folded onto the metagenomics GO slim — 111 classes — so members are
+            compared on one vocabulary rather than on 38,000 terms of varying depth.
+            <strong>The slim is a selection, not a hierarchy:</strong> <em>plasma membrane</em> and
+            <em>membrane</em> are both classes in it, so two members can carry different classes and
+            still be saying compatible things. Agreement here does not yet account for that.
           </dd>
         </div>
         <div>

@@ -509,6 +509,20 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
     expect(mountTab().text()).toContain("not an independent source");
     expect(mountTab().text()).toContain("folded onto the metagenomics GO slim");
   });
+
+  it("⛔ does NOT claim the slim resolves depth — it names the case where it does not", () => {
+    // The footnote used to say the fold exists "because a term and its own child are annotated at
+    // different depths rather than in disagreement", which reads as a claim that the fold HANDLES
+    // that. It does not: `plasma membrane`, `membrane` and `outer membrane` are all three classes
+    // in `goslim_metagenomics`, which is exactly how `gumC` came to read "classes differ" for 16
+    // genes saying plasma membrane and one saying membrane. Until the measurement is ancestry-aware
+    // the page says so itself, so a reader is not told a guarantee the data does not support.
+    const text = mountTab().text();
+    expect(text).toContain("selection, not a hierarchy");
+    expect(text).toContain("plasma membrane");
+    expect(text).toMatch(/does not yet account for that/);
+    expect(text).not.toContain("rather than in disagreement");
+  });
 });
 
 // ── the inferred-function card: the three states a fixture of real bytes cannot all reach ────────
