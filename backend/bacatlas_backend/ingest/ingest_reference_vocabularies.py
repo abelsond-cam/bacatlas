@@ -14,11 +14,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from bacatlas_backend.models.reference_vocabulary import EnzymeClass, KeggOrthology, PfamFamily
+from bacatlas_backend.models.reference_vocabulary import (
+    EnzymeClass,
+    GeneOntologySlimAncestor,
+    GeneOntologyTerm,
+    KeggOrthology,
+    PfamFamily,
+)
 
 #: ⛔ The vendored table's field name → our column. Read POSITIONALLY would be a silent
 #: transposition waiting to happen — `clan` and `clan_id` are adjacent, one is an accession and the
@@ -51,6 +57,10 @@ class VocabularyReport:
     enzyme_classes_in_table: int = 0
     kegg_orthologies_read: int = 0
     kegg_orthologies_in_table: int = 0
+    gene_ontology_terms_read: int = 0
+    gene_ontology_terms_in_table: int = 0
+    gene_ontology_slim_classes: int = 0
+    gene_ontology_ancestor_edges: int = 0
 
     def render(self) -> str:
         """One line per vocabulary, naming any Pfam field the vendored table did not map.
@@ -61,8 +71,7 @@ class VocabularyReport:
         "EC has no names" from a blank column three screens later.
         """
         lines = [
-            f"pfam reference: {self.pfam_families_read:,} families read, "
-            f"{self.pfam_families_in_table:,} in the table"
+            f"pfam reference: {self.pfam_families_read:,} families read, {self.pfam_families_in_table:,} in the table"
         ]
         if self.unmapped_fields:
             lines[0] += f" — ⚠ absent from the vendored table: {', '.join(self.unmapped_fields)}"
@@ -79,6 +88,13 @@ class VocabularyReport:
                 if self.kegg_orthologies_read
                 else " — ⚠ no vendored table; KO ids stay linked and unnamed"
             )
+        )
+        lines.append(
+            f"go reference: {self.gene_ontology_terms_read:,} terms read, "
+            f"{self.gene_ontology_terms_in_table:,} in the table; "
+            f"{self.gene_ontology_slim_classes:,} slim classes with "
+            f"{self.gene_ontology_ancestor_edges:,} ancestor edges"
+            + ("" if self.gene_ontology_terms_read else " \u2014 \u26a0 no vendored table; GO is compared unclosed")
         )
         return "\n".join(lines)
 
@@ -104,10 +120,7 @@ def load_pfam_reference(session: Session) -> VocabularyReport:
         {
             "pfam_accession": accession,
             # Padded by the reader, so a short row degrades to empty strings rather than raising.
-            **{
-                column: _text(fields, position_of.get(field, -1))
-                for field, column in PFAM_COLUMN_FOR_FIELD.items()
-            },
+            **{column: _text(fields, position_of.get(field, -1)) for field, column in PFAM_COLUMN_FOR_FIELD.items()},
         }
         for accession, fields in reference.items()
     ]
@@ -184,6 +197,7 @@ def load_reference_vocabularies(session: Session) -> VocabularyReport:
     pfam = load_pfam_reference(session)
     ec_read, ec_in = load_enzyme_reference(session)
     kegg_read, kegg_in = load_kegg_reference(session)
+    go_read, go_in, go_classes, go_edges = load_gene_ontology_reference(session)
     return VocabularyReport(
         pfam_families_read=pfam.pfam_families_read,
         pfam_families_in_table=pfam.pfam_families_in_table,
@@ -192,6 +206,10 @@ def load_reference_vocabularies(session: Session) -> VocabularyReport:
         enzyme_classes_in_table=ec_in,
         kegg_orthologies_read=kegg_read,
         kegg_orthologies_in_table=kegg_in,
+        gene_ontology_terms_read=go_read,
+        gene_ontology_terms_in_table=go_in,
+        gene_ontology_slim_classes=go_classes,
+        gene_ontology_ancestor_edges=go_edges,
     )
 
 
@@ -209,3 +227,66 @@ def _upsert(session: Session, model: type, rows: list[dict], *, key: str, column
                 set_={column: statement.excluded[column] for column in columns},
             )
         )
+
+
+def load_gene_ontology_reference(session: Session) -> tuple[int, int, int, int]:
+    """Upsert the GO term table and the slim's own hierarchy. Returns (terms, in table, classes, edges).
+
+    ⭐⭐ **This is the data behind the fix.** Two genes making compatible statements at different
+    depths — `plasma membrane` and `membrane` — folded onto two different slim classes and were then
+    compared by set algebra, which called them `disjoint`. The ancestor edges are what let a claim
+    set be CLOSED upward before the comparison, so the two meet at `membrane`.
+
+    ⛔ **The namespace roots are excluded by the READER, and that is load-bearing.**
+    `slim_ancestry()` strips `GO:0003674`, `GO:0008150` and `GO:0005575` by default, from keys and
+    from ancestor sets alike. A root left in would be an ancestor of everything in its namespace, so
+    every pair would agree and `disjoint` would be unreachable — which is exactly `vendor_go`'s
+    standing objection to full ancestor closure, and it is correct. This function must never pass
+    `include_roots=True`.
+
+    ⚠ **The edges are written AFTER the terms and are FK-checked against them**, so an ancestry
+    naming a class the term table does not carry fails the load rather than producing a hierarchy
+    with dangling edges — the shape in which a closure silently stops closing.
+    """
+    from nuna.tl.locus_browser.vendor_go import go_reference, slim_ancestry
+
+    from bacatlas_backend.models.enumerations import GENE_ONTOLOGY_NAMESPACE_NAMES
+
+    index_of = {name: index for index, name in enumerate(GENE_ONTOLOGY_NAMESPACE_NAMES)}
+    reference = go_reference()
+    rows = []
+    for go_id, fields in reference.items():
+        namespace = index_of.get(fields[1] if len(fields) > 1 else "")
+        if namespace is None:
+            continue  # a term with no namespace cannot be compared within one; skipped, not invented
+        rows.append(
+            {
+                "go_id": go_id,
+                "name": fields[0] if fields else "",
+                "namespace_index": namespace,
+                "slim_go_ids": [i for i in (fields[2] if len(fields) > 2 else "").split(",") if i],
+            }
+        )
+    _upsert(
+        session, GeneOntologyTerm, rows, key="go_id",
+        columns=("name", "namespace_index", "slim_go_ids"),
+    )  # fmt: skip
+
+    known = {row["go_id"] for row in rows}
+    ancestry = slim_ancestry()
+    edges = [
+        {"go_id": go_id, "ancestor_go_id": ancestor}
+        for go_id, ancestors in ancestry.items()
+        for ancestor in sorted(ancestors)
+        if go_id in known and ancestor in known
+    ]
+    # ⚠ Replaced wholesale, not upserted: an edge the new ancestry no longer states must GO. An
+    # upsert would leave a stale ancestor behind, and a claim set closed over a stale edge agrees
+    # about something the ontology no longer says.
+    session.execute(delete(GeneOntologySlimAncestor))
+    if edges:
+        for start in range(0, len(edges), 5_000):
+            session.execute(insert(GeneOntologySlimAncestor).values(edges[start : start + 5_000]))
+
+    in_table = session.execute(select(func.count()).select_from(GeneOntologyTerm)).scalar_one()
+    return len(rows), int(in_table), len(ancestry), len(edges)

@@ -37,10 +37,12 @@ from bacatlas_backend.instruments.annotation_transfer import (
     cog_levels,
     compute_calibration,
     ec_levels,
+    go_rung,
     quotable_level,
     single_rung,
     tier_for,
 )
+from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 from bacatlas_backend.instruments.within_node_propagation import (
     PropagationRate,
     compute_propagation,
@@ -49,7 +51,7 @@ from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepres
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
-from bacatlas_backend.services.reference_name_service import reference_names
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold, reference_names
 
 #: ⚠ A process-lifetime cache, legitimate only because this service is READ-ONLY and a catalogue
 #: cannot change without a re-ingest and a restart — the same ground the `ETag: "{pangenome_id}"` on
@@ -67,6 +69,7 @@ _CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibra
 #: similarity is saturated at p50 1.000 and cannot discriminate at all), so no similarity enters this
 #: number. See `within_node_propagation`'s header.
 _PROPAGATION: dict[tuple[int, AnnotationKind], dict[str, PropagationRate]] = {}
+
 
 def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
     """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`.
@@ -124,7 +127,7 @@ def propagation_for(
     key = (pangenome_id, annotation_kind)
     if key not in _PROPAGATION:
         _PROPAGATION[key] = compute_propagation(
-            session, pangenome_id=pangenome_id, annotation_kind=annotation_kind
+            session, pangenome_id=pangenome_id, annotation_kind=annotation_kind, fold=gene_ontology_fold(session)
         )
     measured = _PROPAGATION[key].get(prevalence_band.name)
     if measured is not None:
@@ -153,11 +156,19 @@ def calibration_for(
             pangenome_id=pangenome_id,
             annotation_kind=annotation_kind,
             representation=representation,
+            # ⭐ The closed GO claim. Without it `plasma membrane` and `membrane` are different
+            # classes and the ladder counts a disagreement that is not one.
+            fold=gene_ontology_fold(session),
         )
     return _CALIBRATIONS[key]
 
 
-def _fold(annotation_kind: AnnotationKind, terms: list[str], categories: list[str] | None):
+def _fold(
+    annotation_kind: AnnotationKind,
+    terms: list[str],
+    categories: list[str] | None,
+    fold: GeneOntologyFold | None = None,
+):
     """A node's stated terms folded onto the ladder for its vocabulary.
 
     ⚠ `terms` is a LIST because rank 0 is not unique per locus: `top_go_slim` ranks within
@@ -168,6 +179,8 @@ def _fold(annotation_kind: AnnotationKind, terms: list[str], categories: list[st
         return ec_levels(terms[0]) if terms else None
     if annotation_kind is AnnotationKind.COG_ORTHOGROUP:
         return cog_levels(terms[0] if terms else None, categories)
+    if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+        return go_rung(terms, fold)
     return single_rung(terms)
 
 
@@ -185,7 +198,8 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.term_value,
             LocusAnnotationEntry.term_name,
             LocusAnnotationEntry.member_gene_count,
-        ).where(
+        )
+        .where(
             LocusAnnotationEntry.locus_id.in_(locus_ids),
             LocusAnnotationEntry.annotation_kind.in_(SUPPORTED_KINDS),
             LocusAnnotationEntry.rank_within_locus == 0,
@@ -323,7 +337,12 @@ def _walk(
         #: neighbour that carries nothing cannot be skipped over in favour of a FURTHER one that
         #: does, or the cosine the rate is read from would no longer be the walk's own.
         donor_annotated = annotated_counts.get(row.locus_id, {}).get(annotation_kind, 0)
-        folded = _fold(annotation_kind, [t for t, _n, _s in said], row.modal_cog_categories)
+        folded = _fold(
+            annotation_kind,
+            [t for t, _n, _s in said],
+            row.modal_cog_categories,
+            gene_ontology_fold(session),
+        )
         ladder = calibration_for(
             session,
             pangenome_id=pangenome_id,

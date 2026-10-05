@@ -44,8 +44,10 @@ from bacatlas_backend.instruments.annotation_transfer import (
     LEVEL_LABEL,
     cog_levels,
     ec_levels,
+    go_rung,
     single_rung,
 )
+from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
 
 #: Below this many checkable nodes a band reports its count and **no rate**. The same stance and the
@@ -116,20 +118,33 @@ class PropagationRate:
         }
 
 
-def _fold_gene(annotation_kind: AnnotationKind, value) -> dict[int, frozenset[str]]:
+def _fold_gene(
+    annotation_kind: AnnotationKind, value, fold: GeneOntologyFold | None = None
+) -> dict[int, frozenset[str]]:
     """One gene's stored value, folded onto the vocabulary's rungs by the SHARED folders.
 
     ⚠ `cog_levels` takes the locus-level category set for its L1 rung, which a single gene does not
     have — so COG is folded at L2 only here, which is the rung the page displays anyway.
+
+    ⛔ **GO arrives here as RAW accessions and reached the ladder as SLIM classes**, and both sides
+    called `single_rung`, which wraps whatever it is handed. So this side compared raw GO terms while
+    the ladder compared slim ones, and the page printed both as *"agree"*. `go_rung` is now the one
+    door for either, and it closes the claim upward so a term and its own parent stop reading as a
+    disagreement.
     """
     if annotation_kind is AnnotationKind.EC_NUMBER:
         return ec_levels(",".join(value or ()))
     if annotation_kind is AnnotationKind.COG_ORTHOGROUP:
         return cog_levels(value, None)
-    return single_rung(list(value or ()) if isinstance(value, list) else [value])
+    terms = list(value or ()) if isinstance(value, list) else [value]
+    if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+        return go_rung([t for t in terms if t], fold)
+    return single_rung(terms)
 
 
-def unanimous_at_deepest_shared_rung(annotation_kind: AnnotationKind, values: list) -> bool | None:
+def unanimous_at_deepest_shared_rung(
+    annotation_kind: AnnotationKind, values: list, fold: GeneOntologyFold | None = None
+) -> bool | None:
     """Do these annotated genes agree? `None` where no rung all of them state exists.
 
     ⭐ **The decision the whole base rate is built from, kept pure so it can be tested without a
@@ -145,7 +160,7 @@ def unanimous_at_deepest_shared_rung(annotation_kind: AnnotationKind, values: li
     ⛔ **`None` is counted in NEITHER column.** Where no rung is stated by all of them there is nothing
     to compare, and scoring that as agreement is how a measurement quietly flatters itself.
     """
-    folded = [_fold_gene(annotation_kind, value) for value in values]
+    folded = [_fold_gene(annotation_kind, value, fold) for value in values]
     rung = next(
         (level for level in sorted(LEVEL_LABEL[annotation_kind], reverse=True) if all(one[level] for one in folded)),
         None,
@@ -159,7 +174,11 @@ def unanimous_at_deepest_shared_rung(annotation_kind: AnnotationKind, values: li
 
 
 def compute_propagation(
-    session: Session, *, pangenome_id: int, annotation_kind: AnnotationKind
+    session: Session,
+    *,
+    pangenome_id: int,
+    annotation_kind: AnnotationKind,
+    fold: GeneOntologyFold | None = None,
 ) -> dict[str, PropagationRate]:
     """Per prevalence band, how often a node's annotated genes agree — one pass over the catalogue.
 
@@ -192,7 +211,7 @@ def compute_propagation(
         if len(values) == 1:
             counts[2] += 1
             continue
-        agreed = unanimous_at_deepest_shared_rung(annotation_kind, values)
+        agreed = unanimous_at_deepest_shared_rung(annotation_kind, values, fold)
         if agreed is None:
             # ⛔ neither unanimous nor discordant — no rung all of them state, so nothing to compare
             continue

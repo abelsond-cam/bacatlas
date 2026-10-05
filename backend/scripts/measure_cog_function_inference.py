@@ -30,6 +30,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     TIERS,
     cog_levels,
     ec_levels,
+    go_rung,
     quotable_level,
     single_rung,
     tally_cells,
@@ -37,13 +38,18 @@ from bacatlas_backend.instruments.annotation_transfer import (
 )
 from bacatlas_backend.instruments.within_node_propagation import MIN_NODES, compute_propagation
 from bacatlas_backend.models.enumerations import AnnotationKind
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
 CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
 #: ⭐ All four vocabularies, not the two this file was named for. GO and KEGG were measured for the
 #: first time on 2026-10-03 after David asked why they were missing; GO turns out to cover MORE genes
 #: than COG in *E. coli* (351,559 against 313,617), so leaving it out understated the model's reach.
-KINDS = (AnnotationKind.COG_ORTHOGROUP, AnnotationKind.GENE_ONTOLOGY_SLIM,
-         AnnotationKind.KEGG_ORTHOLOGY, AnnotationKind.EC_NUMBER)
+KINDS = (
+    AnnotationKind.COG_ORTHOGROUP,
+    AnnotationKind.GENE_ONTOLOGY_SLIM,
+    AnnotationKind.KEGG_ORTHOLOGY,
+    AnnotationKind.EC_NUMBER,
+)
 BARS = (0.95, 0.90, 0.80)
 #: ⛔ The annotated-member count is COUNTED from the gene rows rather than read from the matching
 #: `locus.*_annotated_member_count` column, because GO has no such column — it has three, one per
@@ -88,6 +94,11 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
             folded = ec_levels(said[0]) if said else None
         elif kind is AnnotationKind.COG_ORTHOGROUP:
             folded = cog_levels(said[0] if said else None, categories_by_locus[locus_id])
+        elif kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+            # ⛔ The SAME closed claim the service measures. A script that compared GO's slim classes
+            # unclosed would print numbers the page could not reproduce — and this script is where
+            # `function_inference.md` §5 gets its figures, so the two would diverge in the document.
+            folded = go_rung(said, gene_ontology_fold(session))
         else:
             folded = single_rung(said)
         if folded and any(folded.values()):
@@ -109,8 +120,9 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
     for locus_id, rank, neighbour_id, cosine in edges:
         neighbours[locus_id].append((rank, neighbour_id, cosine))
 
-    gene_calls: dict[int, int] = dict(session.execute(
-        text(f"""
+    gene_calls: dict[int, int] = dict(
+        session.execute(
+            text(f"""
             select m.locus_id, count(*)
               from gene_locus_membership m
               join locus l on l.locus_id = m.locus_id
@@ -120,8 +132,9 @@ def load(session: Session, catalogue: str, kind: AnnotationKind):
              where p.catalogue_key = :catalogue and {GENE_PREDICATE[kind]}
              group by 1
         """),
-        {"catalogue": catalogue},
-    ).all())
+            {"catalogue": catalogue},
+        ).all()
+    )
     #: now that the per-gene count is in hand, it IS the annotated-member count for every axis
     members = {lid: (n, gene_calls.get(lid, 0)) for lid, (n, _) in members.items()}
     return members, bands, levels, neighbours, gene_calls
@@ -149,17 +162,21 @@ def within_node(session: Session, pangenome_id: int, kind: AnnotationKind) -> No
     """
     print("\n  1. WITHIN-NODE CONSISTENCY — do a node's annotated genes agree, per prevalence band?")
     print(f"     {'band':<12}{'one gene':>10}{'checkable':>11}{'unanimous':>11}{'rate':>9}{'95% CI':>16}")
-    rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind)
+    rates = compute_propagation(
+        session, pangenome_id=pangenome_id, annotation_kind=kind, fold=gene_ontology_fold(session)
+    )
     for band in ("CORE", "SOFT_CORE", "SHELL", "CLOUD", "RARE"):
         measured = rates.get(band)
         if measured is None:
             continue
         interval = measured.interval
         # ⛔ A dash, never a 0.0: below the floor the band has a COUNT and no rate.
-        print(f"     {band.lower().replace('_', ' '):<12}{measured.one_gene:>10,}{measured.checkable:>11,}"
-              f"{measured.unanimous:>11,}"
-              f"{(f'{100 * measured.rate:.2f}%' if measured.rate is not None else '—'):>9}"
-              f"{(f'{100 * interval[0]:.2f}-{100 * interval[1]:.2f}%' if interval else f'< {MIN_NODES} nodes'):>16}")
+        print(
+            f"     {band.lower().replace('_', ' '):<12}{measured.one_gene:>10,}{measured.checkable:>11,}"
+            f"{measured.unanimous:>11,}"
+            f"{(f'{100 * measured.rate:.2f}%' if measured.rate is not None else '—'):>9}"
+            f"{(f'{100 * interval[0]:.2f}-{100 * interval[1]:.2f}%' if interval else f'< {MIN_NODES} nodes'):>16}"
+        )
 
 
 def assign(members, levels, neighbours, gene_calls, kind: AnnotationKind):
@@ -210,17 +227,19 @@ def report(session: Session, catalogue: str, kind: AnnotationKind) -> dict:
         {"catalogue": catalogue},
     ).scalar_one()
     members, bands, levels, neighbours, gene_calls = load(session, catalogue, kind)
-    cells = tally_cells(levels, [(lid, nb, c) for lid, rows in neighbours.items()
-                                 for _r, nb, c in rows], kind)
+    cells = tally_cells(levels, [(lid, nb, c) for lid, rows in neighbours.items() for _r, nb, c in rows], kind)
     internal, transfer, supplier_rank, sizes, uncalled, unreachable, assigned = assign(
-        members, levels, neighbours, gene_calls, kind)
+        members, levels, neighbours, gene_calls, kind
+    )
 
     print(f"\n{'=' * 100}\n{catalogue} · {kind.value}")
     within_node(session, pangenome_id, kind)
 
     print("\n  2. THE LADDER — nodes with no call of their own, labelled from a neighbour")
-    print(f"     {'tier':<12}{'quoted':<20}{'nodes':>7}{'genes':>9}{'agree':>8}{'95% CI':>10}"
-          f"{'n':>7}{'chance':>8}{'lift':>8}")
+    print(
+        f"     {'tier':<12}{'quoted':<20}{'nodes':>7}{'genes':>9}{'agree':>8}{'95% CI':>10}"
+        f"{'n':>7}{'chance':>8}{'lift':>8}"
+    )
     for name, _, _ in TIERS:
         for level in sorted(LEVEL_LABEL[kind], reverse=True):
             nodes, genes = transfer[(name, level)]
@@ -230,65 +249,87 @@ def report(session: Session, catalogue: str, kind: AnnotationKind) -> dict:
             fallback = " ←fallback" if level != QUOTED_LEVEL[kind][name] else ""
             label = LEVEL_LABEL[kind][level] + fallback
             if cell is None or cell.agreement is None:
-                print(f"     {name:<12}{label:<20}{nodes:>7}{genes:>9,}"
-                      f"{'too few pairs':>25}{cell.pairs if cell else 0:>7}")
+                print(
+                    f"     {name:<12}{label:<20}{nodes:>7}{genes:>9,}"
+                    f"{'too few pairs':>25}{cell.pairs if cell else 0:>7}"
+                )
                 continue
             low, high = cell.interval
-            print(f"     {name:<12}{label:<20}{nodes:>7}{genes:>9,}{100 * cell.agreement:7.1f}%"
-                  f"{f'{100 * low:.0f}-{100 * high:.0f}':>10}{cell.pairs:>7}"
-                  f"{100 * cell.chance:7.2f}%{cell.lift:7.1f}x")
+            print(
+                f"     {name:<12}{label:<20}{nodes:>7}{genes:>9,}{100 * cell.agreement:7.1f}%"
+                f"{f'{100 * low:.0f}-{100 * high:.0f}':>10}{cell.pairs:>7}"
+                f"{100 * cell.chance:7.2f}%{cell.lift:7.1f}x"
+            )
     print(f"     {NOT_CALLED + ' not called':<32}{uncalled[0]:>7}{uncalled[1]:>9,}")
     print(f"     {'no annotated neighbour in 5':<32}{unreachable[0]:>7}{unreachable[1]:>9,}")
-    print("     supplying rank: " + " · ".join(f"{r}: {supplier_rank[r]:,}"
-                                               for r in sorted(supplier_rank)))
+    print("     supplying rank: " + " · ".join(f"{r}: {supplier_rank[r]:,}" for r in sorted(supplier_rank)))
 
     print("\n  3. INTERNAL NODE INFERENCE — the node's modal call applied to its unannotated genes")
-    print(f"     {'>= 2 annotated genes (checkable)':<38}{internal['checkable'][0]:>7} nodes"
-          f"{internal['checkable'][1]:>9,} genes")
-    print(f"     {'exactly 1 annotated gene (⛔ no check)':<38}{internal['one gene'][0]:>7} nodes"
-          f"{internal['one gene'][1]:>9,} genes")
+    print(
+        f"     {'>= 2 annotated genes (checkable)':<38}{internal['checkable'][0]:>7} nodes"
+        f"{internal['checkable'][1]:>9,} genes"
+    )
+    print(
+        f"     {'exactly 1 annotated gene (⛔ no check)':<38}{internal['one gene'][0]:>7} nodes"
+        f"{internal['one gene'][1]:>9,} genes"
+    )
 
     print("\n  4. HOW BIG ARE THE NODES? — why a gene-weighted percentage barely moves")
     print(f"     {'group':<30}{'nodes':>8}{'genes':>10}{'mean':>8}{'median':>8}")
     for name, values in sorted(sizes.items(), key=lambda item: -sum(item[1])):
-        print(f"     {name:<30}{len(values):>8,}{sum(values):>10,}"
-              f"{sum(values) / len(values):>8.1f}{median(values):>8.0f}")
+        print(
+            f"     {name:<30}{len(values):>8,}{sum(values):>10,}{sum(values) / len(values):>8.1f}{median(values):>8.0f}"
+        )
 
     total_genes = sum(n for n, _ in members.values())
     own_genes = sum(a for _, a in members.values())
     shortfall = total_genes - own_genes
-    print(f"\n  5. COVERAGE — {own_genes:,} of {total_genes:,} genes already named "
-          f"({100 * own_genes / total_genes:.1f} %); {len(levels):,} of {len(members):,} nodes "
-          f"({100 * len(levels) / len(members):.1f} %)")
-    print(f"     {'bar':<8}{'nodes':>8}{'genes':>9}{'genes named':>20}{'of shortfall':>14}"
-          f"{'nodes named':>20}")
+    print(
+        f"\n  5. COVERAGE — {own_genes:,} of {total_genes:,} genes already named "
+        f"({100 * own_genes / total_genes:.1f} %); {len(levels):,} of {len(members):,} nodes "
+        f"({100 * len(levels) / len(members):.1f} %)"
+    )
+    print(f"     {'bar':<8}{'nodes':>8}{'genes':>9}{'genes named':>20}{'of shortfall':>14}{'nodes named':>20}")
     for bar in BARS:
-        cleared = [lid for lid, key in assigned.items()
-                   if cells.get(key) and cells[key].agreement is not None
-                   and cells[key].agreement > bar]
+        cleared = [
+            lid
+            for lid, key in assigned.items()
+            if cells.get(key) and cells[key].agreement is not None and cells[key].agreement > bar
+        ]
         genes = internal["checkable"][1] + sum(members[lid][0] for lid in cleared)
-        gene_shift = (f"{100 * own_genes / total_genes:.1f} → "
-                      f"{100 * (own_genes + genes) / total_genes:.1f} %")
-        node_shift = (f"{100 * len(levels) / len(members):.1f} → "
-                      f"{100 * (len(levels) + len(cleared)) / len(members):.1f} %")
-        print(f"     {f'> {bar:.2f}':<8}{internal['checkable'][0] + len(cleared):>8,}{genes:>9,}"
-              f"{gene_shift:>20}{100 * genes / shortfall:>13.1f}%{node_shift:>20}")
+        gene_shift = f"{100 * own_genes / total_genes:.1f} → {100 * (own_genes + genes) / total_genes:.1f} %"
+        node_shift = (
+            f"{100 * len(levels) / len(members):.1f} → {100 * (len(levels) + len(cleared)) / len(members):.1f} %"
+        )
+        print(
+            f"     {f'> {bar:.2f}':<8}{internal['checkable'][0] + len(cleared):>8,}{genes:>9,}"
+            f"{gene_shift:>20}{100 * genes / shortfall:>13.1f}%{node_shift:>20}"
+        )
 
     targets = [lid for lid in members if lid not in levels and neighbours.get(lid)]
     base = len(levels) / len(members)
     total_edges = sum(len(neighbours[lid]) for lid in targets)
     named_edges = sum(1 for lid in targets for _r, nb, _c in neighbours[lid] if nb in levels)
-    zero = sum(1 for lid in targets
-               if not any(nb in levels for _r, nb, _c in neighbours[lid]))
-    print("\n  6. THE DARK SET — is the 5-neighbour cap the limit, or does the unknown "
-          "neighbour itself?")
-    print(f"     base rate {100 * base:.1f} % of nodes carry the axis, but only "
-          f"{100 * named_edges / total_edges:.1f} % of unannotated nodes' neighbours do")
-    print(f"     {100 * zero / len(targets):.1f} % have ZERO annotated neighbours, against "
-          f"{100 * (1 - base) ** 5:.1f} % if status were spread at random "
-          f"→ {(zero / len(targets)) / (1 - base) ** 5:.2f}x concentrated")
-    return {"cells": cells, "members": members, "bands": bands, "levels": levels,
-            "assigned": assigned, "internal": internal, "gene_calls": gene_calls}
+    zero = sum(1 for lid in targets if not any(nb in levels for _r, nb, _c in neighbours[lid]))
+    print("\n  6. THE DARK SET — is the 5-neighbour cap the limit, or does the unknown neighbour itself?")
+    print(
+        f"     base rate {100 * base:.1f} % of nodes carry the axis, but only "
+        f"{100 * named_edges / total_edges:.1f} % of unannotated nodes' neighbours do"
+    )
+    print(
+        f"     {100 * zero / len(targets):.1f} % have ZERO annotated neighbours, against "
+        f"{100 * (1 - base) ** 5:.1f} % if status were spread at random "
+        f"→ {(zero / len(targets)) / (1 - base) ** 5:.2f}x concentrated"
+    )
+    return {
+        "cells": cells,
+        "members": members,
+        "bands": bands,
+        "levels": levels,
+        "assigned": assigned,
+        "internal": internal,
+        "gene_calls": gene_calls,
+    }
 
 
 def prevalence(result: dict, bar: float = 0.90) -> None:
@@ -300,8 +341,7 @@ def prevalence(result: dict, bar: float = 0.90) -> None:
     members, bands, levels = result["members"], result["bands"], result["levels"]
     gene_calls, cells = result["gene_calls"], result["cells"]
     print(f"\n  7. WHERE THE LIFT LANDS — by prevalence band, bar > {bar:.2f}")
-    print(f"     {'band':<11}{'nodes':>8}{'named':>8}{'+new':>7}{'→ nodes':>9}"
-          f"{'genes':>10}{'named':>8}{'→ genes':>9}")
+    print(f"     {'band':<11}{'nodes':>8}{'named':>8}{'+new':>7}{'→ nodes':>9}{'genes':>10}{'named':>8}{'→ genes':>9}")
     per = defaultdict(lambda: [0, 0, 0, 0, 0, 0])
     for locus_id, (n_members, n_annotated) in members.items():
         row = per[bands[locus_id]]
@@ -321,9 +361,11 @@ def prevalence(result: dict, bar: float = 0.90) -> None:
         if name not in per:
             continue
         nodes, named, new, gained, genes, before = per[name]
-        print(f"     {name:<11}{nodes:>8,}{named:>8,}{new:>7,}"
-              f"{100 * (named + new) / nodes:>8.1f}%{genes:>10,}"
-              f"{100 * before / genes:>7.1f}%{100 * (before + gained) / genes:>8.1f}%")
+        print(
+            f"     {name:<11}{nodes:>8,}{named:>8,}{new:>7,}"
+            f"{100 * (named + new) / nodes:>8.1f}%{genes:>10,}"
+            f"{100 * before / genes:>7.1f}%{100 * (before + gained) / genes:>8.1f}%"
+        )
 
 
 def pfam_crosstab(session: Session, catalogue: str) -> None:

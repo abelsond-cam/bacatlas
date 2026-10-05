@@ -22,8 +22,14 @@ from dataclasses import dataclass, field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 from bacatlas_backend.models.enumerations import AnnotationKind
-from bacatlas_backend.models.reference_vocabulary import EnzymeClass, KeggOrthology
+from bacatlas_backend.models.reference_vocabulary import (
+    EnzymeClass,
+    GeneOntologySlimAncestor,
+    GeneOntologyTerm,
+    KeggOrthology,
+)
 
 #: How a multi-code EC value's names are joined. ⚠ The same separator the card already uses between
 #: distinct entries, because an EC *value* is itself a set and the two levels read alike.
@@ -105,3 +111,50 @@ def clear_reference_name_cache() -> None:
     """Drop the cache — for tests that load a reference after the process has already read it."""
     global _NAMES
     _NAMES = None
+
+
+_FOLD: GeneOntologyFold | None = None
+
+
+def gene_ontology_fold(session: Session) -> GeneOntologyFold:
+    """The GO reference the measurement compares through, cached per process.
+
+    ⚠ **38,092 terms and 99 ancestor edges, read once.** Two statements on a cold process and zero
+    thereafter, exactly like `reference_names` and `_CALIBRATIONS` — the Function tab's warm route
+    budget is what makes that a requirement rather than an optimisation.
+
+    ⛔ **An empty fold is a valid, expected state**, not a failure: a deployment that has not run
+    `ingest --stage reference` gets one, and `GeneOntologyFold.claims` then returns what it was given
+    minus the roots. That is the behaviour this code had before the reference existed, so a missing
+    table degrades the measurement rather than emptying it.
+    """
+    global _FOLD
+    if _FOLD is None:
+        slim_of: dict[str, frozenset[str]] = {}
+        namespace_of: dict[str, int] = {}
+        rows = session.execute(
+            select(GeneOntologyTerm.go_id, GeneOntologyTerm.namespace_index, GeneOntologyTerm.slim_go_ids)
+        ).all()
+        for go_id, namespace_index, slim_go_ids in rows:
+            # ⚠ `vendor_go.slim_of`'s rule, carried over: a term reaching NO slim class maps to
+            # itself. Folding it away would make an annotated gene read as unannotated, which is a
+            # different and false finding from "annotated with nothing comparable".
+            slim_of[go_id] = frozenset(slim_go_ids) if slim_go_ids else frozenset({go_id})
+            namespace_of[go_id] = namespace_index
+        ancestors: dict[str, set[str]] = {}
+        for go_id, ancestor in session.execute(
+            select(GeneOntologySlimAncestor.go_id, GeneOntologySlimAncestor.ancestor_go_id)
+        ).all():
+            ancestors.setdefault(go_id, set()).add(ancestor)
+        _FOLD = GeneOntologyFold(
+            slim_of=slim_of,
+            ancestors={k: frozenset(v) for k, v in ancestors.items()},
+            namespace_of=namespace_of,
+        )
+    return _FOLD
+
+
+def clear_gene_ontology_fold_cache() -> None:
+    """Drop the cached fold — for tests that load the reference after the process has read it."""
+    global _FOLD
+    _FOLD = None

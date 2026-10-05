@@ -62,6 +62,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     tier_for,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
 #: The three linkage rules the map carries for every pair. ⭐ All three are measured, because David
 #: deferred the choice and the map already holds them: `cross` is the median over every cross gene
@@ -183,7 +184,9 @@ def claims(session: Session, catalogue: str, kind: AnnotationKind):
         text("select pangenome_id from pangenome where catalogue_key = :catalogue"),
         {"catalogue": catalogue},
     ).scalar_one()
-    levels, _terms, locus_count = _claims(session, pangenome_id, kind)
+    # ⛔ The SAME closed GO claim the service and the within-species script measure. Three
+    # implementations of one definition is how a document comes to disagree with its own page.
+    levels, _terms, locus_count = _claims(session, pangenome_id, kind, gene_ontology_fold(session))
     return levels, locus_count
 
 

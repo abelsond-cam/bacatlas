@@ -38,6 +38,7 @@ from functools import cache
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
@@ -173,6 +174,28 @@ def single_rung(terms: list[str]) -> dict[int, frozenset[str]]:
     return {1: frozenset(term for term in terms if term)}
 
 
+def go_rung(terms: list[str], fold: GeneOntologyFold | None = None) -> dict[int, frozenset[str]]:
+    """GO's single rung, as a **closed** claim set — the fix for the comparison, in one place.
+
+    ⭐⭐ Without a fold this is :func:`single_rung`, which is what the measurement did until
+    2026-10-05: compare the slim classes as they stand. That is why `gumC` read *"classes differ"* for
+    16 genes saying `plasma membrane` and one saying `membrane` — ``goslim_metagenomics`` holds both
+    as separate classes, so a term and its own parent were compared by set algebra and found
+    disjoint. With a fold, each side is closed upward through the slim and the two meet at
+    `membrane`; two genuinely different branches still share nothing.
+
+    ⚠ **Both sides must be closed, always.** Closing one makes the test asymmetric, and then the
+    direction of the edge decides the answer — which is invisible in the output. Routing every GO
+    claim through this one function is what guarantees it.
+
+    ⚠ It also absorbs the difference in INPUT between the two measurement paths: the ladder hands it
+    slim classes, within-node propagation hands it raw accessions, and `claims` maps either.
+    """
+    if fold is None:
+        return single_rung(terms)
+    return {1: fold.claims(term for term in terms if term)}
+
+
 @dataclass(frozen=True)
 class Cell:
     """One (tier, level) cell of the calibration: how often a transfer at this depth was right."""
@@ -258,7 +281,12 @@ class Calibration:
         }
 
 
-def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
+def _claims(
+    session: Session,
+    pangenome_id: int,
+    kind: AnnotationKind,
+    fold: GeneOntologyFold | None = None,
+):
     """Per locus, its top-rank call folded onto every level of the ladder.
 
     ⚠ The top-rank entry is already a **modal vote over the node's member genes**
@@ -302,6 +330,8 @@ def _claims(session: Session, pangenome_id: int, kind: AnnotationKind):
             folded = ec_levels(said[0][0]) if said else None
         elif kind is AnnotationKind.COG_ORTHOGROUP:
             folded = cog_levels(said[0][0] if said else None, categories[locus_id])
+        elif kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+            folded = go_rung([term for term, _name, _support in said], fold)
         else:
             folded = single_rung([term for term, _name, _support in said])
         if folded and any(folded.values()):
@@ -410,6 +440,7 @@ def compute_calibration(
     pangenome_id: int,
     annotation_kind: AnnotationKind,
     representation: EmbeddingRepresentation = EmbeddingRepresentation.ESM,
+    fold: GeneOntologyFold | None = None,
 ) -> Calibration:
     """Measure how often a transfer at each (tier, level) agrees, over every stored neighbour edge.
 
@@ -419,7 +450,7 @@ def compute_calibration(
     noise. It is not cosmetic: on rank-1 pairs alone COG 0.97-0.98 reads 80.9 % / 84.2 % and clears
     an 0.80 bar in both species; pooled it reads 78.1 % / 79.9 % and clears in neither.
     """
-    levels, _terms, locus_count = _claims(session, pangenome_id, annotation_kind)
+    levels, _terms, locus_count = _claims(session, pangenome_id, annotation_kind, fold)
     edges = session.execute(
         select(LocusNearestLocus.locus_id, LocusNearestLocus.neighbour_locus_id, LocusNearestLocus.cross_similarity)
         .join(Locus, Locus.locus_id == LocusNearestLocus.locus_id)
