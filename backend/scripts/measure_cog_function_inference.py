@@ -23,15 +23,15 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
     ANNOTATED_COUNT_PREDICATE,
-    LEVEL_LABEL,
     MIN_PAIRS,
     NOT_CALLED,
     QUOTED_LEVEL,
+    RUNG_LABEL,
     TIERS,
     cog_levels,
     ec_levels,
     go_rung,
-    quotable_level,
+    quotable_rungs,
     single_rung,
     tally_cells,
     tier_for,
@@ -206,7 +206,8 @@ def assign(members, levels, neighbours, gene_calls, kind: AnnotationKind):
             continue
         rank, neighbour_id, cosine = hit
         tier = tier_for(cosine)
-        level = quotable_level(kind, tier, levels[neighbour_id]) if tier != NOT_CALLED else None
+        rungs = quotable_rungs(kind, tier, levels[neighbour_id]) if tier != NOT_CALLED else []
+        level = rungs[0] if rungs else None
         if level is None:
             uncalled[0] += 1
             uncalled[1] += n_members
@@ -241,13 +242,13 @@ def report(session: Session, catalogue: str, kind: AnnotationKind) -> dict:
         f"{'n':>7}{'chance':>8}{'lift':>8}"
     )
     for name, _, _ in TIERS:
-        for level in sorted(LEVEL_LABEL[kind], reverse=True):
+        for level in sorted(RUNG_LABEL[kind], reverse=True):
             nodes, genes = transfer[(name, level)]
             if not nodes:
                 continue
             cell = cells.get((name, level))
             fallback = " ←fallback" if level != QUOTED_LEVEL[kind][name] else ""
-            label = LEVEL_LABEL[kind][level] + fallback
+            label = RUNG_LABEL[kind][level] + fallback
             if cell is None or cell.agreement is None:
                 print(
                     f"     {name:<12}{label:<20}{nodes:>7}{genes:>9,}"

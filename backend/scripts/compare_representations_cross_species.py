@@ -120,7 +120,7 @@ def main() -> None:
             donor_levels, _ = xs.claims(database, catalogues["donor"], kind)
             recipient_levels, _ = xs.claims(database, catalogues["recipient"], kind)
             both = {**donor_levels, **recipient_levels}
-            ladder = sorted(xs.LEVEL_LABEL[kind], reverse=True)
+            ladder = sorted(xs.RUNG_LABEL[kind], reverse=True)
             scored: dict[str, list] = {name: [] for name in scores}
             agreeing = 0
             for recipient_label, donor_label in shared:

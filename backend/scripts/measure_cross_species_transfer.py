@@ -51,13 +51,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
-    LEVEL_LABEL,
     MIN_PAIRS,
     NOT_CALLED,
     QUOTED_LEVEL,
+    RUNG_LABEL,
     TIERS,
     Cell,
-    quotable_level,
+    quotable_rungs,
     tally_cells,
     tier_for,
 )
@@ -258,13 +258,13 @@ def reliability(
         f"{'   within-' + recipient:>20}{'chance':>9}{'lift':>8}"
     )
     for tier, _low, _high in TIERS:
-        for level in sorted(LEVEL_LABEL[kind], reverse=True):
+        for level in sorted(RUNG_LABEL[kind], reverse=True):
             here, there = cross_cells.get((tier, level)), within_cells.get((tier, level))
             if here is None and there is None:
                 continue
             quoted = " ⭐" if QUOTED_LEVEL[kind].get(tier) == level else "   "
             print(
-                f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}{rate(here):>20}"
+                f"     {tier:<11}{RUNG_LABEL[kind][level]:<18}{rate(here):>20}"
                 f"{(f'{here.chance:.3%}' if here else '—'):>9}"
                 f"{(f'{here.lift:.0f}x' if here and here.lift else '—'):>8}"
                 f"{rate(there):>20}"
@@ -287,7 +287,7 @@ def transfer_gate(cross_cells, within_cells, kind: AnnotationKind, *, recipient:
         here, there = cross_cells.get((tier, level)), within_cells.get((tier, level))
         if here is None or there is None or here.agreement is None or there.agreement is None:
             notes.append(
-                f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18} not measurable on both sides"
+                f"     {tier:<11}{RUNG_LABEL[kind][level]:<18} not measurable on both sides"
                 f" (cross n={here.pairs if here else 0}, within n={there.pairs if there else 0})"
             )
             continue
@@ -295,7 +295,7 @@ def transfer_gate(cross_cells, within_cells, kind: AnnotationKind, *, recipient:
         # "+0.08" cannot tell a 8 pp gap from an 8 % relative one
         delta_pp = 100 * (here.agreement - there.agreement)
         notes.append(
-            f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}{here.agreement:>7.1%} vs "
+            f"     {tier:<11}{RUNG_LABEL[kind][level]:<18}{here.agreement:>7.1%} vs "
             f"{there.agreement:>7.1%} within-{recipient}  →  {delta_pp:+6.1f} pp"
             f"   (n={here.pairs:,} / {there.pairs:,})"
         )
@@ -413,7 +413,8 @@ def walk(
             state["too_remote_to_call"][0] += 1
             state["too_remote_to_call"][1] += genes
             continue
-        level = quotable_level(kind, tier, donor_levels[donor_id])
+        rungs = quotable_rungs(kind, tier, donor_levels[donor_id])
+        level = rungs[0] if rungs else None
         if level is None:
             state["no_annotated_donor"][0] += 1
             state["no_annotated_donor"][1] += genes
@@ -436,7 +437,7 @@ def walk(
     # eye. The within-species result became credible read on gumC and fimA by name.
     names = label_of or {}
     examples = [
-        (names.get(r, str(r)), names.get(d, str(d)), tier, LEVEL_LABEL[kind][level], cosine_of[(r, d)])
+        (names.get(r, str(r)), names.get(d, str(d)), tier, RUNG_LABEL[kind][level], cosine_of[(r, d)])
         for r, d, tier, level, _g in taken[:EXAMPLES]
     ]
     return {
@@ -498,10 +499,10 @@ def report_reach(
         print("\n     labelled cross-species (full depth), by the tier that earned it:")
         print(f"     {'tier':<11}{'rung':<18}{'nodes':>9}{'genes':>11}")
         for tier, _low, _high in TIERS:
-            for level in sorted(LEVEL_LABEL[kind], reverse=True):
+            for level in sorted(RUNG_LABEL[kind], reverse=True):
                 cell = reach["by_tier"].get((tier, level))
                 if cell:
-                    print(f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}{cell[0]:>9,}{cell[1]:>11,}")
+                    print(f"     {tier:<11}{RUNG_LABEL[kind][level]:<18}{cell[0]:>9,}{cell[1]:>11,}")
     if reach["examples"]:
         print("\n     worked cases — read a few by hand before trusting the totals:")
         for node, donor_node, tier, rung, cosine in reach["examples"]:
@@ -618,7 +619,7 @@ def bridge_reliability(
         level = QUOTED_LEVEL[kind].get(tier)
         if level is None:
             continue
-        line = f"     {tier:<11}{LEVEL_LABEL[kind][level]:<18}"
+        line = f"     {tier:<11}{RUNG_LABEL[kind][level]:<18}"
         for state in BRIDGE_STATES:
             line += f"{rate(cells[state].get((tier, level))):>22}"
         print(line)
@@ -868,7 +869,7 @@ def uniref_first_then_esm(
             continue
         best = max(annotated, key=lambda d: (annotated[d], -d))
         theirs = donor_levels[best]
-        for level in sorted(LEVEL_LABEL[kind], reverse=True):
+        for level in sorted(RUNG_LABEL[kind], reverse=True):
             if mine_levels[level] and theirs[level]:
                 arm_a[level][0] += 1
                 arm_a[level][1] += bool(mine_levels[level] & theirs[level])
@@ -887,7 +888,7 @@ def uniref_first_then_esm(
         for _rank, donor_id, cosine in sorted(esm_candidates.get(locus_id, [])):
             if donor_id in donor_levels and cosine >= esm_floor:
                 theirs = donor_levels[donor_id]
-                for level in sorted(LEVEL_LABEL[kind], reverse=True):
+                for level in sorted(RUNG_LABEL[kind], reverse=True):
                     if mine_levels[level] and theirs[level]:
                         arm_b[level][0] += 1
                         arm_b[level][1] += bool(mine_levels[level] & theirs[level])
@@ -895,12 +896,12 @@ def uniref_first_then_esm(
 
     print(f"\n  {kind.value} — each arm's OWN accuracy, measured on its own population")
     print(f"     {'rung':<20}{'A: bridge, any sim':>22}{'B: ESM >= ' + str(esm_floor) + ', no bridge':>30}")
-    for level in sorted(LEVEL_LABEL[kind], reverse=True):
+    for level in sorted(RUNG_LABEL[kind], reverse=True):
         cells = []
         for arm in (arm_a, arm_b):
             pairs, agreeing = arm[level]
             cells.append(f"{agreeing / pairs:.1%} n={pairs:,}" if pairs >= MIN_PAIRS else f"n={pairs:,}")
-        print(f"     {LEVEL_LABEL[kind][level]:<20}{cells[0]:>22}{cells[1]:>30}")
+        print(f"     {RUNG_LABEL[kind][level]:<20}{cells[0]:>22}{cells[1]:>30}")
     print("     ⚠ Column A is NOT the 'bridged' column of the stratified table — that one is restricted")
     print("        to pairs the ESM shortlist surfaced, and this arm deliberately is not. Column B is")
     print("        NOT the 'not_bridged' column either: that is 'the chosen donor was unbridged', this")
@@ -978,7 +979,7 @@ def prevalence_match(
     index = {band: position for position, band in enumerate(BAND_ORDER)}
     tally: dict[int, list[int]] = defaultdict(lambda: [0, 0])
     unbridged: dict[int, list[int]] = defaultdict(lambda: [0, 0])
-    ladder = sorted(LEVEL_LABEL[kind], reverse=True)
+    ladder = sorted(RUNG_LABEL[kind], reverse=True)
     for row in rows:
         if int(row[f"rank_{rule}"]) != 1 or row[rule] < floor:
             continue
@@ -1115,7 +1116,7 @@ def report_discrimination(
     a threshold would defeat the purpose. ⛔ This is a descriptive statistic beside the ladder, not a
     substitute for it: it cannot say where a cut belongs, only whether one could exist.
     """
-    ladder = sorted(LEVEL_LABEL[kind], reverse=True)
+    ladder = sorted(RUNG_LABEL[kind], reverse=True)
 
     def scored(edges):
         out = []

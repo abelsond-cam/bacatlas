@@ -61,6 +61,9 @@ class GeneOntologyFold:
     ancestors: dict[str, frozenset[str]] = field(default_factory=dict)
     #: Slim class → 0 molecular_function · 1 biological_process · 2 cellular_component.
     namespace_of: dict[str, int] = field(default_factory=dict)
+    #: GO id → its name. ⚠ For DISPLAY only. `GO:0005886` is not a suggestion a reader can act on;
+    #: *plasma membrane* is. Empty where no reference is loaded, and the caller then shows the id.
+    name_of: dict[str, str] = field(default_factory=dict)
 
     def claims(self, terms: Iterable[str]) -> frozenset[str]:
         """Raw or slim GO terms → the closed, root-free set of slim classes they claim.
@@ -104,3 +107,28 @@ class GeneOntologyFold:
             if namespace is not None:
                 split.setdefault(namespace, set()).add(go_class)
         return {namespace: frozenset(classes) for namespace, classes in split.items()}
+
+    def stated_by_namespace(self, terms: Iterable[str]) -> dict[int, frozenset[str]]:
+        """What the gene actually SAYS, per namespace — folded to the slim and root-free, **not closed**.
+
+        ⛔ **Display and comparison need different sets, and conflating them makes the page worse.**
+        The closure exists so `plasma membrane` and `membrane` stop reading as a conflict; printing
+        its output as a suggestion gives *"plasma membrane, membrane"*, where the second word is
+        implied by the first and tells the reader nothing. The comparison keeps the closed set; the
+        card shows this one.
+        """
+        folded: set[str] = set()
+        for term in terms:
+            if term:
+                folded.update(self.slim_of.get(term, frozenset({term})))
+        folded -= NAMESPACE_ROOTS
+        split: dict[int, set[str]] = {}
+        for go_class in folded:
+            namespace = self.namespace_of.get(go_class)
+            if namespace is not None:
+                split.setdefault(namespace, set()).add(go_class)
+        return {namespace: frozenset(classes) for namespace, classes in split.items()}
+
+    def label(self, go_class: str) -> str:
+        """A class's name, falling back to its accession where no reference is loaded."""
+        return self.name_of.get(go_class) or go_class

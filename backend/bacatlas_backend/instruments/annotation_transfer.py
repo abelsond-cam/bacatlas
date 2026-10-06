@@ -39,7 +39,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
-from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation
+from bacatlas_backend.models.enumerations import (
+    GENE_ONTOLOGY_NAMESPACE_NAMES,
+    AnnotationKind,
+    EmbeddingRepresentation,
+)
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
@@ -124,14 +128,73 @@ QUOTED_LEVEL: dict[AnnotationKind, dict[str, int]] = {
         "0.90-0.94": 1,
     },
 }
-LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
-    AnnotationKind.EC_NUMBER: {4: "full EC code", 3: "EC sub-subclass", 2: "EC subclass", 1: "EC class"},
-    AnnotationKind.COG_ORTHOGROUP: {2: "COG orthogroup", 1: "COG category"},
-    AnnotationKind.GENE_ONTOLOGY_SLIM: {1: "GO slim term"},
-    AnnotationKind.KEGG_ORTHOLOGY: {1: "KEGG orthology"},
-}
 #: Below this a cell reports its pair count and NO rate. A rate off 7 pairs is not a rate.
 MIN_PAIRS = 30
+
+#: ⭐⭐ **A rung is `(facet, depth)`, and the facet is what GO needed.**
+#:
+#: Three of the four vocabularies have one axis: EC gets deeper (4 fields → 1), COG gets broader
+#: (orthogroup → category), KEGG has one rung. Their facet is `None`. **GO has three independent
+#: claims** — molecular function, biological process, cellular component — and pooling them meant two
+#: nodes "agreed on GO" by sharing a cellular-component class, which is not an answer to *what does
+#: this protein do*.
+#:
+#: ⛔ **Measured, and the split is not cosmetic.** At 0.94-0.96 the pooled rate is 82.2 % / 84.0 %;
+#: split it is molecular function **60.3 % / 70.5 %**, biological process 78.2 % / 88.2 %, cellular
+#: component 84.2 % / 86.2 %. The pooled figure is an average over a claim worth printing and one
+#: that is barely better than a guess, and it was licensing ~1,400 suggestions per catalogue of which
+#: three quarters rested on the weak one.
+#:
+#: ⛔ **The facet lives on the RUNG, not on `Calibration`.** Put it only on the ladder and the two
+#: folders — `annotation_transfer`'s and `within_node_propagation`'s — go on returning a flat set, so
+#: the rung this measures drifts from the rung the ladder quotes. That drift is the whole reason
+#: these folders are shared in the first place.
+#:
+#: ⛔⛔ **Namespaces as ladder LEVELS was considered and is actively dangerous.** `quotable_level`
+#: would turn "deepest" into a preference order and silently drop two thirds of a claim, and the
+#: within-node test would measure one namespace and report it as the node's agreement — the same
+#: silent-subset error that `gene_level_values` was retired for. A facet is orthogonal to depth.
+Rung = tuple[str | None, int]
+
+#: GO's three facets, in the index order `enumerations.GENE_ONTOLOGY_NAMESPACE_NAMES` owns. ⚠ Named
+#: from that tuple rather than re-spelled, because the index↔name contract is already stored in
+#: `locus_annotation_entry.gene_ontology_namespace` and a second spelling is how two halves of one
+#: response come to file a molecular function under cellular component.
+GENE_ONTOLOGY_FACETS: tuple[str, str, str] = GENE_ONTOLOGY_NAMESPACE_NAMES
+
+#: What each rung is CALLED, which is also the authoritative list of a vocabulary's rungs.
+#: ⚠ Renamed from `LEVEL_LABEL` on 2026-10-06 when the key became `(facet, depth)`. A dict keyed by
+#: a bare integer could not express GO's three independent claims at the same depth.
+RUNG_LABEL: dict[AnnotationKind, dict[Rung, str]] = {
+    AnnotationKind.EC_NUMBER: {
+        (None, 4): "full EC code",
+        (None, 3): "EC sub-subclass",
+        (None, 2): "EC subclass",
+        (None, 1): "EC class",
+    },
+    AnnotationKind.COG_ORTHOGROUP: {(None, 2): "COG orthogroup", (None, 1): "COG category"},
+    AnnotationKind.GENE_ONTOLOGY_SLIM: {
+        (GENE_ONTOLOGY_FACETS[0], 1): "GO molecular function",
+        (GENE_ONTOLOGY_FACETS[1], 1): "GO biological process",
+        (GENE_ONTOLOGY_FACETS[2], 1): "GO cellular component",
+    },
+    AnnotationKind.KEGG_ORTHOLOGY: {(None, 1): "KEGG orthology"},
+}
+
+
+def rungs_by_facet(annotation_kind: AnnotationKind) -> dict[str | None, list[Rung]]:
+    """Each facet's rungs, DEEPEST FIRST — the order a fallback walks.
+
+    ⛔ **Depth orders within a facet and never across one.** `sorted(RUNG_LABEL[kind])` would put
+    GO's three facets in alphabetical order and invite a caller to treat `cellular_component` as a
+    shallower rung of `molecular_function`, which is the namespaces-as-levels mistake spelled out at
+    `Rung`. Facets are independent claims; only depth is a ladder.
+    """
+    grouped: dict[str | None, list[Rung]] = {}
+    for facet, depth in RUNG_LABEL[annotation_kind]:
+        grouped.setdefault(facet, []).append((facet, depth))
+    return {facet: sorted(rungs, key=lambda rung: -rung[1]) for facet, rungs in grouped.items()}
+
 
 #: ⛔⛔ **Whether to speak at all — a DIFFERENT constant from `QUOTED_LEVEL`, which is how DEEP.**
 #:
@@ -184,7 +247,7 @@ def tier_for(cosine: float | None) -> str:
     return NOT_CALLED
 
 
-def ec_levels(term_value: str) -> dict[int, frozenset[str]]:
+def ec_levels(term_value: str) -> dict[Rung, frozenset[str]]:
     """Level → the prefixes this EC value RESOLVES to; empty means it does not state that level.
 
     ⚠ Two shapes a `split_part` would get wrong, both measured in the published catalogues:
@@ -198,10 +261,10 @@ def ec_levels(term_value: str) -> dict[int, frozenset[str]]:
         for level in (1, 2, 3, 4):
             if len(fields) >= level and all(field.isdigit() for field in fields[:level]):
                 found[level].add(".".join(fields[:level]))
-    return {level: frozenset(values) for level, values in found.items()}
+    return {(None, level): frozenset(values) for level, values in found.items()}
 
 
-def cog_levels(term_value: str | None, categories: list[str] | None) -> dict[int, frozenset[str]]:
+def cog_levels(term_value: str | None, categories: list[str] | None) -> dict[Rung, frozenset[str]]:
     """The two COG rungs.
 
     ⚠ Level 1 is `locus.modal_cog_categories` — the modal CONCATENATED category set over the node's
@@ -209,12 +272,12 @@ def cog_levels(term_value: str | None, categories: list[str] | None) -> dict[int
     (4,421 of 4,993 in *E. coli*) but 572 carry two to four, so agreement at this rung is overlap.
     """
     return {
-        2: frozenset([term_value]) if term_value else frozenset(),
-        1: frozenset(categories or ()),
+        (None, 2): frozenset([term_value]) if term_value else frozenset(),
+        (None, 1): frozenset(categories or ()),
     }
 
 
-def single_rung(terms: list[str]) -> dict[int, frozenset[str]]:
+def single_rung(terms: list[str]) -> dict[Rung, frozenset[str]]:
     """One rung, holding every term this node states — the shape GO and KEGG both take.
 
     ⚠ A SET, because a node's GO claim is up to three terms, one per namespace: `top_go_slim` ranks
@@ -222,7 +285,7 @@ def single_rung(terms: list[str]) -> dict[int, frozenset[str]]:
     discard two thirds of what it says. Agreement is overlap, exactly as for a multi-letter COG
     category set.
     """
-    return {1: frozenset(term for term in terms if term)}
+    return {(None, 1): frozenset(term for term in terms if term)}
 
 
 def go_rung(terms: list[str], fold: GeneOntologyFold | None = None) -> dict[int, frozenset[str]]:
@@ -243,8 +306,18 @@ def go_rung(terms: list[str], fold: GeneOntologyFold | None = None) -> dict[int,
     slim classes, within-node propagation hands it raw accessions, and `claims` maps either.
     """
     if fold is None:
-        return single_rung(terms)
-    return {1: fold.claims(term for term in terms if term)}
+        # ⚠ No reference loaded: one pooled rung, which is what this measured before the split. The
+        # facet is still named, so the SHAPE never changes — a consumer cannot accidentally index a
+        # pooled claim as a faceted one.
+        return {
+            (facet, 1): (fold_terms if facet == GENE_ONTOLOGY_FACETS[0] else frozenset())
+            for facet, fold_terms in ((f, frozenset(t for t in terms if t)) for f in GENE_ONTOLOGY_FACETS)
+        }
+    split = fold.claims_by_namespace(term for term in terms if term)
+    # ⛔ ALL THREE keys, always — empty where the gene says nothing in that namespace. `tally_cells`
+    # indexes `mine[rung]` directly, and a key that is sometimes absent turns "states nothing here"
+    # into a KeyError on exactly the loci this exists to handle.
+    return {(facet, 1): split.get(index, frozenset()) for index, facet in enumerate(GENE_ONTOLOGY_FACETS)}
 
 
 @dataclass(frozen=True)
@@ -252,6 +325,9 @@ class Cell:
     """One (tier, level) cell of the calibration: how often a transfer at this depth was right."""
 
     tier: str
+    #: ⚠ `None` for every one-axis vocabulary; one of `GENE_ONTOLOGY_FACETS` for GO. Kept BESIDE
+    #: `level` rather than folded into it — see `Rung`.
+    facet: str | None
     level: int
     level_label: str
     pairs: int
@@ -289,6 +365,9 @@ class Cell:
         interval = self.interval
         return {
             "tier": self.tier,
+            # ⛔ Served so the page can keep GO's three claims apart. `null` for the other three
+            # vocabularies, which have one axis — absent would make the client guess.
+            "facet": self.facet,
             "level": self.level,
             "level_label": self.level_label,
             "pairs": self.pairs,
@@ -306,13 +385,17 @@ class Calibration:
 
     annotation_kind: AnnotationKind
     representation: EmbeddingRepresentation
-    cells: dict[tuple[str, int], Cell]
+    cells: dict[tuple[str, Rung], Cell]
     annotated_locus_count: int
     locus_count: int
 
-    def cell(self, tier: str, level: int) -> Cell | None:
-        """The cell a transfer at this tier and depth is judged by, or None if nothing measured it."""
-        return self.cells.get((tier, level))
+    def cell(self, tier: str, rung: Rung | None) -> Cell | None:
+        """The cell a transfer at this tier and rung is judged by, or None if nothing measured it.
+
+        ⚠ Takes the whole rung, not a depth: GO has three cells per tier and a bare integer could
+        only ever name one of them — whichever the dict happened to yield.
+        """
+        return self.cells.get((tier, rung)) if rung is not None else None
 
     def as_json(self) -> dict:
         """The whole ladder, strongest tier and deepest rung first — the page draws it as a table."""
@@ -327,7 +410,15 @@ class Calibration:
             "calling_floor": CALLING_FLOOR,
             "cells": [
                 self.cells[key].as_json()
-                for key in sorted(self.cells, key=lambda key: ([name for name, _, _ in TIERS].index(key[0]), -key[1]))
+                # Strongest tier first, then deepest rung, then facet — the order the page tabulates.
+                for key in sorted(
+                    self.cells,
+                    key=lambda key: (
+                        [name for name, _, _ in TIERS].index(key[0]),
+                        -key[1][1],
+                        key[1][0] or "",
+                    ),
+                )
             ],
         }
 
@@ -392,8 +483,13 @@ def _claims(
     return levels, terms, len(categories)
 
 
-def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int, *, self_excluded: bool = True):
-    """An exact chance function for one level: P(a random annotated node of `levels` intersects S).
+def _chance_by_rung(levels: dict[int, dict[Rung, frozenset[str]]], rung: Rung, *, self_excluded: bool = True):
+    """An exact chance function for one RUNG: P(a random annotated node of `levels` intersects S).
+
+    ⛔ **Per rung, which for GO means per namespace.** A pool drawn across all three namespaces
+    inflates the denominator — every annotated node is in it, including the ones that say nothing in
+    this namespace — and every lift computed against it with it. A wrong null rescales the whole
+    table and leaves agreement untouched, so nothing about the output looks wrong.
 
     Memoised on the claim set, because a catalogue holds only ~118 distinct COG category values —
     so the inverted-index union is paid once per distinct set rather than once per node.
@@ -408,9 +504,9 @@ def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int, *
     """
     holders: dict[str, set[int]] = defaultdict(set)
     for locus_id, folded in levels.items():
-        for value in folded[level]:
+        for value in folded[rung]:
             holders[value].add(locus_id)
-    pool = {locus_id for locus_id, folded in levels.items() if folded[level]}
+    pool = {locus_id for locus_id, folded in levels.items() if folded[rung]}
 
     @cache
     def chance(claim: frozenset[str]) -> float:
@@ -427,13 +523,13 @@ def _chance_by_level(levels: dict[int, dict[int, frozenset[str]]], level: int, *
 
 
 def tally_cells(
-    levels: dict[int, dict[int, frozenset[str]]],
+    levels: dict[int, dict[Rung, frozenset[str]]],
     edges,
     annotation_kind: AnnotationKind,
     *,
-    donor_pool: dict[int, dict[int, frozenset[str]]] | None = None,
-) -> dict[tuple[str, int], Cell]:
-    """Tally every (tier, level) cell over `edges` of `(locus_id, neighbour_locus_id, cosine)`.
+    donor_pool: dict[int, dict[Rung, frozenset[str]]] | None = None,
+) -> dict[tuple[str, Rung], Cell]:
+    """Tally every (tier, rung) cell over `edges` of `(locus_id, neighbour_locus_id, cosine)`.
 
     ⭐ Takes plain data rather than a `Session` **so there is one implementation of the measurement,
     not two**: the API reaches it through `compute_calibration` and
@@ -452,10 +548,10 @@ def tally_cells(
     ⛔ A wrong null rescales every lift in the table silently; agreement is untouched, so nothing
     about the output would look wrong.
     """
-    ladder = sorted(LEVEL_LABEL[annotation_kind], reverse=True)
+    ladder = list(RUNG_LABEL[annotation_kind])
     pool, self_excluded = (levels, True) if donor_pool is None else (donor_pool, False)
-    chance_functions = {level: _chance_by_level(pool, level, self_excluded=self_excluded) for level in ladder}
-    tally: dict[tuple[str, int], list[float]] = defaultdict(lambda: [0, 0, 0.0])
+    chance_functions = {rung: _chance_by_rung(pool, rung, self_excluded=self_excluded) for rung in ladder}
+    tally: dict[tuple[str, Rung], list[float]] = defaultdict(lambda: [0, 0, 0.0])
     for locus_id, neighbour_id, cosine in edges:
         mine = levels.get(locus_id)
         theirs = levels.get(neighbour_id)
@@ -464,18 +560,22 @@ def tally_cells(
         tier = tier_for(cosine)
         if tier == NOT_CALLED:
             continue
-        for level in ladder:
-            if not (mine[level] and theirs[level]):
+        for rung in ladder:
+            # ⚠ A rung EITHER side leaves empty is skipped, never scored. "States nothing comparable
+            # in this namespace" is a third state, and counting it as agreement is how a measurement
+            # quietly flatters itself.
+            if not (mine[rung] and theirs[rung]):
                 continue
-            row = tally[(tier, level)]
+            row = tally[(tier, rung)]
             row[0] += 1
-            row[1] += bool(mine[level] & theirs[level])
-            row[2] += chance_functions[level](mine[level])
+            row[1] += bool(mine[rung] & theirs[rung])
+            row[2] += chance_functions[rung](mine[rung])
     return {
         key: Cell(
             tier=key[0],
-            level=key[1],
-            level_label=LEVEL_LABEL[annotation_kind][key[1]],
+            facet=key[1][0],
+            level=key[1][1],
+            level_label=RUNG_LABEL[annotation_kind][key[1]],
             pairs=int(row[0]),
             agreeing=int(row[1]),
             chance=row[2] / row[0],
@@ -521,12 +621,12 @@ def compute_calibration(
     )
 
 
-def callable_level(
+def callable_rungs(
     annotation_kind: AnnotationKind,
     tier: str,
-    donor_levels: dict[int, frozenset[str]],
+    donor_levels: dict[Rung, frozenset[str]],
     calibration: Calibration,
-) -> int | None:
+) -> list[Rung]:
     """The deepest level the tier permits, **the donor states, AND whose measured rate clears the floor**.
 
     ⭐ **One rule, not a gate bolted beside one.** `quotable_level` already falls back when the donor
@@ -540,17 +640,24 @@ def callable_level(
     """
     permitted = QUOTED_LEVEL[annotation_kind].get(tier)
     if permitted is None:
-        return None
-    for level in sorted(LEVEL_LABEL[annotation_kind], reverse=True):
-        if level > permitted or not donor_levels[level]:
-            continue
-        cell = calibration.cell(tier, level)
-        if cell is not None and cell.agreement is not None and cell.agreement >= CALLING_FLOOR:
-            return level
-    return None
+        return []
+    chosen: list[Rung] = []
+    # ⛔ Independently per facet — GO's three claims stand or fall separately, and that is the whole
+    # point of the split. Measured at 0.94-0.96: cellular component 84.2 % / 86.2 % clears the floor
+    # while molecular function reads 60.3 % / 70.5 % and does not. Pooled, one 82 % average let the
+    # weak one through on the strength of the other two.
+    for ladder in rungs_by_facet(annotation_kind).values():
+        for rung in ladder:
+            if rung[1] > permitted or not donor_levels.get(rung):
+                continue
+            cell = calibration.cell(tier, rung)
+            if cell is not None and cell.agreement is not None and cell.agreement >= CALLING_FLOOR:
+                chosen.append(rung)
+                break  # the deepest callable rung of THIS facet; shallower ones add nothing
+    return chosen
 
 
-def quotable_level(annotation_kind: AnnotationKind, tier: str, donor_levels: dict[int, frozenset[str]]) -> int | None:
+def quotable_rungs(annotation_kind: AnnotationKind, tier: str, donor_levels: dict[Rung, frozenset[str]]) -> list[Rung]:
     """The tier's level, **or the deepest the donor actually states, whichever is shallower**.
 
     ⛔ Not a refinement — without it the page promises a depth the donor cannot supply. Of 84
@@ -565,8 +672,11 @@ def quotable_level(annotation_kind: AnnotationKind, tier: str, donor_levels: dic
     """
     permitted = QUOTED_LEVEL[annotation_kind].get(tier)
     if permitted is None:
-        return None
-    for level in sorted(LEVEL_LABEL[annotation_kind], reverse=True):
-        if level <= permitted and donor_levels[level]:
-            return level
-    return None
+        return []
+    chosen: list[Rung] = []
+    for ladder in rungs_by_facet(annotation_kind).values():
+        for rung in ladder:
+            if rung[1] <= permitted and donor_levels.get(rung):
+                chosen.append(rung)
+                break
+    return chosen

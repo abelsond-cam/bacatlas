@@ -56,28 +56,52 @@ const emptySteps = computed(() => {
 });
 
 /**
- * ⛔ The one sentence this card exists to get right. It names the depth, the rate, the pair count
- * and the lift — in that order, because the rate is meaningless without the n and the n is
- * meaningless without knowing what was compared.
+ * ⭐⭐ **One line per rung the donor can be read at, each with its own verdict.**
+ *
+ * ⛔ Until 2026-10-06 this card showed ONE suggestion per vocabulary, which for GO meant averaging
+ * three unrelated claims. Measured at 0.94-0.96, cellular component agrees 84.2 % / 86.2 % of the
+ * time and molecular function 60.3 % / 70.5 % — so a single pooled 82 % was letting the weak one
+ * through on the strength of the other two. They are separate questions and now get separate lines.
+ *
+ * ⛔ **A refused rung still gets a line**, carrying the rate that refused it. A reader who sees
+ * nothing cannot tell "not considered" from "considered and declined", and the second is the whole
+ * point of having a floor.
  */
-const confidenceSentence = computed(() => {
+const offerLines = computed(() => {
   const found = candidate.value;
-  if (found === null || found.level === null) return null;
-  const cell = found.calibration;
-  if (cell === null || cell.agreement === null) {
-    return `Too few measured pairs at this similarity to state how often a transfer of this kind is right${
-      cell === null ? "" : ` (only ${cell.pairs.toLocaleString()})`
-    } — treat it as a neighbour, not a suggestion.`;
-  }
-  // ⛔ **The lift left this sentence** (David, 2026-10-05). "agree 24.3 % of the time, which is
-  // 145× more often than a random annotated node" is two true numbers telling opposite stories, and
-  // the second is the one a reader carries away. Lift belongs in the ladder below, where the
-  // vocabularies are compared with each other and a 0.2 % baseline against a 16 % one is the point.
-  const percent = (cell.agreement * 100).toFixed(1);
-  return (
-    `Nodes this similar agree on their ${cell.level_label} ${percent}% of the time ` +
-    `(${cell.pairs.toLocaleString()} measured pairs in this catalogue).`
-  );
+  if (found === null) return [];
+  const floor = Math.round(props.ladder.calling_floor * 100);
+  return found.offers.map((offer) => {
+    const cell = offer.calibration;
+    const label = cell?.level_label ?? props.vocabularyLabel;
+    if (cell === null || cell.agreement === null) {
+      return {
+        key: `${offer.facet ?? ""}-${offer.level}`,
+        suggested: false,
+        label,
+        value: offer.value.join(", "),
+        sentence:
+          "Too few measured pairs at this similarity to state how often a transfer of this kind " +
+          `is right${cell === null ? "" : ` (only ${cell.pairs.toLocaleString()})`} — treat it as ` +
+          "a neighbour, not a suggestion.",
+      };
+    }
+    const percent = (cell.agreement * 100).toFixed(1);
+    const pairs = cell.pairs.toLocaleString();
+    // ⛔ **The lift is deliberately absent** (David, 2026-10-05). "agree 24.3 % of the time, which
+    // is 145× more often than a random annotated node" is two true numbers telling opposite
+    // stories, and the second is the one a reader carries away. Lift lives in the ladder below,
+    // where the vocabularies are compared with each other.
+    return {
+      key: `${offer.facet ?? ""}-${offer.level}`,
+      suggested: offer.suggested,
+      label,
+      value: offer.value.join(", "),
+      sentence: offer.suggested
+        ? `Nodes this similar agree on their ${label} ${percent}% of the time (${pairs} measured pairs in this catalogue).`
+        : `Nodes this similar agree on their ${label} only ${percent}% of the time (${pairs} measured pairs) — below the ${floor}% this page needs, so this one is not suggested.`,
+    };
+  });
 });
 
 /**
@@ -87,24 +111,17 @@ const confidenceSentence = computed(() => {
  * neighbour below 0.90; it is false of `wza` at **0.929**, which is close, carries a KEGG, and is
  * refused because nodes that similar agree only **24.3 %** of the time. Saying "too remote" there
  * blames the geometry for what the measurement decided, and hides the number the reader needs.
+ *
+ * ⚠ Only for the case where the donor states nothing READABLE at all — where it does, each rung
+ * explains itself in `offerLines`.
  */
 const refusalSentence = computed(() => {
   const found = candidate.value;
-  if (found === null || found.level !== null) return null;
-  const cell = found.calibration;
-  if (cell === null || cell.agreement === null) {
-    return (
-      `The nearest node carrying ${indefiniteArticle(props.vocabularyLabel)} ` +
-      `${props.vocabularyLabel} is at ${cosine(found.cosine)} similarity — too remote to call, so ` +
-      "nothing is suggested."
-    );
-  }
-  const percent = (cell.agreement * 100).toFixed(1);
-  const floor = Math.round(props.ladder.calling_floor * 100);
+  if (found === null || found.offers.length > 0) return null;
   return (
-    `Nodes this similar agree on their ${cell.level_label} only ${percent}% of the time ` +
-    `(${cell.pairs.toLocaleString()} measured pairs) — below the ${floor}% this page needs before ` +
-    "it will suggest a value, so nothing is suggested."
+    `The nearest node carrying ${indefiniteArticle(props.vocabularyLabel)} ` +
+    `${props.vocabularyLabel} is at ${cosine(found.cosine)} similarity — too remote to call, so ` +
+    "nothing is suggested."
   );
 });
 
@@ -124,7 +141,7 @@ const donorPropagation = computed(() => {
   const found = candidate.value;
   // ⛔ Silent where nothing is suggested. Explaining that the donor is a legitimate donor, directly
   // under a paragraph refusing to take anything from it, reads as the card arguing with itself.
-  if (found === null || found.level === null) return null;
+  if (found === null || found.suggested_count === 0) return null;
   const donor = found.donor;
   if (donor.annotated_gene_count >= donor.member_gene_count) return null;
   const rate = propagationRateSentence(donor.propagation);
@@ -148,11 +165,25 @@ const donorPropagation = computed(() => {
 /** Which of the card's three outcomes this is — see the template. */
 const heading = computed(() => {
   if (candidate.value === null) return "nothing near enough to infer from";
-  if (candidate.value.level === null) return "nothing suggested";
+  if (candidate.value.suggested_count === 0) return "nothing suggested";
   return "inferred from a neighbour";
 });
 
 const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.agreement !== null));
+
+/**
+ * Which rows of the ladder below this card actually judged THIS suggestion — up to three for GO.
+ * ⚠ Keyed on the facet too: a key of (tier, level) alone would light all three GO rows of a tier
+ * when only one of them was used.
+ */
+const usedCells = computed(
+  () =>
+    new Set(
+      (candidate.value?.offers ?? []).map(
+        (offer) => `${candidate.value!.tier}-${offer.facet ?? ""}-${offer.level}`,
+      ),
+    ),
+);
 </script>
 
 <template>
@@ -171,7 +202,7 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
     -->
     <h3 class="sub-head">
       {{ vocabularyLabel }} — {{ heading }}
-      <span v-if="candidate?.level !== null && candidate !== null" class="infer-tag">inferred</span>
+      <span v-if="candidate !== null && candidate.suggested_count > 0" class="infer-tag">inferred</span>
     </h3>
 
     <!-- 3 · nothing within reach. A finding, stated as one. -->
@@ -184,13 +215,23 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
     </p>
 
     <template v-else>
-      <!-- 1 · the suggestion -->
-      <p v-if="candidate.level !== null" class="infer-value">
-        <span class="infer-lead">Suggested {{ candidate.calibration?.level_label ?? "value" }}:</span>
-        <strong>{{ candidate.value?.join(", ") }}</strong>
-      </p>
-      <!-- 2 · nothing suggested: too remote, too shallow, or not accurate enough to say -->
-      <p v-else class="muted cover">{{ refusalSentence }}</p>
+      <!--
+        1 · one line per rung the donor can be read at. ⛔ GO has three and they do not stand or
+        fall together, so a refused rung is SHOWN with the rate that refused it rather than omitted
+        — a reader who sees nothing cannot tell "not considered" from "considered and declined".
+      -->
+      <template v-for="line in offerLines" :key="line.key">
+        <p v-if="line.suggested" class="infer-value">
+          <span class="infer-lead">Suggested {{ line.label }}:</span>
+          <strong>{{ line.value }}</strong>
+        </p>
+        <p v-else class="muted cover">
+          <strong>{{ line.label }} — not suggested.</strong> {{ line.sentence }}
+        </p>
+        <p v-if="line.suggested" class="infer-rate">{{ line.sentence }}</p>
+      </template>
+      <!-- 2 · the donor states nothing readable at all: a different refusal, in its own words -->
+      <p v-if="refusalSentence" class="muted cover">{{ refusalSentence }}</p>
 
       <p class="infer-from">
         from
@@ -206,7 +247,6 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
         · rank {{ candidate.rank }} neighbour at {{ cosine(candidate.cosine) }}
       </p>
 
-      <p v-if="confidenceSentence" class="infer-rate">{{ confidenceSentence }}</p>
       <p v-if="donorPropagation" class="muted cover">{{ donorPropagation }}</p>
 
       <!--
@@ -246,8 +286,8 @@ const measuredCells = computed(() => props.ladder.cells.filter((cell) => cell.ag
           <tbody>
             <tr
               v-for="cell in measuredCells"
-              :key="`${cell.tier}-${cell.level}`"
-              :class="{ 'infer-row-used': cell.tier === candidate?.tier && cell.level === candidate?.level }"
+              :key="`${cell.tier}-${cell.facet ?? ''}-${cell.level}`"
+              :class="{ 'infer-row-used': usedCells.has(`${cell.tier}-${cell.facet ?? ''}-${cell.level}`) }"
             >
               <td>{{ cell.tier }}</td>
               <td>{{ cell.level_label }}</td>

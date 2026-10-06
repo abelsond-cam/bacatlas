@@ -547,6 +547,7 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
 function cell(overrides: Partial<CalibrationCell> = {}): CalibrationCell {
   return {
     tier: "0.98-0.99",
+    facet: null,
     level: 2,
     level_label: "COG orthogroup",
     pairs: 770,
@@ -619,9 +620,10 @@ describe("the inferred-function card", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: 2,
-            value: ["COG0450"],
-            calibration: cell(),
+            offers: [
+              { facet: null, level: 2, suggested: true, value: ["COG0450"], calibration: cell() },
+            ],
+            suggested_count: 1,
           },
         }),
       ),
@@ -667,9 +669,24 @@ describe("the inferred-function card", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: null,
-            value: null,
-            calibration: cell({ agreement: 0.243, pairs: 481, lift: 145, level_label: "KEGG orthology" }),
+            // ⛔ The refused rung is OFFERED, carrying the cell that refused it. An empty list would
+            // mean "the donor states nothing readable", which is a different and far weaker finding.
+            offers: [
+              {
+                facet: null,
+                level: 1,
+                suggested: false,
+                value: ["K01991"],
+                calibration: cell({
+                  tier: "0.90-0.94",
+                  level: 1,
+                  level_label: "KEGG orthology",
+                  agreement: 0.243,
+                  pairs: 481,
+                }),
+              },
+            ],
+            suggested_count: 0,
           },
         }),
       ),
@@ -679,6 +696,7 @@ describe("the inferred-function card", () => {
     expect(card.text()).toContain("agree on their KEGG orthology only 24.3% of the time");
     expect(card.text()).toContain("481 measured pairs");
     expect(card.text()).toContain("below the 80% this page needs");
+    expect(card.text()).toContain("KEGG orthology \u2014 not suggested.");
     expect(card.text()).not.toContain("too remote to call");
     // ⭐ and the donor is still named, so a reader can go and judge it
     expect(card.text()).toContain("wza");
@@ -710,9 +728,8 @@ describe("the inferred-function card", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: null,
-            value: null,
-            calibration: null,
+            offers: [],
+            suggested_count: 0,
           },
         }),
       ),
@@ -760,9 +777,10 @@ describe("the inferred-function card", () => {
               checkable: false,
               propagation: propagation(),
             },
-            level: 2,
-            value: ["COG4733"],
-            calibration: cell(),
+            offers: [
+              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
+            ],
+            suggested_count: 1,
           },
         }),
       ),
@@ -803,9 +821,10 @@ describe("the inferred-function card", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: 2,
-            value: ["COG4733"],
-            calibration: cell(),
+            offers: [
+              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
+            ],
+            suggested_count: 1,
           },
         }),
       ),
@@ -837,9 +856,10 @@ describe("the inferred-function card", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: 2,
-            value: ["COG4733"],
-            calibration: cell(),
+            offers: [
+              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
+            ],
+            suggested_count: 1,
           },
         }),
       ),
@@ -1008,9 +1028,10 @@ describe("⭐ the call propagates across the whole syntelogue", () => {
               checkable: true,
               propagation: propagation(),
             },
-            level: 2,
-            value: ["COG0450"],
-            calibration: cell(),
+            offers: [
+              { facet: null, level: 2, suggested: true, value: ["COG0450"], calibration: cell() },
+            ],
+            suggested_count: 1,
           },
         }),
       ),

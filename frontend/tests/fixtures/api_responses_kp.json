@@ -113,6 +113,7 @@
        {
         "agreement": 0.9938271604938271,
         "chance": 0.0022831208106288995,
+        "facet": null,
         "interval_high": 0.997167990880969,
         "interval_low": 0.986598226915034,
         "level": 2,
@@ -124,6 +125,7 @@
        {
         "agreement": 0.9958847736625515,
         "chance": 0.0645084394410175,
+        "facet": null,
         "interval_high": 0.9983985661216133,
         "interval_low": 0.9894666775818732,
         "level": 1,
@@ -135,6 +137,7 @@
        {
         "agreement": 0.9002732240437158,
         "chance": 0.0020369372788599277,
+        "facet": null,
         "interval_high": 0.9199340927266562,
         "interval_low": 0.8764329514850326,
         "level": 2,
@@ -146,6 +149,7 @@
        {
         "agreement": 0.9672131147540983,
         "chance": 0.08177259964821623,
+        "facet": null,
         "interval_high": 0.977870029990927,
         "interval_low": 0.9516778509660614,
         "level": 1,
@@ -157,6 +161,7 @@
        {
         "agreement": 0.6137005649717514,
         "chance": 0.0026432945996464237,
+        "facet": null,
         "interval_high": 0.6387213714776052,
         "interval_low": 0.5880644897057832,
         "level": 2,
@@ -168,6 +173,7 @@
        {
         "agreement": 0.7994350282485876,
         "chance": 0.08829911963139643,
+        "facet": null,
         "interval_high": 0.8194689799290424,
         "interval_low": 0.7777807414483282,
         "level": 1,
@@ -179,6 +185,7 @@
        {
         "agreement": 0.33444444444444443,
         "chance": 0.0026772328714076542,
+        "facet": null,
         "interval_high": 0.3524648167954299,
         "interval_low": 0.3168945125380636,
         "level": 2,
@@ -190,6 +197,7 @@
        {
         "agreement": 0.5522222222222222,
         "chance": 0.08843263352971993,
+        "facet": null,
         "interval_high": 0.5708918001028327,
         "interval_low": 0.5334042503758638,
         "level": 1,
@@ -201,6 +209,7 @@
        {
         "agreement": 0.16529566971907497,
         "chance": 0.0016352973863872774,
+        "facet": null,
         "interval_high": 0.1745646441240327,
         "interval_low": 0.1564255883643846,
         "level": 2,
@@ -212,6 +221,7 @@
        {
         "agreement": 0.3791711935433804,
         "chance": 0.08156451409307834,
+        "facet": null,
         "interval_high": 0.3910870794021359,
         "interval_low": 0.3673993087231749,
         "level": 1,
@@ -223,6 +233,7 @@
        {
         "agreement": 0.11224744325268146,
         "chance": 0.0010112608840713434,
+        "facet": null,
         "interval_high": 0.12239276957862522,
         "interval_low": 0.10284452859930435,
         "level": 2,
@@ -234,6 +245,7 @@
        {
         "agreement": 0.31928161636318286,
         "chance": 0.07107817157474786,
+        "facet": null,
         "interval_high": 0.3338801600639095,
         "interval_low": 0.30502908569351095,
         "level": 1,
@@ -255,6 +267,7 @@
        {
         "agreement": 0.9887640449438202,
         "chance": 0.005349982133640373,
+        "facet": null,
         "interval_high": 0.9969133329399004,
         "interval_low": 0.9599634213341491,
         "level": 4,
@@ -266,6 +279,7 @@
        {
         "agreement": 0.99,
         "chance": 0.014948953547728438,
+        "facet": null,
         "interval_high": 0.9972533993962251,
         "interval_low": 0.9642775148038205,
         "level": 3,
@@ -277,6 +291,7 @@
        {
         "agreement": 0.9903846153846154,
         "chance": 0.03693685447818709,
+        "facet": null,
         "interval_high": 0.9973591973045761,
         "interval_low": 0.9656244659608073,
         "level": 2,
@@ -288,6 +303,7 @@
        {
         "agreement": 1.0,
         "chance": 0.18138002840472867,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9818656958784301,
         "level": 1,
@@ -299,6 +315,7 @@
        {
         "agreement": 0.8476190476190476,
         "chance": 0.0037915755230242877,
+        "facet": null,
         "interval_high": 0.9039741771987323,
         "interval_low": 0.7667252612512719,
         "level": 4,
@@ -310,6 +327,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.01676592365719471,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 3,
@@ -321,6 +339,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.04422548801306313,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 2,
@@ -332,6 +351,7 @@
        {
         "agreement": 0.9851851851851852,
         "chance": 0.21224957492422533,
+        "facet": null,
         "interval_high": 0.9959278819009239,
         "interval_low": 0.9475933682143154,
         "level": 1,
@@ -343,6 +363,7 @@
        {
         "agreement": 0.48582995951417,
         "chance": 0.002455854231937552,
+        "facet": null,
         "interval_high": 0.5478990777701226,
         "interval_low": 0.424194865180329,
         "level": 4,
@@ -354,6 +375,7 @@
        {
         "agreement": 0.7328767123287672,
         "chance": 0.016705475955722426,
+        "facet": null,
         "interval_high": 0.7803627476559137,
         "interval_low": 0.6793427163491484,
         "level": 3,
@@ -365,6 +387,7 @@
        {
         "agreement": 0.7583892617449665,
         "chance": 0.043671235087624924,
+        "facet": null,
         "interval_high": 0.8035040359272203,
         "interval_low": 0.7066973412189386,
         "level": 2,
@@ -376,6 +399,7 @@
        {
         "agreement": 0.8120805369127517,
         "chance": 0.19633551688569137,
+        "facet": null,
         "interval_high": 0.8523581509904853,
         "interval_low": 0.7638590967314988,
         "level": 1,
@@ -387,6 +411,7 @@
        {
         "agreement": 0.20026007802340703,
         "chance": 0.0022745339502911028,
+        "facet": null,
         "interval_high": 0.23000447329744123,
         "interval_low": 0.1734955453350962,
         "level": 4,
@@ -398,6 +423,7 @@
        {
         "agreement": 0.30243337195828507,
         "chance": 0.01838263781802736,
+        "facet": null,
         "interval_high": 0.33389839686767697,
         "interval_low": 0.2727194673418857,
         "level": 3,
@@ -409,6 +435,7 @@
        {
         "agreement": 0.3344671201814059,
         "chance": 0.047769575432043236,
+        "facet": null,
         "interval_high": 0.3662631482630345,
         "interval_low": 0.3041068140417388,
         "level": 2,
@@ -420,6 +447,7 @@
        {
         "agreement": 0.48645598194130923,
         "chance": 0.20098234681877786,
+        "facet": null,
         "interval_high": 0.5193550489380501,
         "interval_low": 0.4536738586787662,
         "level": 1,
@@ -431,6 +459,7 @@
        {
         "agreement": 0.09002433090024331,
         "chance": 0.0012645476716560832,
+        "facet": null,
         "interval_high": 0.10483264270122403,
         "interval_low": 0.07712756512457669,
         "level": 4,
@@ -442,6 +471,7 @@
        {
         "agreement": 0.17258883248730963,
         "chance": 0.018880191126209155,
+        "facet": null,
         "interval_high": 0.1899094358629653,
         "interval_low": 0.15654268065945467,
         "level": 3,
@@ -453,6 +483,7 @@
        {
         "agreement": 0.21002506265664161,
         "chance": 0.04907308351037907,
+        "facet": null,
         "interval_high": 0.22844808850274534,
         "interval_low": 0.19271665011386147,
         "level": 2,
@@ -464,6 +495,7 @@
        {
         "agreement": 0.399900149775337,
         "chance": 0.21269991220754075,
+        "facet": null,
         "interval_high": 0.42152582507403485,
         "interval_low": 0.37865770709910723,
         "level": 1,
@@ -475,6 +507,7 @@
        {
         "agreement": 0.0749185667752443,
         "chance": 0.0013447512497937822,
+        "facet": null,
         "interval_high": 0.09848800982706729,
         "interval_low": 0.05663524506544887,
         "level": 4,
@@ -486,6 +519,7 @@
        {
         "agreement": 0.14647137150466044,
         "chance": 0.019046240201086268,
+        "facet": null,
         "interval_high": 0.17355864208008823,
         "interval_low": 0.12298251304437754,
         "level": 3,
@@ -497,6 +531,7 @@
        {
         "agreement": 0.20725388601036268,
         "chance": 0.05208733529234645,
+        "facet": null,
         "interval_high": 0.23726275897707655,
         "interval_low": 0.18014409314325314,
         "level": 2,
@@ -508,6 +543,7 @@
        {
         "agreement": 0.43612903225806454,
         "chance": 0.2249764986156719,
+        "facet": null,
         "interval_high": 0.471273524263456,
         "interval_low": 0.4016146214134056,
         "level": 1,
@@ -527,69 +563,219 @@
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.9265687583444593,
-        "chance": 0.36604516387059427,
-        "interval_high": 0.9431518043266637,
-        "interval_low": 0.9056323223740924,
+        "agreement": 0.9884726224783862,
+        "chance": 0.3018421499522232,
+        "facet": "biological_process",
+        "interval_high": 0.9955084203618655,
+        "interval_low": 0.970739595836898,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.531296271058026,
-        "pairs": 749,
+        "level_label": "GO biological process",
+        "lift": 3.27479983373709,
+        "pairs": 347,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9175475687103594,
-        "chance": 0.32699128492757185,
-        "interval_high": 0.9390997359335144,
-        "interval_low": 0.8892675877228108,
+        "agreement": 1.0,
+        "chance": 0.2240582477194896,
+        "facet": "cellular_component",
+        "interval_high": 1.0,
+        "interval_low": 0.9815166934819592,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.8060306528157013,
-        "pairs": 473,
+        "level_label": "GO cellular component",
+        "lift": 4.4631251479389995,
+        "pairs": 204,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8826446280991735,
+        "chance": 0.43834525174468597,
+        "facet": "molecular_function",
+        "interval_high": 0.9059091630747756,
+        "interval_low": 0.854551357362724,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.0135831849121284,
+        "pairs": 605,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9899497487437185,
+        "chance": 0.2614568002722492,
+        "facet": "biological_process",
+        "interval_high": 0.9972395756088073,
+        "interval_low": 0.9641016877217916,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 3.7862841881064315,
+        "pairs": 199,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.9339622641509434,
-        "chance": 0.3906570514735463,
-        "interval_high": 0.950775695119895,
-        "interval_low": 0.9119378264767003,
+        "agreement": 0.9692307692307692,
+        "chance": 0.22101414813934145,
+        "facet": "cellular_component",
+        "interval_high": 0.9879709102963595,
+        "interval_low": 0.9235543553908409,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.3907472311790268,
-        "pairs": 636,
+        "level_label": "GO cellular component",
+        "lift": 4.3853788428951805,
+        "pairs": 130,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.90625,
+        "chance": 0.4284646788656418,
+        "facet": "molecular_function",
+        "interval_high": 0.9324657979726115,
+        "interval_low": 0.8712626025291846,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.1151101705729687,
+        "pairs": 352,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9485861182519281,
+        "chance": 0.38694259235393746,
+        "facet": "biological_process",
+        "interval_high": 0.9664742722952886,
+        "interval_low": 0.9219245123548097,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 2.4514905750780045,
+        "pairs": 389,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.8901927912824812,
-        "chance": 0.44685884038567675,
-        "interval_high": 0.9066977054452265,
-        "interval_low": 0.871183009930977,
+        "agreement": 0.9917355371900827,
+        "chance": 0.36314139001366713,
+        "facet": "cellular_component",
+        "interval_high": 0.9977307001849094,
+        "interval_low": 0.9703723385196874,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.9921118501631745,
-        "pairs": 1193,
+        "level_label": "GO cellular component",
+        "lift": 2.7309900894325425,
+        "pairs": 242,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8872017353579176,
+        "chance": 0.4336368238218609,
+        "facet": "molecular_function",
+        "interval_high": 0.9129377416260899,
+        "interval_low": 0.8550658105516841,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.045955709062158,
+        "pairs": 461,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8757192174913694,
+        "chance": 0.45044496600890505,
+        "facet": "biological_process",
+        "interval_high": 0.8960142846055906,
+        "interval_low": 0.8521168768789215,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.9441203333906432,
+        "pairs": 869,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.8397459843107956,
-        "chance": 0.47891533985350637,
-        "interval_high": 0.8531543615257797,
-        "interval_low": 0.8253639067672816,
+        "agreement": 0.8854166666666666,
+        "chance": 0.3581453664348275,
+        "facet": "cellular_component",
+        "interval_high": 0.9135284343531052,
+        "interval_low": 0.8496697372715993,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.7534330484541638,
-        "pairs": 2677,
+        "level_label": "GO cellular component",
+        "lift": 2.4722270609852717,
+        "pairs": 384,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.7058152793614595,
+        "chance": 0.4189969267176228,
+        "facet": "molecular_function",
+        "interval_high": 0.735023855096365,
+        "interval_low": 0.6748114660328821,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.684535695501972,
+        "pairs": 877,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.8820326678765881,
+        "chance": 0.5024858190726083,
+        "facet": "biological_process",
+        "interval_high": 0.896704521333261,
+        "interval_low": 0.8655892308274769,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.7553384282654472,
+        "pairs": 1653,
         "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.725981055480379,
-        "chance": 0.4416474344856051,
-        "interval_high": 0.7481122948404376,
-        "interval_low": 0.7026781270238157,
+        "agreement": 0.8622641509433963,
+        "chance": 0.3815972120964697,
+        "facet": "cellular_component",
+        "interval_high": 0.8890076043342141,
+        "interval_low": 0.8303068889536827,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.6438022703017452,
-        "pairs": 1478,
+        "level_label": "GO cellular component",
+        "lift": 2.2596185810849465,
+        "pairs": 530,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7045009784735812,
+        "chance": 0.4582159609677853,
+        "facet": "molecular_function",
+        "interval_high": 0.7238828827580885,
+        "interval_low": 0.6843518166444433,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.5374867714900724,
+        "pairs": 2044,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7188264058679706,
+        "chance": 0.4751974591050481,
+        "facet": "biological_process",
+        "interval_high": 0.7485575298813272,
+        "interval_low": 0.6870495262715859,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.5126899188849943,
+        "pairs": 818,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.8678571428571429,
+        "chance": 0.39502373592404555,
+        "facet": "cellular_component",
+        "interval_high": 0.902588866742204,
+        "interval_low": 0.823168034289921,
+        "level": 1,
+        "level_label": "GO cellular component",
+        "lift": 2.1969746724890804,
+        "pairs": 280,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.5998125585754451,
+        "chance": 0.4090582158191814,
+        "facet": "molecular_function",
+        "interval_high": 0.6288015916979197,
+        "interval_low": 0.570107378592364,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.4663256606990729,
+        "pairs": 1067,
         "tier": "0.90-0.94"
        }
       ],
@@ -605,6 +791,7 @@
        {
         "agreement": 1.0,
         "chance": 0.005758385016778826,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9799751461622506,
         "level": 1,
@@ -616,6 +803,7 @@
        {
         "agreement": 0.8758620689655172,
         "chance": 0.0043737008456960665,
+        "facet": null,
         "interval_high": 0.9200161579475072,
         "interval_low": 0.812305988549171,
         "level": 1,
@@ -627,6 +815,7 @@
        {
         "agreement": 0.7235294117647059,
         "chance": 0.00296789235925584,
+        "facet": null,
         "interval_high": 0.7852592802466724,
         "interval_low": 0.6519203131302868,
         "level": 1,
@@ -638,6 +827,7 @@
        {
         "agreement": 0.5317919075144508,
         "chance": 0.003231457306100631,
+        "facet": null,
         "interval_high": 0.6046496948887806,
         "interval_low": 0.45755286378519655,
         "level": 1,
@@ -649,6 +839,7 @@
        {
         "agreement": 0.25949367088607594,
         "chance": 0.0019572693348942727,
+        "facet": null,
         "interval_high": 0.31051062814997193,
         "interval_low": 0.21425413040551305,
         "level": 1,
@@ -660,6 +851,7 @@
        {
         "agreement": 0.21212121212121213,
         "chance": 0.0011310462177514197,
+        "facet": null,
         "interval_high": 0.28068303107115106,
         "interval_low": 0.15665942481649742,
         "level": 1,
@@ -751,14 +943,14 @@
         "name": "transferase activity",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 2010,
-         "interval_high": 0.9997270915792599,
-         "interval_low": 0.9963790569877379,
+         "checkable_node_count": 2004,
+         "interval_high": 0.9997262743607463,
+         "interval_low": 0.9963682382741149,
          "min_nodes": 30,
          "one_gene_node_count": 13,
          "prevalence_band": "core",
-         "rate": 0.9990049751243781,
-         "unanimous_node_count": 2008
+         "rate": 0.999001996007984,
+         "unanimous_node_count": 2002
         },
         "term": "GO:0016740"
        },
@@ -1682,6 +1874,7 @@
        {
         "agreement": 0.9938271604938271,
         "chance": 0.0022831208106288995,
+        "facet": null,
         "interval_high": 0.997167990880969,
         "interval_low": 0.986598226915034,
         "level": 2,
@@ -1693,6 +1886,7 @@
        {
         "agreement": 0.9958847736625515,
         "chance": 0.0645084394410175,
+        "facet": null,
         "interval_high": 0.9983985661216133,
         "interval_low": 0.9894666775818732,
         "level": 1,
@@ -1704,6 +1898,7 @@
        {
         "agreement": 0.9002732240437158,
         "chance": 0.0020369372788599277,
+        "facet": null,
         "interval_high": 0.9199340927266562,
         "interval_low": 0.8764329514850326,
         "level": 2,
@@ -1715,6 +1910,7 @@
        {
         "agreement": 0.9672131147540983,
         "chance": 0.08177259964821623,
+        "facet": null,
         "interval_high": 0.977870029990927,
         "interval_low": 0.9516778509660614,
         "level": 1,
@@ -1726,6 +1922,7 @@
        {
         "agreement": 0.6137005649717514,
         "chance": 0.0026432945996464237,
+        "facet": null,
         "interval_high": 0.6387213714776052,
         "interval_low": 0.5880644897057832,
         "level": 2,
@@ -1737,6 +1934,7 @@
        {
         "agreement": 0.7994350282485876,
         "chance": 0.08829911963139643,
+        "facet": null,
         "interval_high": 0.8194689799290424,
         "interval_low": 0.7777807414483282,
         "level": 1,
@@ -1748,6 +1946,7 @@
        {
         "agreement": 0.33444444444444443,
         "chance": 0.0026772328714076542,
+        "facet": null,
         "interval_high": 0.3524648167954299,
         "interval_low": 0.3168945125380636,
         "level": 2,
@@ -1759,6 +1958,7 @@
        {
         "agreement": 0.5522222222222222,
         "chance": 0.08843263352971993,
+        "facet": null,
         "interval_high": 0.5708918001028327,
         "interval_low": 0.5334042503758638,
         "level": 1,
@@ -1770,6 +1970,7 @@
        {
         "agreement": 0.16529566971907497,
         "chance": 0.0016352973863872774,
+        "facet": null,
         "interval_high": 0.1745646441240327,
         "interval_low": 0.1564255883643846,
         "level": 2,
@@ -1781,6 +1982,7 @@
        {
         "agreement": 0.3791711935433804,
         "chance": 0.08156451409307834,
+        "facet": null,
         "interval_high": 0.3910870794021359,
         "interval_low": 0.3673993087231749,
         "level": 1,
@@ -1792,6 +1994,7 @@
        {
         "agreement": 0.11224744325268146,
         "chance": 0.0010112608840713434,
+        "facet": null,
         "interval_high": 0.12239276957862522,
         "interval_low": 0.10284452859930435,
         "level": 2,
@@ -1803,6 +2006,7 @@
        {
         "agreement": 0.31928161636318286,
         "chance": 0.07107817157474786,
+        "facet": null,
         "interval_high": 0.3338801600639095,
         "interval_low": 0.30502908569351095,
         "level": 1,
@@ -1824,6 +2028,7 @@
        {
         "agreement": 0.9887640449438202,
         "chance": 0.005349982133640373,
+        "facet": null,
         "interval_high": 0.9969133329399004,
         "interval_low": 0.9599634213341491,
         "level": 4,
@@ -1835,6 +2040,7 @@
        {
         "agreement": 0.99,
         "chance": 0.014948953547728438,
+        "facet": null,
         "interval_high": 0.9972533993962251,
         "interval_low": 0.9642775148038205,
         "level": 3,
@@ -1846,6 +2052,7 @@
        {
         "agreement": 0.9903846153846154,
         "chance": 0.03693685447818709,
+        "facet": null,
         "interval_high": 0.9973591973045761,
         "interval_low": 0.9656244659608073,
         "level": 2,
@@ -1857,6 +2064,7 @@
        {
         "agreement": 1.0,
         "chance": 0.18138002840472867,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9818656958784301,
         "level": 1,
@@ -1868,6 +2076,7 @@
        {
         "agreement": 0.8476190476190476,
         "chance": 0.0037915755230242877,
+        "facet": null,
         "interval_high": 0.9039741771987323,
         "interval_low": 0.7667252612512719,
         "level": 4,
@@ -1879,6 +2088,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.01676592365719471,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 3,
@@ -1890,6 +2100,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.04422548801306313,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 2,
@@ -1901,6 +2112,7 @@
        {
         "agreement": 0.9851851851851852,
         "chance": 0.21224957492422533,
+        "facet": null,
         "interval_high": 0.9959278819009239,
         "interval_low": 0.9475933682143154,
         "level": 1,
@@ -1912,6 +2124,7 @@
        {
         "agreement": 0.48582995951417,
         "chance": 0.002455854231937552,
+        "facet": null,
         "interval_high": 0.5478990777701226,
         "interval_low": 0.424194865180329,
         "level": 4,
@@ -1923,6 +2136,7 @@
        {
         "agreement": 0.7328767123287672,
         "chance": 0.016705475955722426,
+        "facet": null,
         "interval_high": 0.7803627476559137,
         "interval_low": 0.6793427163491484,
         "level": 3,
@@ -1934,6 +2148,7 @@
        {
         "agreement": 0.7583892617449665,
         "chance": 0.043671235087624924,
+        "facet": null,
         "interval_high": 0.8035040359272203,
         "interval_low": 0.7066973412189386,
         "level": 2,
@@ -1945,6 +2160,7 @@
        {
         "agreement": 0.8120805369127517,
         "chance": 0.19633551688569137,
+        "facet": null,
         "interval_high": 0.8523581509904853,
         "interval_low": 0.7638590967314988,
         "level": 1,
@@ -1956,6 +2172,7 @@
        {
         "agreement": 0.20026007802340703,
         "chance": 0.0022745339502911028,
+        "facet": null,
         "interval_high": 0.23000447329744123,
         "interval_low": 0.1734955453350962,
         "level": 4,
@@ -1967,6 +2184,7 @@
        {
         "agreement": 0.30243337195828507,
         "chance": 0.01838263781802736,
+        "facet": null,
         "interval_high": 0.33389839686767697,
         "interval_low": 0.2727194673418857,
         "level": 3,
@@ -1978,6 +2196,7 @@
        {
         "agreement": 0.3344671201814059,
         "chance": 0.047769575432043236,
+        "facet": null,
         "interval_high": 0.3662631482630345,
         "interval_low": 0.3041068140417388,
         "level": 2,
@@ -1989,6 +2208,7 @@
        {
         "agreement": 0.48645598194130923,
         "chance": 0.20098234681877786,
+        "facet": null,
         "interval_high": 0.5193550489380501,
         "interval_low": 0.4536738586787662,
         "level": 1,
@@ -2000,6 +2220,7 @@
        {
         "agreement": 0.09002433090024331,
         "chance": 0.0012645476716560832,
+        "facet": null,
         "interval_high": 0.10483264270122403,
         "interval_low": 0.07712756512457669,
         "level": 4,
@@ -2011,6 +2232,7 @@
        {
         "agreement": 0.17258883248730963,
         "chance": 0.018880191126209155,
+        "facet": null,
         "interval_high": 0.1899094358629653,
         "interval_low": 0.15654268065945467,
         "level": 3,
@@ -2022,6 +2244,7 @@
        {
         "agreement": 0.21002506265664161,
         "chance": 0.04907308351037907,
+        "facet": null,
         "interval_high": 0.22844808850274534,
         "interval_low": 0.19271665011386147,
         "level": 2,
@@ -2033,6 +2256,7 @@
        {
         "agreement": 0.399900149775337,
         "chance": 0.21269991220754075,
+        "facet": null,
         "interval_high": 0.42152582507403485,
         "interval_low": 0.37865770709910723,
         "level": 1,
@@ -2044,6 +2268,7 @@
        {
         "agreement": 0.0749185667752443,
         "chance": 0.0013447512497937822,
+        "facet": null,
         "interval_high": 0.09848800982706729,
         "interval_low": 0.05663524506544887,
         "level": 4,
@@ -2055,6 +2280,7 @@
        {
         "agreement": 0.14647137150466044,
         "chance": 0.019046240201086268,
+        "facet": null,
         "interval_high": 0.17355864208008823,
         "interval_low": 0.12298251304437754,
         "level": 3,
@@ -2066,6 +2292,7 @@
        {
         "agreement": 0.20725388601036268,
         "chance": 0.05208733529234645,
+        "facet": null,
         "interval_high": 0.23726275897707655,
         "interval_low": 0.18014409314325314,
         "level": 2,
@@ -2077,6 +2304,7 @@
        {
         "agreement": 0.43612903225806454,
         "chance": 0.2249764986156719,
+        "facet": null,
         "interval_high": 0.471273524263456,
         "interval_low": 0.4016146214134056,
         "level": 1,
@@ -2096,69 +2324,219 @@
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.9265687583444593,
-        "chance": 0.36604516387059427,
-        "interval_high": 0.9431518043266637,
-        "interval_low": 0.9056323223740924,
+        "agreement": 0.9884726224783862,
+        "chance": 0.3018421499522232,
+        "facet": "biological_process",
+        "interval_high": 0.9955084203618655,
+        "interval_low": 0.970739595836898,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.531296271058026,
-        "pairs": 749,
+        "level_label": "GO biological process",
+        "lift": 3.27479983373709,
+        "pairs": 347,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9175475687103594,
-        "chance": 0.32699128492757185,
-        "interval_high": 0.9390997359335144,
-        "interval_low": 0.8892675877228108,
+        "agreement": 1.0,
+        "chance": 0.2240582477194896,
+        "facet": "cellular_component",
+        "interval_high": 1.0,
+        "interval_low": 0.9815166934819592,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.8060306528157013,
-        "pairs": 473,
+        "level_label": "GO cellular component",
+        "lift": 4.4631251479389995,
+        "pairs": 204,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8826446280991735,
+        "chance": 0.43834525174468597,
+        "facet": "molecular_function",
+        "interval_high": 0.9059091630747756,
+        "interval_low": 0.854551357362724,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.0135831849121284,
+        "pairs": 605,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9899497487437185,
+        "chance": 0.2614568002722492,
+        "facet": "biological_process",
+        "interval_high": 0.9972395756088073,
+        "interval_low": 0.9641016877217916,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 3.7862841881064315,
+        "pairs": 199,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.9339622641509434,
-        "chance": 0.3906570514735463,
-        "interval_high": 0.950775695119895,
-        "interval_low": 0.9119378264767003,
+        "agreement": 0.9692307692307692,
+        "chance": 0.22101414813934145,
+        "facet": "cellular_component",
+        "interval_high": 0.9879709102963595,
+        "interval_low": 0.9235543553908409,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.3907472311790268,
-        "pairs": 636,
+        "level_label": "GO cellular component",
+        "lift": 4.3853788428951805,
+        "pairs": 130,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.90625,
+        "chance": 0.4284646788656418,
+        "facet": "molecular_function",
+        "interval_high": 0.9324657979726115,
+        "interval_low": 0.8712626025291846,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.1151101705729687,
+        "pairs": 352,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9485861182519281,
+        "chance": 0.38694259235393746,
+        "facet": "biological_process",
+        "interval_high": 0.9664742722952886,
+        "interval_low": 0.9219245123548097,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 2.4514905750780045,
+        "pairs": 389,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.8901927912824812,
-        "chance": 0.44685884038567675,
-        "interval_high": 0.9066977054452265,
-        "interval_low": 0.871183009930977,
+        "agreement": 0.9917355371900827,
+        "chance": 0.36314139001366713,
+        "facet": "cellular_component",
+        "interval_high": 0.9977307001849094,
+        "interval_low": 0.9703723385196874,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.9921118501631745,
-        "pairs": 1193,
+        "level_label": "GO cellular component",
+        "lift": 2.7309900894325425,
+        "pairs": 242,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8872017353579176,
+        "chance": 0.4336368238218609,
+        "facet": "molecular_function",
+        "interval_high": 0.9129377416260899,
+        "interval_low": 0.8550658105516841,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.045955709062158,
+        "pairs": 461,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8757192174913694,
+        "chance": 0.45044496600890505,
+        "facet": "biological_process",
+        "interval_high": 0.8960142846055906,
+        "interval_low": 0.8521168768789215,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.9441203333906432,
+        "pairs": 869,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.8397459843107956,
-        "chance": 0.47891533985350637,
-        "interval_high": 0.8531543615257797,
-        "interval_low": 0.8253639067672816,
+        "agreement": 0.8854166666666666,
+        "chance": 0.3581453664348275,
+        "facet": "cellular_component",
+        "interval_high": 0.9135284343531052,
+        "interval_low": 0.8496697372715993,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.7534330484541638,
-        "pairs": 2677,
+        "level_label": "GO cellular component",
+        "lift": 2.4722270609852717,
+        "pairs": 384,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.7058152793614595,
+        "chance": 0.4189969267176228,
+        "facet": "molecular_function",
+        "interval_high": 0.735023855096365,
+        "interval_low": 0.6748114660328821,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.684535695501972,
+        "pairs": 877,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.8820326678765881,
+        "chance": 0.5024858190726083,
+        "facet": "biological_process",
+        "interval_high": 0.896704521333261,
+        "interval_low": 0.8655892308274769,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.7553384282654472,
+        "pairs": 1653,
         "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.725981055480379,
-        "chance": 0.4416474344856051,
-        "interval_high": 0.7481122948404376,
-        "interval_low": 0.7026781270238157,
+        "agreement": 0.8622641509433963,
+        "chance": 0.3815972120964697,
+        "facet": "cellular_component",
+        "interval_high": 0.8890076043342141,
+        "interval_low": 0.8303068889536827,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.6438022703017452,
-        "pairs": 1478,
+        "level_label": "GO cellular component",
+        "lift": 2.2596185810849465,
+        "pairs": 530,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7045009784735812,
+        "chance": 0.4582159609677853,
+        "facet": "molecular_function",
+        "interval_high": 0.7238828827580885,
+        "interval_low": 0.6843518166444433,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.5374867714900724,
+        "pairs": 2044,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7188264058679706,
+        "chance": 0.4751974591050481,
+        "facet": "biological_process",
+        "interval_high": 0.7485575298813272,
+        "interval_low": 0.6870495262715859,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.5126899188849943,
+        "pairs": 818,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.8678571428571429,
+        "chance": 0.39502373592404555,
+        "facet": "cellular_component",
+        "interval_high": 0.902588866742204,
+        "interval_low": 0.823168034289921,
+        "level": 1,
+        "level_label": "GO cellular component",
+        "lift": 2.1969746724890804,
+        "pairs": 280,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.5998125585754451,
+        "chance": 0.4090582158191814,
+        "facet": "molecular_function",
+        "interval_high": 0.6288015916979197,
+        "interval_low": 0.570107378592364,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.4663256606990729,
+        "pairs": 1067,
         "tier": "0.90-0.94"
        }
       ],
@@ -2174,6 +2552,7 @@
        {
         "agreement": 1.0,
         "chance": 0.005758385016778826,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9799751461622506,
         "level": 1,
@@ -2185,6 +2564,7 @@
        {
         "agreement": 0.8758620689655172,
         "chance": 0.0043737008456960665,
+        "facet": null,
         "interval_high": 0.9200161579475072,
         "interval_low": 0.812305988549171,
         "level": 1,
@@ -2196,6 +2576,7 @@
        {
         "agreement": 0.7235294117647059,
         "chance": 0.00296789235925584,
+        "facet": null,
         "interval_high": 0.7852592802466724,
         "interval_low": 0.6519203131302868,
         "level": 1,
@@ -2207,6 +2588,7 @@
        {
         "agreement": 0.5317919075144508,
         "chance": 0.003231457306100631,
+        "facet": null,
         "interval_high": 0.6046496948887806,
         "interval_low": 0.45755286378519655,
         "level": 1,
@@ -2218,6 +2600,7 @@
        {
         "agreement": 0.25949367088607594,
         "chance": 0.0019572693348942727,
+        "facet": null,
         "interval_high": 0.31051062814997193,
         "interval_low": 0.21425413040551305,
         "level": 1,
@@ -2229,6 +2612,7 @@
        {
         "agreement": 0.21212121212121213,
         "chance": 0.0011310462177514197,
+        "facet": null,
         "interval_high": 0.28068303107115106,
         "interval_low": 0.15665942481649742,
         "level": 1,
@@ -2314,17 +2698,6 @@
       {
        "annotation_kind": "cog_orthogroup",
        "candidate": {
-        "calibration": {
-         "agreement": 0.9002732240437158,
-         "chance": 0.0020369372788599277,
-         "interval_high": 0.9199340927266562,
-         "interval_low": 0.8764329514850326,
-         "level": 2,
-         "level_label": "COG orthogroup",
-         "lift": 441.9739544202353,
-         "pairs": 732,
-         "tier": "0.98-0.99"
-        },
         "cosine": 0.986962,
         "donor": {
          "annotated_gene_count": 100,
@@ -2348,12 +2721,31 @@
          },
          "term": "COG4582"
         },
-        "level": 2,
+        "offers": [
+         {
+          "calibration": {
+           "agreement": 0.9002732240437158,
+           "chance": 0.0020369372788599277,
+           "facet": null,
+           "interval_high": 0.9199340927266562,
+           "interval_low": 0.8764329514850326,
+           "level": 2,
+           "level_label": "COG orthogroup",
+           "lift": 441.9739544202353,
+           "pairs": 732,
+           "tier": "0.98-0.99"
+          },
+          "facet": null,
+          "level": 2,
+          "suggested": true,
+          "value": [
+           "COG4582"
+          ]
+         }
+        ],
         "rank": 5,
-        "tier": "0.98-0.99",
-        "value": [
-         "COG4582"
-        ]
+        "suggested_count": 1,
+        "tier": "0.98-0.99"
        },
        "own": null,
        "walk": [
@@ -2415,14 +2807,14 @@
         "name": "nucleic acid binding",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 2010,
-         "interval_high": 0.9997270915792599,
-         "interval_low": 0.9963790569877379,
+         "checkable_node_count": 2004,
+         "interval_high": 0.9997262743607463,
+         "interval_low": 0.9963682382741149,
          "min_nodes": 30,
          "one_gene_node_count": 13,
          "prevalence_band": "core",
-         "rate": 0.9990049751243781,
-         "unanimous_node_count": 2008
+         "rate": 0.999001996007984,
+         "unanimous_node_count": 2002
         },
         "term": "GO:0003676"
        },
@@ -3609,6 +4001,7 @@
        {
         "agreement": 0.9938271604938271,
         "chance": 0.0022831208106288995,
+        "facet": null,
         "interval_high": 0.997167990880969,
         "interval_low": 0.986598226915034,
         "level": 2,
@@ -3620,6 +4013,7 @@
        {
         "agreement": 0.9958847736625515,
         "chance": 0.0645084394410175,
+        "facet": null,
         "interval_high": 0.9983985661216133,
         "interval_low": 0.9894666775818732,
         "level": 1,
@@ -3631,6 +4025,7 @@
        {
         "agreement": 0.9002732240437158,
         "chance": 0.0020369372788599277,
+        "facet": null,
         "interval_high": 0.9199340927266562,
         "interval_low": 0.8764329514850326,
         "level": 2,
@@ -3642,6 +4037,7 @@
        {
         "agreement": 0.9672131147540983,
         "chance": 0.08177259964821623,
+        "facet": null,
         "interval_high": 0.977870029990927,
         "interval_low": 0.9516778509660614,
         "level": 1,
@@ -3653,6 +4049,7 @@
        {
         "agreement": 0.6137005649717514,
         "chance": 0.0026432945996464237,
+        "facet": null,
         "interval_high": 0.6387213714776052,
         "interval_low": 0.5880644897057832,
         "level": 2,
@@ -3664,6 +4061,7 @@
        {
         "agreement": 0.7994350282485876,
         "chance": 0.08829911963139643,
+        "facet": null,
         "interval_high": 0.8194689799290424,
         "interval_low": 0.7777807414483282,
         "level": 1,
@@ -3675,6 +4073,7 @@
        {
         "agreement": 0.33444444444444443,
         "chance": 0.0026772328714076542,
+        "facet": null,
         "interval_high": 0.3524648167954299,
         "interval_low": 0.3168945125380636,
         "level": 2,
@@ -3686,6 +4085,7 @@
        {
         "agreement": 0.5522222222222222,
         "chance": 0.08843263352971993,
+        "facet": null,
         "interval_high": 0.5708918001028327,
         "interval_low": 0.5334042503758638,
         "level": 1,
@@ -3697,6 +4097,7 @@
        {
         "agreement": 0.16529566971907497,
         "chance": 0.0016352973863872774,
+        "facet": null,
         "interval_high": 0.1745646441240327,
         "interval_low": 0.1564255883643846,
         "level": 2,
@@ -3708,6 +4109,7 @@
        {
         "agreement": 0.3791711935433804,
         "chance": 0.08156451409307834,
+        "facet": null,
         "interval_high": 0.3910870794021359,
         "interval_low": 0.3673993087231749,
         "level": 1,
@@ -3719,6 +4121,7 @@
        {
         "agreement": 0.11224744325268146,
         "chance": 0.0010112608840713434,
+        "facet": null,
         "interval_high": 0.12239276957862522,
         "interval_low": 0.10284452859930435,
         "level": 2,
@@ -3730,6 +4133,7 @@
        {
         "agreement": 0.31928161636318286,
         "chance": 0.07107817157474786,
+        "facet": null,
         "interval_high": 0.3338801600639095,
         "interval_low": 0.30502908569351095,
         "level": 1,
@@ -3751,6 +4155,7 @@
        {
         "agreement": 0.9887640449438202,
         "chance": 0.005349982133640373,
+        "facet": null,
         "interval_high": 0.9969133329399004,
         "interval_low": 0.9599634213341491,
         "level": 4,
@@ -3762,6 +4167,7 @@
        {
         "agreement": 0.99,
         "chance": 0.014948953547728438,
+        "facet": null,
         "interval_high": 0.9972533993962251,
         "interval_low": 0.9642775148038205,
         "level": 3,
@@ -3773,6 +4179,7 @@
        {
         "agreement": 0.9903846153846154,
         "chance": 0.03693685447818709,
+        "facet": null,
         "interval_high": 0.9973591973045761,
         "interval_low": 0.9656244659608073,
         "level": 2,
@@ -3784,6 +4191,7 @@
        {
         "agreement": 1.0,
         "chance": 0.18138002840472867,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9818656958784301,
         "level": 1,
@@ -3795,6 +4203,7 @@
        {
         "agreement": 0.8476190476190476,
         "chance": 0.0037915755230242877,
+        "facet": null,
         "interval_high": 0.9039741771987323,
         "interval_low": 0.7667252612512719,
         "level": 4,
@@ -3806,6 +4215,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.01676592365719471,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 3,
@@ -3817,6 +4227,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.04422548801306313,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 2,
@@ -3828,6 +4239,7 @@
        {
         "agreement": 0.9851851851851852,
         "chance": 0.21224957492422533,
+        "facet": null,
         "interval_high": 0.9959278819009239,
         "interval_low": 0.9475933682143154,
         "level": 1,
@@ -3839,6 +4251,7 @@
        {
         "agreement": 0.48582995951417,
         "chance": 0.002455854231937552,
+        "facet": null,
         "interval_high": 0.5478990777701226,
         "interval_low": 0.424194865180329,
         "level": 4,
@@ -3850,6 +4263,7 @@
        {
         "agreement": 0.7328767123287672,
         "chance": 0.016705475955722426,
+        "facet": null,
         "interval_high": 0.7803627476559137,
         "interval_low": 0.6793427163491484,
         "level": 3,
@@ -3861,6 +4275,7 @@
        {
         "agreement": 0.7583892617449665,
         "chance": 0.043671235087624924,
+        "facet": null,
         "interval_high": 0.8035040359272203,
         "interval_low": 0.7066973412189386,
         "level": 2,
@@ -3872,6 +4287,7 @@
        {
         "agreement": 0.8120805369127517,
         "chance": 0.19633551688569137,
+        "facet": null,
         "interval_high": 0.8523581509904853,
         "interval_low": 0.7638590967314988,
         "level": 1,
@@ -3883,6 +4299,7 @@
        {
         "agreement": 0.20026007802340703,
         "chance": 0.0022745339502911028,
+        "facet": null,
         "interval_high": 0.23000447329744123,
         "interval_low": 0.1734955453350962,
         "level": 4,
@@ -3894,6 +4311,7 @@
        {
         "agreement": 0.30243337195828507,
         "chance": 0.01838263781802736,
+        "facet": null,
         "interval_high": 0.33389839686767697,
         "interval_low": 0.2727194673418857,
         "level": 3,
@@ -3905,6 +4323,7 @@
        {
         "agreement": 0.3344671201814059,
         "chance": 0.047769575432043236,
+        "facet": null,
         "interval_high": 0.3662631482630345,
         "interval_low": 0.3041068140417388,
         "level": 2,
@@ -3916,6 +4335,7 @@
        {
         "agreement": 0.48645598194130923,
         "chance": 0.20098234681877786,
+        "facet": null,
         "interval_high": 0.5193550489380501,
         "interval_low": 0.4536738586787662,
         "level": 1,
@@ -3927,6 +4347,7 @@
        {
         "agreement": 0.09002433090024331,
         "chance": 0.0012645476716560832,
+        "facet": null,
         "interval_high": 0.10483264270122403,
         "interval_low": 0.07712756512457669,
         "level": 4,
@@ -3938,6 +4359,7 @@
        {
         "agreement": 0.17258883248730963,
         "chance": 0.018880191126209155,
+        "facet": null,
         "interval_high": 0.1899094358629653,
         "interval_low": 0.15654268065945467,
         "level": 3,
@@ -3949,6 +4371,7 @@
        {
         "agreement": 0.21002506265664161,
         "chance": 0.04907308351037907,
+        "facet": null,
         "interval_high": 0.22844808850274534,
         "interval_low": 0.19271665011386147,
         "level": 2,
@@ -3960,6 +4383,7 @@
        {
         "agreement": 0.399900149775337,
         "chance": 0.21269991220754075,
+        "facet": null,
         "interval_high": 0.42152582507403485,
         "interval_low": 0.37865770709910723,
         "level": 1,
@@ -3971,6 +4395,7 @@
        {
         "agreement": 0.0749185667752443,
         "chance": 0.0013447512497937822,
+        "facet": null,
         "interval_high": 0.09848800982706729,
         "interval_low": 0.05663524506544887,
         "level": 4,
@@ -3982,6 +4407,7 @@
        {
         "agreement": 0.14647137150466044,
         "chance": 0.019046240201086268,
+        "facet": null,
         "interval_high": 0.17355864208008823,
         "interval_low": 0.12298251304437754,
         "level": 3,
@@ -3993,6 +4419,7 @@
        {
         "agreement": 0.20725388601036268,
         "chance": 0.05208733529234645,
+        "facet": null,
         "interval_high": 0.23726275897707655,
         "interval_low": 0.18014409314325314,
         "level": 2,
@@ -4004,6 +4431,7 @@
        {
         "agreement": 0.43612903225806454,
         "chance": 0.2249764986156719,
+        "facet": null,
         "interval_high": 0.471273524263456,
         "interval_low": 0.4016146214134056,
         "level": 1,
@@ -4023,69 +4451,219 @@
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.9265687583444593,
-        "chance": 0.36604516387059427,
-        "interval_high": 0.9431518043266637,
-        "interval_low": 0.9056323223740924,
+        "agreement": 0.9884726224783862,
+        "chance": 0.3018421499522232,
+        "facet": "biological_process",
+        "interval_high": 0.9955084203618655,
+        "interval_low": 0.970739595836898,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.531296271058026,
-        "pairs": 749,
+        "level_label": "GO biological process",
+        "lift": 3.27479983373709,
+        "pairs": 347,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9175475687103594,
-        "chance": 0.32699128492757185,
-        "interval_high": 0.9390997359335144,
-        "interval_low": 0.8892675877228108,
+        "agreement": 1.0,
+        "chance": 0.2240582477194896,
+        "facet": "cellular_component",
+        "interval_high": 1.0,
+        "interval_low": 0.9815166934819592,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.8060306528157013,
-        "pairs": 473,
+        "level_label": "GO cellular component",
+        "lift": 4.4631251479389995,
+        "pairs": 204,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8826446280991735,
+        "chance": 0.43834525174468597,
+        "facet": "molecular_function",
+        "interval_high": 0.9059091630747756,
+        "interval_low": 0.854551357362724,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.0135831849121284,
+        "pairs": 605,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9899497487437185,
+        "chance": 0.2614568002722492,
+        "facet": "biological_process",
+        "interval_high": 0.9972395756088073,
+        "interval_low": 0.9641016877217916,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 3.7862841881064315,
+        "pairs": 199,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.9339622641509434,
-        "chance": 0.3906570514735463,
-        "interval_high": 0.950775695119895,
-        "interval_low": 0.9119378264767003,
+        "agreement": 0.9692307692307692,
+        "chance": 0.22101414813934145,
+        "facet": "cellular_component",
+        "interval_high": 0.9879709102963595,
+        "interval_low": 0.9235543553908409,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.3907472311790268,
-        "pairs": 636,
+        "level_label": "GO cellular component",
+        "lift": 4.3853788428951805,
+        "pairs": 130,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.90625,
+        "chance": 0.4284646788656418,
+        "facet": "molecular_function",
+        "interval_high": 0.9324657979726115,
+        "interval_low": 0.8712626025291846,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.1151101705729687,
+        "pairs": 352,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9485861182519281,
+        "chance": 0.38694259235393746,
+        "facet": "biological_process",
+        "interval_high": 0.9664742722952886,
+        "interval_low": 0.9219245123548097,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 2.4514905750780045,
+        "pairs": 389,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.8901927912824812,
-        "chance": 0.44685884038567675,
-        "interval_high": 0.9066977054452265,
-        "interval_low": 0.871183009930977,
+        "agreement": 0.9917355371900827,
+        "chance": 0.36314139001366713,
+        "facet": "cellular_component",
+        "interval_high": 0.9977307001849094,
+        "interval_low": 0.9703723385196874,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.9921118501631745,
-        "pairs": 1193,
+        "level_label": "GO cellular component",
+        "lift": 2.7309900894325425,
+        "pairs": 242,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8872017353579176,
+        "chance": 0.4336368238218609,
+        "facet": "molecular_function",
+        "interval_high": 0.9129377416260899,
+        "interval_low": 0.8550658105516841,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.045955709062158,
+        "pairs": 461,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8757192174913694,
+        "chance": 0.45044496600890505,
+        "facet": "biological_process",
+        "interval_high": 0.8960142846055906,
+        "interval_low": 0.8521168768789215,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.9441203333906432,
+        "pairs": 869,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.8397459843107956,
-        "chance": 0.47891533985350637,
-        "interval_high": 0.8531543615257797,
-        "interval_low": 0.8253639067672816,
+        "agreement": 0.8854166666666666,
+        "chance": 0.3581453664348275,
+        "facet": "cellular_component",
+        "interval_high": 0.9135284343531052,
+        "interval_low": 0.8496697372715993,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.7534330484541638,
-        "pairs": 2677,
+        "level_label": "GO cellular component",
+        "lift": 2.4722270609852717,
+        "pairs": 384,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.7058152793614595,
+        "chance": 0.4189969267176228,
+        "facet": "molecular_function",
+        "interval_high": 0.735023855096365,
+        "interval_low": 0.6748114660328821,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.684535695501972,
+        "pairs": 877,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.8820326678765881,
+        "chance": 0.5024858190726083,
+        "facet": "biological_process",
+        "interval_high": 0.896704521333261,
+        "interval_low": 0.8655892308274769,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.7553384282654472,
+        "pairs": 1653,
         "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.725981055480379,
-        "chance": 0.4416474344856051,
-        "interval_high": 0.7481122948404376,
-        "interval_low": 0.7026781270238157,
+        "agreement": 0.8622641509433963,
+        "chance": 0.3815972120964697,
+        "facet": "cellular_component",
+        "interval_high": 0.8890076043342141,
+        "interval_low": 0.8303068889536827,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.6438022703017452,
-        "pairs": 1478,
+        "level_label": "GO cellular component",
+        "lift": 2.2596185810849465,
+        "pairs": 530,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7045009784735812,
+        "chance": 0.4582159609677853,
+        "facet": "molecular_function",
+        "interval_high": 0.7238828827580885,
+        "interval_low": 0.6843518166444433,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.5374867714900724,
+        "pairs": 2044,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7188264058679706,
+        "chance": 0.4751974591050481,
+        "facet": "biological_process",
+        "interval_high": 0.7485575298813272,
+        "interval_low": 0.6870495262715859,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.5126899188849943,
+        "pairs": 818,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.8678571428571429,
+        "chance": 0.39502373592404555,
+        "facet": "cellular_component",
+        "interval_high": 0.902588866742204,
+        "interval_low": 0.823168034289921,
+        "level": 1,
+        "level_label": "GO cellular component",
+        "lift": 2.1969746724890804,
+        "pairs": 280,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.5998125585754451,
+        "chance": 0.4090582158191814,
+        "facet": "molecular_function",
+        "interval_high": 0.6288015916979197,
+        "interval_low": 0.570107378592364,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.4663256606990729,
+        "pairs": 1067,
         "tier": "0.90-0.94"
        }
       ],
@@ -4101,6 +4679,7 @@
        {
         "agreement": 1.0,
         "chance": 0.005758385016778826,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9799751461622506,
         "level": 1,
@@ -4112,6 +4691,7 @@
        {
         "agreement": 0.8758620689655172,
         "chance": 0.0043737008456960665,
+        "facet": null,
         "interval_high": 0.9200161579475072,
         "interval_low": 0.812305988549171,
         "level": 1,
@@ -4123,6 +4703,7 @@
        {
         "agreement": 0.7235294117647059,
         "chance": 0.00296789235925584,
+        "facet": null,
         "interval_high": 0.7852592802466724,
         "interval_low": 0.6519203131302868,
         "level": 1,
@@ -4134,6 +4715,7 @@
        {
         "agreement": 0.5317919075144508,
         "chance": 0.003231457306100631,
+        "facet": null,
         "interval_high": 0.6046496948887806,
         "interval_low": 0.45755286378519655,
         "level": 1,
@@ -4145,6 +4727,7 @@
        {
         "agreement": 0.25949367088607594,
         "chance": 0.0019572693348942727,
+        "facet": null,
         "interval_high": 0.31051062814997193,
         "interval_low": 0.21425413040551305,
         "level": 1,
@@ -4156,6 +4739,7 @@
        {
         "agreement": 0.21212121212121213,
         "chance": 0.0011310462177514197,
+        "facet": null,
         "interval_high": 0.28068303107115106,
         "interval_low": 0.15665942481649742,
         "level": 1,
@@ -4247,14 +4831,14 @@
         "name": "nucleotidyltransferase activity",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 355,
-         "interval_high": 0.999502587345329,
-         "interval_low": 0.9842183636257961,
+         "checkable_node_count": 354,
+         "interval_high": 0.9995011817339022,
+         "interval_low": 0.98417427690478,
          "min_nodes": 30,
          "one_gene_node_count": 6,
          "prevalence_band": "shell",
-         "rate": 0.9971830985915493,
-         "unanimous_node_count": 354
+         "rate": 0.9971751412429378,
+         "unanimous_node_count": 353
         },
         "term": "GO:0016779"
        },
@@ -4263,17 +4847,6 @@
       {
        "annotation_kind": "kegg_orthology",
        "candidate": {
-        "calibration": {
-         "agreement": 1.0,
-         "chance": 0.005758385016778826,
-         "interval_high": 1.0,
-         "interval_low": 0.9799751461622506,
-         "level": 1,
-         "level_label": "KEGG orthology",
-         "lift": 173.65980167810807,
-         "pairs": 188,
-         "tier": ">= 0.99"
-        },
         "cosine": 0.993196,
         "donor": {
          "annotated_gene_count": 15,
@@ -4297,12 +4870,31 @@
          },
          "term": "K00986"
         },
-        "level": 1,
+        "offers": [
+         {
+          "calibration": {
+           "agreement": 1.0,
+           "chance": 0.005758385016778826,
+           "facet": null,
+           "interval_high": 1.0,
+           "interval_low": 0.9799751461622506,
+           "level": 1,
+           "level_label": "KEGG orthology",
+           "lift": 173.65980167810807,
+           "pairs": 188,
+           "tier": ">= 0.99"
+          },
+          "facet": null,
+          "level": 1,
+          "suggested": true,
+          "value": [
+           "K00986"
+          ]
+         }
+        ],
         "rank": 2,
-        "tier": ">= 0.99",
-        "value": [
-         "K00986"
-        ]
+        "suggested_count": 1,
+        "tier": ">= 0.99"
        },
        "own": null,
        "walk": [
@@ -6716,6 +7308,7 @@
        {
         "agreement": 0.9938271604938271,
         "chance": 0.0022831208106288995,
+        "facet": null,
         "interval_high": 0.997167990880969,
         "interval_low": 0.986598226915034,
         "level": 2,
@@ -6727,6 +7320,7 @@
        {
         "agreement": 0.9958847736625515,
         "chance": 0.0645084394410175,
+        "facet": null,
         "interval_high": 0.9983985661216133,
         "interval_low": 0.9894666775818732,
         "level": 1,
@@ -6738,6 +7332,7 @@
        {
         "agreement": 0.9002732240437158,
         "chance": 0.0020369372788599277,
+        "facet": null,
         "interval_high": 0.9199340927266562,
         "interval_low": 0.8764329514850326,
         "level": 2,
@@ -6749,6 +7344,7 @@
        {
         "agreement": 0.9672131147540983,
         "chance": 0.08177259964821623,
+        "facet": null,
         "interval_high": 0.977870029990927,
         "interval_low": 0.9516778509660614,
         "level": 1,
@@ -6760,6 +7356,7 @@
        {
         "agreement": 0.6137005649717514,
         "chance": 0.0026432945996464237,
+        "facet": null,
         "interval_high": 0.6387213714776052,
         "interval_low": 0.5880644897057832,
         "level": 2,
@@ -6771,6 +7368,7 @@
        {
         "agreement": 0.7994350282485876,
         "chance": 0.08829911963139643,
+        "facet": null,
         "interval_high": 0.8194689799290424,
         "interval_low": 0.7777807414483282,
         "level": 1,
@@ -6782,6 +7380,7 @@
        {
         "agreement": 0.33444444444444443,
         "chance": 0.0026772328714076542,
+        "facet": null,
         "interval_high": 0.3524648167954299,
         "interval_low": 0.3168945125380636,
         "level": 2,
@@ -6793,6 +7392,7 @@
        {
         "agreement": 0.5522222222222222,
         "chance": 0.08843263352971993,
+        "facet": null,
         "interval_high": 0.5708918001028327,
         "interval_low": 0.5334042503758638,
         "level": 1,
@@ -6804,6 +7404,7 @@
        {
         "agreement": 0.16529566971907497,
         "chance": 0.0016352973863872774,
+        "facet": null,
         "interval_high": 0.1745646441240327,
         "interval_low": 0.1564255883643846,
         "level": 2,
@@ -6815,6 +7416,7 @@
        {
         "agreement": 0.3791711935433804,
         "chance": 0.08156451409307834,
+        "facet": null,
         "interval_high": 0.3910870794021359,
         "interval_low": 0.3673993087231749,
         "level": 1,
@@ -6826,6 +7428,7 @@
        {
         "agreement": 0.11224744325268146,
         "chance": 0.0010112608840713434,
+        "facet": null,
         "interval_high": 0.12239276957862522,
         "interval_low": 0.10284452859930435,
         "level": 2,
@@ -6837,6 +7440,7 @@
        {
         "agreement": 0.31928161636318286,
         "chance": 0.07107817157474786,
+        "facet": null,
         "interval_high": 0.3338801600639095,
         "interval_low": 0.30502908569351095,
         "level": 1,
@@ -6858,6 +7462,7 @@
        {
         "agreement": 0.9887640449438202,
         "chance": 0.005349982133640373,
+        "facet": null,
         "interval_high": 0.9969133329399004,
         "interval_low": 0.9599634213341491,
         "level": 4,
@@ -6869,6 +7474,7 @@
        {
         "agreement": 0.99,
         "chance": 0.014948953547728438,
+        "facet": null,
         "interval_high": 0.9972533993962251,
         "interval_low": 0.9642775148038205,
         "level": 3,
@@ -6880,6 +7486,7 @@
        {
         "agreement": 0.9903846153846154,
         "chance": 0.03693685447818709,
+        "facet": null,
         "interval_high": 0.9973591973045761,
         "interval_low": 0.9656244659608073,
         "level": 2,
@@ -6891,6 +7498,7 @@
        {
         "agreement": 1.0,
         "chance": 0.18138002840472867,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9818656958784301,
         "level": 1,
@@ -6902,6 +7510,7 @@
        {
         "agreement": 0.8476190476190476,
         "chance": 0.0037915755230242877,
+        "facet": null,
         "interval_high": 0.9039741771987323,
         "interval_low": 0.7667252612512719,
         "level": 4,
@@ -6913,6 +7522,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.01676592365719471,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 3,
@@ -6924,6 +7534,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.04422548801306313,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 2,
@@ -6935,6 +7546,7 @@
        {
         "agreement": 0.9851851851851852,
         "chance": 0.21224957492422533,
+        "facet": null,
         "interval_high": 0.9959278819009239,
         "interval_low": 0.9475933682143154,
         "level": 1,
@@ -6946,6 +7558,7 @@
        {
         "agreement": 0.48582995951417,
         "chance": 0.002455854231937552,
+        "facet": null,
         "interval_high": 0.5478990777701226,
         "interval_low": 0.424194865180329,
         "level": 4,
@@ -6957,6 +7570,7 @@
        {
         "agreement": 0.7328767123287672,
         "chance": 0.016705475955722426,
+        "facet": null,
         "interval_high": 0.7803627476559137,
         "interval_low": 0.6793427163491484,
         "level": 3,
@@ -6968,6 +7582,7 @@
        {
         "agreement": 0.7583892617449665,
         "chance": 0.043671235087624924,
+        "facet": null,
         "interval_high": 0.8035040359272203,
         "interval_low": 0.7066973412189386,
         "level": 2,
@@ -6979,6 +7594,7 @@
        {
         "agreement": 0.8120805369127517,
         "chance": 0.19633551688569137,
+        "facet": null,
         "interval_high": 0.8523581509904853,
         "interval_low": 0.7638590967314988,
         "level": 1,
@@ -6990,6 +7606,7 @@
        {
         "agreement": 0.20026007802340703,
         "chance": 0.0022745339502911028,
+        "facet": null,
         "interval_high": 0.23000447329744123,
         "interval_low": 0.1734955453350962,
         "level": 4,
@@ -7001,6 +7618,7 @@
        {
         "agreement": 0.30243337195828507,
         "chance": 0.01838263781802736,
+        "facet": null,
         "interval_high": 0.33389839686767697,
         "interval_low": 0.2727194673418857,
         "level": 3,
@@ -7012,6 +7630,7 @@
        {
         "agreement": 0.3344671201814059,
         "chance": 0.047769575432043236,
+        "facet": null,
         "interval_high": 0.3662631482630345,
         "interval_low": 0.3041068140417388,
         "level": 2,
@@ -7023,6 +7642,7 @@
        {
         "agreement": 0.48645598194130923,
         "chance": 0.20098234681877786,
+        "facet": null,
         "interval_high": 0.5193550489380501,
         "interval_low": 0.4536738586787662,
         "level": 1,
@@ -7034,6 +7654,7 @@
        {
         "agreement": 0.09002433090024331,
         "chance": 0.0012645476716560832,
+        "facet": null,
         "interval_high": 0.10483264270122403,
         "interval_low": 0.07712756512457669,
         "level": 4,
@@ -7045,6 +7666,7 @@
        {
         "agreement": 0.17258883248730963,
         "chance": 0.018880191126209155,
+        "facet": null,
         "interval_high": 0.1899094358629653,
         "interval_low": 0.15654268065945467,
         "level": 3,
@@ -7056,6 +7678,7 @@
        {
         "agreement": 0.21002506265664161,
         "chance": 0.04907308351037907,
+        "facet": null,
         "interval_high": 0.22844808850274534,
         "interval_low": 0.19271665011386147,
         "level": 2,
@@ -7067,6 +7690,7 @@
        {
         "agreement": 0.399900149775337,
         "chance": 0.21269991220754075,
+        "facet": null,
         "interval_high": 0.42152582507403485,
         "interval_low": 0.37865770709910723,
         "level": 1,
@@ -7078,6 +7702,7 @@
        {
         "agreement": 0.0749185667752443,
         "chance": 0.0013447512497937822,
+        "facet": null,
         "interval_high": 0.09848800982706729,
         "interval_low": 0.05663524506544887,
         "level": 4,
@@ -7089,6 +7714,7 @@
        {
         "agreement": 0.14647137150466044,
         "chance": 0.019046240201086268,
+        "facet": null,
         "interval_high": 0.17355864208008823,
         "interval_low": 0.12298251304437754,
         "level": 3,
@@ -7100,6 +7726,7 @@
        {
         "agreement": 0.20725388601036268,
         "chance": 0.05208733529234645,
+        "facet": null,
         "interval_high": 0.23726275897707655,
         "interval_low": 0.18014409314325314,
         "level": 2,
@@ -7111,6 +7738,7 @@
        {
         "agreement": 0.43612903225806454,
         "chance": 0.2249764986156719,
+        "facet": null,
         "interval_high": 0.471273524263456,
         "interval_low": 0.4016146214134056,
         "level": 1,
@@ -7130,69 +7758,219 @@
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.9265687583444593,
-        "chance": 0.36604516387059427,
-        "interval_high": 0.9431518043266637,
-        "interval_low": 0.9056323223740924,
+        "agreement": 0.9884726224783862,
+        "chance": 0.3018421499522232,
+        "facet": "biological_process",
+        "interval_high": 0.9955084203618655,
+        "interval_low": 0.970739595836898,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.531296271058026,
-        "pairs": 749,
+        "level_label": "GO biological process",
+        "lift": 3.27479983373709,
+        "pairs": 347,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9175475687103594,
-        "chance": 0.32699128492757185,
-        "interval_high": 0.9390997359335144,
-        "interval_low": 0.8892675877228108,
+        "agreement": 1.0,
+        "chance": 0.2240582477194896,
+        "facet": "cellular_component",
+        "interval_high": 1.0,
+        "interval_low": 0.9815166934819592,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.8060306528157013,
-        "pairs": 473,
+        "level_label": "GO cellular component",
+        "lift": 4.4631251479389995,
+        "pairs": 204,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8826446280991735,
+        "chance": 0.43834525174468597,
+        "facet": "molecular_function",
+        "interval_high": 0.9059091630747756,
+        "interval_low": 0.854551357362724,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.0135831849121284,
+        "pairs": 605,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9899497487437185,
+        "chance": 0.2614568002722492,
+        "facet": "biological_process",
+        "interval_high": 0.9972395756088073,
+        "interval_low": 0.9641016877217916,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 3.7862841881064315,
+        "pairs": 199,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.9339622641509434,
-        "chance": 0.3906570514735463,
-        "interval_high": 0.950775695119895,
-        "interval_low": 0.9119378264767003,
+        "agreement": 0.9692307692307692,
+        "chance": 0.22101414813934145,
+        "facet": "cellular_component",
+        "interval_high": 0.9879709102963595,
+        "interval_low": 0.9235543553908409,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.3907472311790268,
-        "pairs": 636,
+        "level_label": "GO cellular component",
+        "lift": 4.3853788428951805,
+        "pairs": 130,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.90625,
+        "chance": 0.4284646788656418,
+        "facet": "molecular_function",
+        "interval_high": 0.9324657979726115,
+        "interval_low": 0.8712626025291846,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.1151101705729687,
+        "pairs": 352,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9485861182519281,
+        "chance": 0.38694259235393746,
+        "facet": "biological_process",
+        "interval_high": 0.9664742722952886,
+        "interval_low": 0.9219245123548097,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 2.4514905750780045,
+        "pairs": 389,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.8901927912824812,
-        "chance": 0.44685884038567675,
-        "interval_high": 0.9066977054452265,
-        "interval_low": 0.871183009930977,
+        "agreement": 0.9917355371900827,
+        "chance": 0.36314139001366713,
+        "facet": "cellular_component",
+        "interval_high": 0.9977307001849094,
+        "interval_low": 0.9703723385196874,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.9921118501631745,
-        "pairs": 1193,
+        "level_label": "GO cellular component",
+        "lift": 2.7309900894325425,
+        "pairs": 242,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8872017353579176,
+        "chance": 0.4336368238218609,
+        "facet": "molecular_function",
+        "interval_high": 0.9129377416260899,
+        "interval_low": 0.8550658105516841,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.045955709062158,
+        "pairs": 461,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8757192174913694,
+        "chance": 0.45044496600890505,
+        "facet": "biological_process",
+        "interval_high": 0.8960142846055906,
+        "interval_low": 0.8521168768789215,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.9441203333906432,
+        "pairs": 869,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.8397459843107956,
-        "chance": 0.47891533985350637,
-        "interval_high": 0.8531543615257797,
-        "interval_low": 0.8253639067672816,
+        "agreement": 0.8854166666666666,
+        "chance": 0.3581453664348275,
+        "facet": "cellular_component",
+        "interval_high": 0.9135284343531052,
+        "interval_low": 0.8496697372715993,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.7534330484541638,
-        "pairs": 2677,
+        "level_label": "GO cellular component",
+        "lift": 2.4722270609852717,
+        "pairs": 384,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.7058152793614595,
+        "chance": 0.4189969267176228,
+        "facet": "molecular_function",
+        "interval_high": 0.735023855096365,
+        "interval_low": 0.6748114660328821,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.684535695501972,
+        "pairs": 877,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.8820326678765881,
+        "chance": 0.5024858190726083,
+        "facet": "biological_process",
+        "interval_high": 0.896704521333261,
+        "interval_low": 0.8655892308274769,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.7553384282654472,
+        "pairs": 1653,
         "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.725981055480379,
-        "chance": 0.4416474344856051,
-        "interval_high": 0.7481122948404376,
-        "interval_low": 0.7026781270238157,
+        "agreement": 0.8622641509433963,
+        "chance": 0.3815972120964697,
+        "facet": "cellular_component",
+        "interval_high": 0.8890076043342141,
+        "interval_low": 0.8303068889536827,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.6438022703017452,
-        "pairs": 1478,
+        "level_label": "GO cellular component",
+        "lift": 2.2596185810849465,
+        "pairs": 530,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7045009784735812,
+        "chance": 0.4582159609677853,
+        "facet": "molecular_function",
+        "interval_high": 0.7238828827580885,
+        "interval_low": 0.6843518166444433,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.5374867714900724,
+        "pairs": 2044,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7188264058679706,
+        "chance": 0.4751974591050481,
+        "facet": "biological_process",
+        "interval_high": 0.7485575298813272,
+        "interval_low": 0.6870495262715859,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.5126899188849943,
+        "pairs": 818,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.8678571428571429,
+        "chance": 0.39502373592404555,
+        "facet": "cellular_component",
+        "interval_high": 0.902588866742204,
+        "interval_low": 0.823168034289921,
+        "level": 1,
+        "level_label": "GO cellular component",
+        "lift": 2.1969746724890804,
+        "pairs": 280,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.5998125585754451,
+        "chance": 0.4090582158191814,
+        "facet": "molecular_function",
+        "interval_high": 0.6288015916979197,
+        "interval_low": 0.570107378592364,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.4663256606990729,
+        "pairs": 1067,
         "tier": "0.90-0.94"
        }
       ],
@@ -7208,6 +7986,7 @@
        {
         "agreement": 1.0,
         "chance": 0.005758385016778826,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9799751461622506,
         "level": 1,
@@ -7219,6 +7998,7 @@
        {
         "agreement": 0.8758620689655172,
         "chance": 0.0043737008456960665,
+        "facet": null,
         "interval_high": 0.9200161579475072,
         "interval_low": 0.812305988549171,
         "level": 1,
@@ -7230,6 +8010,7 @@
        {
         "agreement": 0.7235294117647059,
         "chance": 0.00296789235925584,
+        "facet": null,
         "interval_high": 0.7852592802466724,
         "interval_low": 0.6519203131302868,
         "level": 1,
@@ -7241,6 +8022,7 @@
        {
         "agreement": 0.5317919075144508,
         "chance": 0.003231457306100631,
+        "facet": null,
         "interval_high": 0.6046496948887806,
         "interval_low": 0.45755286378519655,
         "level": 1,
@@ -7252,6 +8034,7 @@
        {
         "agreement": 0.25949367088607594,
         "chance": 0.0019572693348942727,
+        "facet": null,
         "interval_high": 0.31051062814997193,
         "interval_low": 0.21425413040551305,
         "level": 1,
@@ -7263,6 +8046,7 @@
        {
         "agreement": 0.21212121212121213,
         "chance": 0.0011310462177514197,
+        "facet": null,
         "interval_high": 0.28068303107115106,
         "interval_low": 0.15665942481649742,
         "level": 1,
@@ -7330,17 +8114,6 @@
       {
        "annotation_kind": "cog_orthogroup",
        "candidate": {
-        "calibration": {
-         "agreement": 0.5522222222222222,
-         "chance": 0.08843263352971993,
-         "interval_high": 0.5708918001028327,
-         "interval_low": 0.5334042503758638,
-         "level": 1,
-         "level_label": "COG category",
-         "lift": 6.2445524935841075,
-         "pairs": 2700,
-         "tier": "0.96-0.97"
-        },
         "cosine": 0.961414,
         "donor": {
          "annotated_gene_count": 11,
@@ -7364,10 +8137,31 @@
          },
          "term": "COG0050"
         },
-        "level": null,
+        "offers": [
+         {
+          "calibration": {
+           "agreement": 0.5522222222222222,
+           "chance": 0.08843263352971993,
+           "facet": null,
+           "interval_high": 0.5708918001028327,
+           "interval_low": 0.5334042503758638,
+           "level": 1,
+           "level_label": "COG category",
+           "lift": 6.2445524935841075,
+           "pairs": 2700,
+           "tier": "0.96-0.97"
+          },
+          "facet": null,
+          "level": 1,
+          "suggested": false,
+          "value": [
+           "J"
+          ]
+         }
+        ],
         "rank": 1,
-        "tier": "0.96-0.97",
-        "value": null
+        "suggested_count": 0,
+        "tier": "0.96-0.97"
        },
        "own": null,
        "walk": [
@@ -7411,14 +8205,14 @@
         "name": "molecular_function",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 355,
-         "interval_high": 0.999502587345329,
-         "interval_low": 0.9842183636257961,
+         "checkable_node_count": 354,
+         "interval_high": 0.9995011817339022,
+         "interval_low": 0.98417427690478,
          "min_nodes": 30,
          "one_gene_node_count": 6,
          "prevalence_band": "shell",
-         "rate": 0.9971830985915493,
-         "unanimous_node_count": 354
+         "rate": 0.9971751412429378,
+         "unanimous_node_count": 353
         },
         "term": "GO:0003674"
        },
@@ -8240,6 +9034,7 @@
        {
         "agreement": 0.9938271604938271,
         "chance": 0.0022831208106288995,
+        "facet": null,
         "interval_high": 0.997167990880969,
         "interval_low": 0.986598226915034,
         "level": 2,
@@ -8251,6 +9046,7 @@
        {
         "agreement": 0.9958847736625515,
         "chance": 0.0645084394410175,
+        "facet": null,
         "interval_high": 0.9983985661216133,
         "interval_low": 0.9894666775818732,
         "level": 1,
@@ -8262,6 +9058,7 @@
        {
         "agreement": 0.9002732240437158,
         "chance": 0.0020369372788599277,
+        "facet": null,
         "interval_high": 0.9199340927266562,
         "interval_low": 0.8764329514850326,
         "level": 2,
@@ -8273,6 +9070,7 @@
        {
         "agreement": 0.9672131147540983,
         "chance": 0.08177259964821623,
+        "facet": null,
         "interval_high": 0.977870029990927,
         "interval_low": 0.9516778509660614,
         "level": 1,
@@ -8284,6 +9082,7 @@
        {
         "agreement": 0.6137005649717514,
         "chance": 0.0026432945996464237,
+        "facet": null,
         "interval_high": 0.6387213714776052,
         "interval_low": 0.5880644897057832,
         "level": 2,
@@ -8295,6 +9094,7 @@
        {
         "agreement": 0.7994350282485876,
         "chance": 0.08829911963139643,
+        "facet": null,
         "interval_high": 0.8194689799290424,
         "interval_low": 0.7777807414483282,
         "level": 1,
@@ -8306,6 +9106,7 @@
        {
         "agreement": 0.33444444444444443,
         "chance": 0.0026772328714076542,
+        "facet": null,
         "interval_high": 0.3524648167954299,
         "interval_low": 0.3168945125380636,
         "level": 2,
@@ -8317,6 +9118,7 @@
        {
         "agreement": 0.5522222222222222,
         "chance": 0.08843263352971993,
+        "facet": null,
         "interval_high": 0.5708918001028327,
         "interval_low": 0.5334042503758638,
         "level": 1,
@@ -8328,6 +9130,7 @@
        {
         "agreement": 0.16529566971907497,
         "chance": 0.0016352973863872774,
+        "facet": null,
         "interval_high": 0.1745646441240327,
         "interval_low": 0.1564255883643846,
         "level": 2,
@@ -8339,6 +9142,7 @@
        {
         "agreement": 0.3791711935433804,
         "chance": 0.08156451409307834,
+        "facet": null,
         "interval_high": 0.3910870794021359,
         "interval_low": 0.3673993087231749,
         "level": 1,
@@ -8350,6 +9154,7 @@
        {
         "agreement": 0.11224744325268146,
         "chance": 0.0010112608840713434,
+        "facet": null,
         "interval_high": 0.12239276957862522,
         "interval_low": 0.10284452859930435,
         "level": 2,
@@ -8361,6 +9166,7 @@
        {
         "agreement": 0.31928161636318286,
         "chance": 0.07107817157474786,
+        "facet": null,
         "interval_high": 0.3338801600639095,
         "interval_low": 0.30502908569351095,
         "level": 1,
@@ -8382,6 +9188,7 @@
        {
         "agreement": 0.9887640449438202,
         "chance": 0.005349982133640373,
+        "facet": null,
         "interval_high": 0.9969133329399004,
         "interval_low": 0.9599634213341491,
         "level": 4,
@@ -8393,6 +9200,7 @@
        {
         "agreement": 0.99,
         "chance": 0.014948953547728438,
+        "facet": null,
         "interval_high": 0.9972533993962251,
         "interval_low": 0.9642775148038205,
         "level": 3,
@@ -8404,6 +9212,7 @@
        {
         "agreement": 0.9903846153846154,
         "chance": 0.03693685447818709,
+        "facet": null,
         "interval_high": 0.9973591973045761,
         "interval_low": 0.9656244659608073,
         "level": 2,
@@ -8415,6 +9224,7 @@
        {
         "agreement": 1.0,
         "chance": 0.18138002840472867,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9818656958784301,
         "level": 1,
@@ -8426,6 +9236,7 @@
        {
         "agreement": 0.8476190476190476,
         "chance": 0.0037915755230242877,
+        "facet": null,
         "interval_high": 0.9039741771987323,
         "interval_low": 0.7667252612512719,
         "level": 4,
@@ -8437,6 +9248,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.01676592365719471,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 3,
@@ -8448,6 +9260,7 @@
        {
         "agreement": 0.9407407407407408,
         "chance": 0.04422548801306313,
+        "facet": null,
         "interval_high": 0.9696700026617426,
         "interval_low": 0.8874218199620245,
         "level": 2,
@@ -8459,6 +9272,7 @@
        {
         "agreement": 0.9851851851851852,
         "chance": 0.21224957492422533,
+        "facet": null,
         "interval_high": 0.9959278819009239,
         "interval_low": 0.9475933682143154,
         "level": 1,
@@ -8470,6 +9284,7 @@
        {
         "agreement": 0.48582995951417,
         "chance": 0.002455854231937552,
+        "facet": null,
         "interval_high": 0.5478990777701226,
         "interval_low": 0.424194865180329,
         "level": 4,
@@ -8481,6 +9296,7 @@
        {
         "agreement": 0.7328767123287672,
         "chance": 0.016705475955722426,
+        "facet": null,
         "interval_high": 0.7803627476559137,
         "interval_low": 0.6793427163491484,
         "level": 3,
@@ -8492,6 +9308,7 @@
        {
         "agreement": 0.7583892617449665,
         "chance": 0.043671235087624924,
+        "facet": null,
         "interval_high": 0.8035040359272203,
         "interval_low": 0.7066973412189386,
         "level": 2,
@@ -8503,6 +9320,7 @@
        {
         "agreement": 0.8120805369127517,
         "chance": 0.19633551688569137,
+        "facet": null,
         "interval_high": 0.8523581509904853,
         "interval_low": 0.7638590967314988,
         "level": 1,
@@ -8514,6 +9332,7 @@
        {
         "agreement": 0.20026007802340703,
         "chance": 0.0022745339502911028,
+        "facet": null,
         "interval_high": 0.23000447329744123,
         "interval_low": 0.1734955453350962,
         "level": 4,
@@ -8525,6 +9344,7 @@
        {
         "agreement": 0.30243337195828507,
         "chance": 0.01838263781802736,
+        "facet": null,
         "interval_high": 0.33389839686767697,
         "interval_low": 0.2727194673418857,
         "level": 3,
@@ -8536,6 +9356,7 @@
        {
         "agreement": 0.3344671201814059,
         "chance": 0.047769575432043236,
+        "facet": null,
         "interval_high": 0.3662631482630345,
         "interval_low": 0.3041068140417388,
         "level": 2,
@@ -8547,6 +9368,7 @@
        {
         "agreement": 0.48645598194130923,
         "chance": 0.20098234681877786,
+        "facet": null,
         "interval_high": 0.5193550489380501,
         "interval_low": 0.4536738586787662,
         "level": 1,
@@ -8558,6 +9380,7 @@
        {
         "agreement": 0.09002433090024331,
         "chance": 0.0012645476716560832,
+        "facet": null,
         "interval_high": 0.10483264270122403,
         "interval_low": 0.07712756512457669,
         "level": 4,
@@ -8569,6 +9392,7 @@
        {
         "agreement": 0.17258883248730963,
         "chance": 0.018880191126209155,
+        "facet": null,
         "interval_high": 0.1899094358629653,
         "interval_low": 0.15654268065945467,
         "level": 3,
@@ -8580,6 +9404,7 @@
        {
         "agreement": 0.21002506265664161,
         "chance": 0.04907308351037907,
+        "facet": null,
         "interval_high": 0.22844808850274534,
         "interval_low": 0.19271665011386147,
         "level": 2,
@@ -8591,6 +9416,7 @@
        {
         "agreement": 0.399900149775337,
         "chance": 0.21269991220754075,
+        "facet": null,
         "interval_high": 0.42152582507403485,
         "interval_low": 0.37865770709910723,
         "level": 1,
@@ -8602,6 +9428,7 @@
        {
         "agreement": 0.0749185667752443,
         "chance": 0.0013447512497937822,
+        "facet": null,
         "interval_high": 0.09848800982706729,
         "interval_low": 0.05663524506544887,
         "level": 4,
@@ -8613,6 +9440,7 @@
        {
         "agreement": 0.14647137150466044,
         "chance": 0.019046240201086268,
+        "facet": null,
         "interval_high": 0.17355864208008823,
         "interval_low": 0.12298251304437754,
         "level": 3,
@@ -8624,6 +9452,7 @@
        {
         "agreement": 0.20725388601036268,
         "chance": 0.05208733529234645,
+        "facet": null,
         "interval_high": 0.23726275897707655,
         "interval_low": 0.18014409314325314,
         "level": 2,
@@ -8635,6 +9464,7 @@
        {
         "agreement": 0.43612903225806454,
         "chance": 0.2249764986156719,
+        "facet": null,
         "interval_high": 0.471273524263456,
         "interval_low": 0.4016146214134056,
         "level": 1,
@@ -8654,69 +9484,219 @@
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.9265687583444593,
-        "chance": 0.36604516387059427,
-        "interval_high": 0.9431518043266637,
-        "interval_low": 0.9056323223740924,
+        "agreement": 0.9884726224783862,
+        "chance": 0.3018421499522232,
+        "facet": "biological_process",
+        "interval_high": 0.9955084203618655,
+        "interval_low": 0.970739595836898,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.531296271058026,
-        "pairs": 749,
+        "level_label": "GO biological process",
+        "lift": 3.27479983373709,
+        "pairs": 347,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9175475687103594,
-        "chance": 0.32699128492757185,
-        "interval_high": 0.9390997359335144,
-        "interval_low": 0.8892675877228108,
+        "agreement": 1.0,
+        "chance": 0.2240582477194896,
+        "facet": "cellular_component",
+        "interval_high": 1.0,
+        "interval_low": 0.9815166934819592,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.8060306528157013,
-        "pairs": 473,
+        "level_label": "GO cellular component",
+        "lift": 4.4631251479389995,
+        "pairs": 204,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.8826446280991735,
+        "chance": 0.43834525174468597,
+        "facet": "molecular_function",
+        "interval_high": 0.9059091630747756,
+        "interval_low": 0.854551357362724,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.0135831849121284,
+        "pairs": 605,
+        "tier": ">= 0.99"
+       },
+       {
+        "agreement": 0.9899497487437185,
+        "chance": 0.2614568002722492,
+        "facet": "biological_process",
+        "interval_high": 0.9972395756088073,
+        "interval_low": 0.9641016877217916,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 3.7862841881064315,
+        "pairs": 199,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.9339622641509434,
-        "chance": 0.3906570514735463,
-        "interval_high": 0.950775695119895,
-        "interval_low": 0.9119378264767003,
+        "agreement": 0.9692307692307692,
+        "chance": 0.22101414813934145,
+        "facet": "cellular_component",
+        "interval_high": 0.9879709102963595,
+        "interval_low": 0.9235543553908409,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 2.3907472311790268,
-        "pairs": 636,
+        "level_label": "GO cellular component",
+        "lift": 4.3853788428951805,
+        "pairs": 130,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.90625,
+        "chance": 0.4284646788656418,
+        "facet": "molecular_function",
+        "interval_high": 0.9324657979726115,
+        "interval_low": 0.8712626025291846,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.1151101705729687,
+        "pairs": 352,
+        "tier": "0.98-0.99"
+       },
+       {
+        "agreement": 0.9485861182519281,
+        "chance": 0.38694259235393746,
+        "facet": "biological_process",
+        "interval_high": 0.9664742722952886,
+        "interval_low": 0.9219245123548097,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 2.4514905750780045,
+        "pairs": 389,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.8901927912824812,
-        "chance": 0.44685884038567675,
-        "interval_high": 0.9066977054452265,
-        "interval_low": 0.871183009930977,
+        "agreement": 0.9917355371900827,
+        "chance": 0.36314139001366713,
+        "facet": "cellular_component",
+        "interval_high": 0.9977307001849094,
+        "interval_low": 0.9703723385196874,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.9921118501631745,
-        "pairs": 1193,
+        "level_label": "GO cellular component",
+        "lift": 2.7309900894325425,
+        "pairs": 242,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8872017353579176,
+        "chance": 0.4336368238218609,
+        "facet": "molecular_function",
+        "interval_high": 0.9129377416260899,
+        "interval_low": 0.8550658105516841,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 2.045955709062158,
+        "pairs": 461,
+        "tier": "0.97-0.98"
+       },
+       {
+        "agreement": 0.8757192174913694,
+        "chance": 0.45044496600890505,
+        "facet": "biological_process",
+        "interval_high": 0.8960142846055906,
+        "interval_low": 0.8521168768789215,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.9441203333906432,
+        "pairs": 869,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.8397459843107956,
-        "chance": 0.47891533985350637,
-        "interval_high": 0.8531543615257797,
-        "interval_low": 0.8253639067672816,
+        "agreement": 0.8854166666666666,
+        "chance": 0.3581453664348275,
+        "facet": "cellular_component",
+        "interval_high": 0.9135284343531052,
+        "interval_low": 0.8496697372715993,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.7534330484541638,
-        "pairs": 2677,
+        "level_label": "GO cellular component",
+        "lift": 2.4722270609852717,
+        "pairs": 384,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.7058152793614595,
+        "chance": 0.4189969267176228,
+        "facet": "molecular_function",
+        "interval_high": 0.735023855096365,
+        "interval_low": 0.6748114660328821,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.684535695501972,
+        "pairs": 877,
+        "tier": "0.96-0.97"
+       },
+       {
+        "agreement": 0.8820326678765881,
+        "chance": 0.5024858190726083,
+        "facet": "biological_process",
+        "interval_high": 0.896704521333261,
+        "interval_low": 0.8655892308274769,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.7553384282654472,
+        "pairs": 1653,
         "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.725981055480379,
-        "chance": 0.4416474344856051,
-        "interval_high": 0.7481122948404376,
-        "interval_low": 0.7026781270238157,
+        "agreement": 0.8622641509433963,
+        "chance": 0.3815972120964697,
+        "facet": "cellular_component",
+        "interval_high": 0.8890076043342141,
+        "interval_low": 0.8303068889536827,
         "level": 1,
-        "level_label": "GO slim term",
-        "lift": 1.6438022703017452,
-        "pairs": 1478,
+        "level_label": "GO cellular component",
+        "lift": 2.2596185810849465,
+        "pairs": 530,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7045009784735812,
+        "chance": 0.4582159609677853,
+        "facet": "molecular_function",
+        "interval_high": 0.7238828827580885,
+        "interval_low": 0.6843518166444433,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.5374867714900724,
+        "pairs": 2044,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7188264058679706,
+        "chance": 0.4751974591050481,
+        "facet": "biological_process",
+        "interval_high": 0.7485575298813272,
+        "interval_low": 0.6870495262715859,
+        "level": 1,
+        "level_label": "GO biological process",
+        "lift": 1.5126899188849943,
+        "pairs": 818,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.8678571428571429,
+        "chance": 0.39502373592404555,
+        "facet": "cellular_component",
+        "interval_high": 0.902588866742204,
+        "interval_low": 0.823168034289921,
+        "level": 1,
+        "level_label": "GO cellular component",
+        "lift": 2.1969746724890804,
+        "pairs": 280,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.5998125585754451,
+        "chance": 0.4090582158191814,
+        "facet": "molecular_function",
+        "interval_high": 0.6288015916979197,
+        "interval_low": 0.570107378592364,
+        "level": 1,
+        "level_label": "GO molecular function",
+        "lift": 1.4663256606990729,
+        "pairs": 1067,
         "tier": "0.90-0.94"
        }
       ],
@@ -8732,6 +9712,7 @@
        {
         "agreement": 1.0,
         "chance": 0.005758385016778826,
+        "facet": null,
         "interval_high": 1.0,
         "interval_low": 0.9799751461622506,
         "level": 1,
@@ -8743,6 +9724,7 @@
        {
         "agreement": 0.8758620689655172,
         "chance": 0.0043737008456960665,
+        "facet": null,
         "interval_high": 0.9200161579475072,
         "interval_low": 0.812305988549171,
         "level": 1,
@@ -8754,6 +9736,7 @@
        {
         "agreement": 0.7235294117647059,
         "chance": 0.00296789235925584,
+        "facet": null,
         "interval_high": 0.7852592802466724,
         "interval_low": 0.6519203131302868,
         "level": 1,
@@ -8765,6 +9748,7 @@
        {
         "agreement": 0.5317919075144508,
         "chance": 0.003231457306100631,
+        "facet": null,
         "interval_high": 0.6046496948887806,
         "interval_low": 0.45755286378519655,
         "level": 1,
@@ -8776,6 +9760,7 @@
        {
         "agreement": 0.25949367088607594,
         "chance": 0.0019572693348942727,
+        "facet": null,
         "interval_high": 0.31051062814997193,
         "interval_low": 0.21425413040551305,
         "level": 1,
@@ -8787,6 +9772,7 @@
        {
         "agreement": 0.21212121212121213,
         "chance": 0.0011310462177514197,
+        "facet": null,
         "interval_high": 0.28068303107115106,
         "interval_low": 0.15665942481649742,
         "level": 1,
@@ -8924,7 +9910,6 @@
       {
        "annotation_kind": "gene_ontology_slim",
        "candidate": {
-        "calibration": null,
         "cosine": 0.985861,
         "donor": {
          "annotated_gene_count": 17,
@@ -8937,21 +9922,21 @@
          "node_label": "15580",
          "propagation": {
           "annotation_kind": "gene_ontology_slim",
-          "checkable_node_count": 355,
-          "interval_high": 0.999502587345329,
-          "interval_low": 0.9842183636257961,
+          "checkable_node_count": 354,
+          "interval_high": 0.9995011817339022,
+          "interval_low": 0.98417427690478,
           "min_nodes": 30,
           "one_gene_node_count": 6,
           "prevalence_band": "shell",
-          "rate": 0.9971830985915493,
-          "unanimous_node_count": 354
+          "rate": 0.9971751412429378,
+          "unanimous_node_count": 353
          },
          "term": "GO:0008150"
         },
-        "level": null,
+        "offers": [],
         "rank": 2,
-        "tier": "0.98-0.99",
-        "value": null
+        "suggested_count": 0,
+        "tier": "0.98-0.99"
        },
        "own": null,
        "walk": [

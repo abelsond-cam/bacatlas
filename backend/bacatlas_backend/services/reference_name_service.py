@@ -133,9 +133,16 @@ def gene_ontology_fold(session: Session) -> GeneOntologyFold:
         slim_of: dict[str, frozenset[str]] = {}
         namespace_of: dict[str, int] = {}
         rows = session.execute(
-            select(GeneOntologyTerm.go_id, GeneOntologyTerm.namespace_index, GeneOntologyTerm.slim_go_ids)
+            select(
+                GeneOntologyTerm.go_id,
+                GeneOntologyTerm.namespace_index,
+                GeneOntologyTerm.slim_go_ids,
+                GeneOntologyTerm.name,
+            )
         ).all()
-        for go_id, namespace_index, slim_go_ids in rows:
+        names: dict[str, str] = {}
+        for go_id, namespace_index, slim_go_ids, go_name in rows:
+            names[go_id] = go_name
             # ⚠ `vendor_go.slim_of`'s rule, carried over: a term reaching NO slim class maps to
             # itself. Folding it away would make an annotated gene read as unannotated, which is a
             # different and false finding from "annotated with nothing comparable".
@@ -150,6 +157,7 @@ def gene_ontology_fold(session: Session) -> GeneOntologyFold:
             slim_of=slim_of,
             ancestors={k: frozenset(v) for k, v in ancestors.items()},
             namespace_of=namespace_of,
+            name_of=names,
         )
     return _FOLD
 

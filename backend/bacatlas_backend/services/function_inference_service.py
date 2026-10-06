@@ -30,15 +30,16 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
     ANNOTATED_COUNT_PREDICATE,
+    GENE_ONTOLOGY_FACETS,
     NOT_CALLED,
     SUPPORTED_KINDS,
     Calibration,
-    callable_level,
+    callable_rungs,
     cog_levels,
     compute_calibration,
     ec_levels,
     go_rung,
-    quotable_level,
+    quotable_rungs,
     single_rung,
     tier_for,
 )
@@ -337,12 +338,8 @@ def _walk(
         #: neighbour that carries nothing cannot be skipped over in favour of a FURTHER one that
         #: does, or the cosine the rate is read from would no longer be the walk's own.
         donor_annotated = annotated_counts.get(row.locus_id, {}).get(annotation_kind, 0)
-        folded = _fold(
-            annotation_kind,
-            [t for t, _n, _s in said],
-            row.modal_cog_categories,
-            gene_ontology_fold(session),
-        )
+        fold_now = gene_ontology_fold(session)
+        folded = _fold(annotation_kind, [t for t, _n, _s in said], row.modal_cog_categories, fold_now)
         ladder = calibration_for(
             session,
             pangenome_id=pangenome_id,
@@ -356,10 +353,47 @@ def _walk(
         #: refusal at 24.3 % agreement reads as "too remote to call", which it is not: the neighbour
         #: is at 0.929 and perfectly close. It is the *measurement* that refuses, and the reader is
         #: owed the number that did it.
-        measurable = folded and tier != NOT_CALLED
-        quoted = quotable_level(annotation_kind, tier, folded) if measurable else None
-        level = callable_level(annotation_kind, tier, folded, ladder) if measurable else None
-        cell = ladder.cell(tier, level if level is not None else quoted) if quoted is not None else None
+        measurable = bool(folded) and tier != NOT_CALLED
+        quoted = quotable_rungs(annotation_kind, tier, folded) if measurable else []
+        callable_ = callable_rungs(annotation_kind, tier, folded, ladder) if measurable else []
+        called = set(callable_)
+        #: ⭐ **One entry per rung the donor can be READ at, each carrying its own verdict.** GO has
+        #: three independent claims and they do not stand or fall together: measured at 0.94-0.96,
+        #: cellular component agrees 84.2 % / 86.2 % of the time and molecular function 60.3 % /
+        #: 70.5 %. A single suggestion per vocabulary had to average those, and the average let the
+        #: weak one through on the strength of the other two.
+        #: ⛔ A rung that is quotable but NOT callable still appears, with `suggested: false` and the
+        #: cell that refused it. Dropping it would leave the reader unable to see that a claim was
+        #: considered and declined, which is the one thing the floor owes them.
+        #: ⛔ **What the donor SAYS, not the closed set it is compared by.** The closure exists so
+        #: `plasma membrane` and `membrane` stop reading as a conflict; showing its output as the
+        #: suggestion gives *"plasma membrane, membrane"*, where the second is implied by the first.
+        #: Comparison and display want different sets, and conflating them makes the card worse.
+        stated = (
+            fold_now.stated_by_namespace(t for t, _n, _s in said)
+            if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM
+            else {}
+        )
+        offers = []
+        for rung in quoted:
+            facet, depth = rung
+            if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+                index = GENE_ONTOLOGY_FACETS.index(facet) if facet in GENE_ONTOLOGY_FACETS else None
+                classes = sorted(stated.get(index, frozenset())) if index is not None else []
+                # ⚠ The NAME, because `GO:0005886` is not a suggestion a reader can act on.
+                value = [fold_now.label(go_class) for go_class in classes]
+            else:
+                value = sorted(folded[rung])
+            cell = ladder.cell(tier, rung)
+            offers.append(
+                {
+                    "facet": facet,
+                    "level": depth,
+                    "suggested": rung in called,
+                    "value": value,
+                    "calibration": cell.as_json() if cell is not None else None,
+                }
+            )
         candidate = {
             "rank": row.rank,
             "cosine": row.cross_similarity,
@@ -383,9 +417,9 @@ def _walk(
                     prevalence_band=row.prevalence_band,
                 ).as_json(),
             },
-            # `null` where the tier is too remote to call, or the donor states nothing this deep.
-            "level": level,
-            "value": sorted(folded[level]) if level is not None else None,
-            "calibration": cell.as_json() if cell is not None else None,
+            #: ⚠ Empty where the tier is too remote to call or the donor states nothing readable.
+            #: A client should look at `suggested` on each offer, never at the list being non-empty.
+            "offers": offers,
+            "suggested_count": sum(1 for offer in offers if offer["suggested"]),
         }
     return {"walk": walk, "candidate": candidate}

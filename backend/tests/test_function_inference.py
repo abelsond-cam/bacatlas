@@ -25,10 +25,10 @@ from bacatlas_backend.instruments.annotation_transfer import (
     TIERS,
     Calibration,
     Cell,
-    callable_level,
+    callable_rungs,
     cog_levels,
     ec_levels,
-    quotable_level,
+    quotable_rungs,
     tier_for,
 )
 from bacatlas_backend.instruments.within_node_propagation import MIN_NODES
@@ -119,50 +119,50 @@ def test_an_EC_value_is_a_SET_of_codes_each_resolved_to_its_own_depth():
     Measured in the published catalogues: 1,034 of 9,398 values are comma-joined lists and 2,257
     carry `-` placeholders.
     """
+    # ⚠ A rung is `(facet, depth)` since 2026-10-06; EC has one axis, so its facet is None.
     plain = ec_levels("2.7.10.1")
-    assert plain[4] == {"2.7.10.1"} and plain[1] == {"2"}
+    assert plain[(None, 4)] == {"2.7.10.1"} and plain[(None, 1)] == {"2"}
 
     padded = ec_levels("3.1.-.-")
-    assert padded[2] == {"3.1"}
-    assert padded[3] == frozenset() and padded[4] == frozenset(), (
+    assert padded[(None, 2)] == {"3.1"}
+    assert padded[(None, 3)] == frozenset() and padded[(None, 4)] == frozenset(), (
         "a dash means the SOURCE does not state this level — incomparable, not a disagreement"
     )
 
     joined = ec_levels("1.6.5.9,7.1.1.-")
-    assert joined[4] == {"1.6.5.9"}, "only the complete code contributes at level 4"
-    assert joined[3] == {"1.6.5", "7.1.1"} and joined[1] == {"1", "7"}
-    assert "9,7" not in joined[4], "⛔ the `split_part` bug: a code neither side holds"
+    assert joined[(None, 4)] == {"1.6.5.9"}, "only the complete code contributes at level 4"
+    assert joined[(None, 3)] == {"1.6.5", "7.1.1"} and joined[(None, 1)] == {"1", "7"}
+    assert "9,7" not in joined[(None, 4)], "⛔ the `split_part` bug: a code neither side holds"
 
 
 def test_a_tier_quotes_no_deeper_than_the_DONOR_actually_states():
     """⛔ Of 84 ecoli nodes with a >= 0.99 EC neighbour only 43 can be given a four-field code."""
+    # ⚠ A LIST of rungs since 2026-10-06 — one per facet. EC has one facet, so one entry at most.
     complete = ec_levels("2.7.10.1")
-    assert quotable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete) == 4
+    assert quotable_rungs(AnnotationKind.EC_NUMBER, ">= 0.99", complete) == [(None, 4)]
 
     padded = ec_levels("2.7.-.-")
-    assert quotable_level(AnnotationKind.EC_NUMBER, ">= 0.99", padded) == 2, (
+    assert quotable_rungs(AnnotationKind.EC_NUMBER, ">= 0.99", padded) == [(None, 2)], (
         "the tier permits 4, the donor states 2, so 2 is quoted — not 4"
     )
-    assert quotable_level(AnnotationKind.EC_NUMBER, "0.98-0.99", padded) == 2
+    assert quotable_rungs(AnnotationKind.EC_NUMBER, "0.98-0.99", padded) == [(None, 2)]
 
-    assert quotable_level(AnnotationKind.EC_NUMBER, NOT_CALLED, complete) is None
-    assert quotable_level(AnnotationKind.COG_ORTHOGROUP, ">= 0.99",
-                          cog_levels(None, ["M"])) == 1, (
-        "a donor with categories but no orthogroup still has a category to give"
-    )
-    assert quotable_level(AnnotationKind.COG_ORTHOGROUP, ">= 0.99",
-                          cog_levels(None, None)) is None
+    assert quotable_rungs(AnnotationKind.EC_NUMBER, NOT_CALLED, complete) == []
+    assert quotable_rungs(AnnotationKind.COG_ORTHOGROUP, ">= 0.99", cog_levels(None, ["M"])) == [
+        (None, 1)
+    ], "a donor with categories but no orthogroup still has a category to give"
+    assert quotable_rungs(AnnotationKind.COG_ORTHOGROUP, ">= 0.99", cog_levels(None, None)) == []
 
 
 # ── ⛔ the floor: whether to speak at all, which is NOT how deep ─────────────────────────────────
-def _ladder(kind, rates: dict[tuple[str, int], float | None]) -> Calibration:
+def _ladder(kind, rates: dict[tuple[str, int], float | None], facet: str | None = None) -> Calibration:
     """A hand-built ladder. ⚠ `None` means a cell under `MIN_PAIRS` — a count and no rate."""
     cells = {}
     for (tier, level), rate in rates.items():
         pairs = 1_000 if rate is not None else MIN_PAIRS - 1
         agreeing = round((rate or 0) * pairs)
-        cells[(tier, level)] = Cell(tier=tier, level=level, level_label="x", pairs=pairs,
-                                    agreeing=agreeing, chance=0.01)
+        cells[(tier, (facet, level))] = Cell(tier=tier, facet=facet, level=level, level_label="x",
+                                             pairs=pairs, agreeing=agreeing, chance=0.01)
     return Calibration(annotation_kind=kind, representation=EmbeddingRepresentation.ESM, cells=cells,
                        annotated_locus_count=1, locus_count=1)
 
@@ -180,27 +180,29 @@ def test_the_floor_is_a_SEPARATE_decision_from_the_depth():
 
     # every rung of the >= 0.99 EC cell clears the floor, so the full code still goes out
     rich = _ladder(AnnotationKind.EC_NUMBER, {(">= 0.99", level): 0.99 for level in (1, 2, 3, 4)})
-    assert callable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete, rich) == 4
-    assert quotable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete) == 4, "unchanged by the floor"
+    assert callable_rungs(AnnotationKind.EC_NUMBER, ">= 0.99", complete, rich) == [(None, 4)]
+    assert quotable_rungs(AnnotationKind.EC_NUMBER, ">= 0.99", complete) == [(None, 4)], (
+        "unchanged by the floor"
+    )
 
     # ⭐ the deepest rung misses it and a shallower one clears: quote the shallower one
     mixed = _ladder(AnnotationKind.EC_NUMBER,
                     {(">= 0.99", 4): 0.60, (">= 0.99", 3): 0.97, (">= 0.99", 2): 0.99, (">= 0.99", 1): 0.99})
-    assert callable_level(AnnotationKind.EC_NUMBER, ">= 0.99", complete, mixed) == 3
+    assert callable_rungs(AnnotationKind.EC_NUMBER, ">= 0.99", complete, mixed) == [(None, 3)]
 
     # ⛔ COG category at 0.97-0.98 is 78.1 % ecoli / 79.9 % kp with NO shallower rung — say nothing
     thin = _ladder(AnnotationKind.COG_ORTHOGROUP, {("0.97-0.98", 1): 0.781})
-    assert callable_level(AnnotationKind.COG_ORTHOGROUP, "0.97-0.98", cog_levels("COG1", ["J"]), thin) is None
+    assert callable_rungs(AnnotationKind.COG_ORTHOGROUP, "0.97-0.98", cog_levels("COG1", ["J"]), thin) == []
 
     # ⛔ a cell with no measured rate cannot clear a floor. The card used to print the value anyway.
     unmeasured = _ladder(AnnotationKind.KEGG_ORTHOLOGY, {("0.90-0.94", 1): None})
-    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.90-0.94",
-                          {1: frozenset({"K01991"})}, unmeasured) is None
+    assert callable_rungs(AnnotationKind.KEGG_ORTHOLOGY, "0.90-0.94",
+                          {(None, 1): frozenset({"K01991"})}, unmeasured) == []
     # and a cell that is simply absent
-    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.96-0.97",
-                          {1: frozenset({"K01991"})}, unmeasured) is None
+    assert callable_rungs(AnnotationKind.KEGG_ORTHOLOGY, "0.96-0.97",
+                          {(None, 1): frozenset({"K01991"})}, unmeasured) == []
 
-    assert callable_level(AnnotationKind.EC_NUMBER, NOT_CALLED, complete, rich) is None
+    assert callable_rungs(AnnotationKind.EC_NUMBER, NOT_CALLED, complete, rich) == []
 
 
 def test_gumC_is_no_longer_offered_a_KEGG_it_would_be_wrong_about(client):
@@ -218,8 +220,13 @@ def test_gumC_is_no_longer_offered_a_KEGG_it_would_be_wrong_about(client):
     assert candidate["donor"]["display_name"] == "wza" and candidate["rank"] == 5
     assert candidate["cosine"] > 0.92, "non-vacuity: this donor is CLOSE, not remote"
     assert candidate["tier"] != NOT_CALLED
-    assert candidate["level"] is None and candidate["value"] is None, "⛔ nothing is suggested"
-    assert candidate["calibration"]["agreement"] < CALLING_FLOOR, (
+    assert candidate["suggested_count"] == 0, "⛔ nothing is suggested"
+    assert all(not offer["suggested"] for offer in candidate["offers"])
+    # ⛔ The refused rung is still OFFERED, carrying the cell that refused it — dropping it would
+    # leave the reader unable to see that a claim was considered and declined.
+    refused = [offer for offer in candidate["offers"] if offer["calibration"] is not None]
+    assert refused, "the refusal must still carry its rate"
+    assert all(offer["calibration"]["agreement"] < CALLING_FLOOR for offer in refused), (
         "and the measured rate that refused it travels with the refusal"
     )
     assert payload["calibration"]["kegg_orthology"]["calling_floor"] == CALLING_FLOOR
@@ -247,7 +254,7 @@ def test_the_floor_is_not_vacuous_a_STRONG_neighbour_still_suggests(client, sess
     payload = client.get(f"/api/v1/species/kp/loci/{label}/function").get_json()
     by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
     candidate = by_kind["cog_orthogroup"]["candidate"]
-    assert candidate["level"] is not None and candidate["value"], (
+    assert candidate["suggested_count"] > 0 and any(o["value"] for o in candidate["offers"]), (
         "a >= 0.99 COG neighbour agrees 99.4 % of the time and is still quoted"
     )
 
@@ -282,7 +289,7 @@ def test_the_COG_calibration_matches_a_recount_done_entirely_in_SQL(session):
             """),
             {"low": low, "high": high},
         ).one()
-        cell = calibration.cell(tier, 2)
+        cell = calibration.cell(tier, (None, 2))
         assert cell is not None, f"{tier} has no level-2 cell at all"
         assert recounted.pairs > 0, f"{tier} recounted ZERO pairs — the oracle itself is vacuous"
         assert (cell.pairs, cell.agreeing) == (recounted.pairs, recounted.agreeing), tier
@@ -327,7 +334,7 @@ def test_chance_is_EXACT_and_not_a_sampled_null(session):
         """),
         {"low": low, "high": high},
     ).scalar_one()
-    cell = calibration.cell(tier, 2)
+    cell = calibration.cell(tier, (None, 2))
     assert cell.chance == pytest.approx(expected, rel=1e-9)
     assert cell.lift > 100, "the top tier is hundreds of times better than chance, not marginally"
 
@@ -355,7 +362,7 @@ def test_the_two_catalogues_do_not_share_a_cached_ladder(session):
     ecoli = calibration_for(session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP)
     kp = calibration_for(session, pangenome_id=2, annotation_kind=AnnotationKind.COG_ORTHOGROUP)
     assert ecoli.annotated_locus_count != kp.annotated_locus_count
-    assert ecoli.cell(">= 0.99", 2).pairs != kp.cell(">= 0.99", 2).pairs
+    assert ecoli.cell(">= 0.99", (None, 2)).pairs != kp.cell(">= 0.99", (None, 2)).pairs
 
 
 # ── the endpoint, on the cases that teach the caveats ───────────────────────────────────────────
@@ -404,7 +411,7 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
     assert ec["term"] == "2.7.10.-"
     assert ec["annotated_gene_count"] == 16 and ec["member_gene_count"] == 100
     assert ec["checkable"] is True
-    assert ec_levels(ec["term"])[4] == frozenset(), (
+    assert ec_levels(ec["term"])[(None, 4)] == frozenset(), (
         "and its EC states only three levels however similar a reader's neighbour is"
     )
     # ⭐ The sixteen-voter vocabulary carries the SAME kind of statement as the one-voter one —
@@ -734,19 +741,30 @@ def test_the_walk_shows_the_ranks_that_carried_NOTHING(client, session):
 def test_every_candidate_carries_the_measured_rate_for_the_depth_it_quotes(client):
     """⭐ The rate is the thing the reader judges the suggestion by, so it travels WITH it."""
     payload = client.get("/api/v1/species/ecoli/loci/17173/function").get_json()
-    cells = {(cell["tier"], cell["level"]): cell
+    # ⚠ Keyed by (tier, facet, level) since 2026-10-06: GO has three cells per tier, one per
+    # namespace, and a key without the facet would silently keep whichever arrived last.
+    cells = {(cell["tier"], cell["facet"], cell["level"]): cell
              for cell in payload["calibration"]["cog_orthogroup"]["cells"]}
     assert cells, "the response ships no calibration at all"
+    checked = 0
     for entry in payload["inference"]["vocabularies"]:
         candidate = entry["candidate"]
-        if candidate is None or candidate["level"] is None:
+        if candidate is None:
             continue
-        quoted = candidate["calibration"]
-        assert quoted is not None
-        assert quoted["pairs"] >= MIN_PAIRS
-        assert quoted["tier"] == candidate["tier"] and quoted["level"] == candidate["level"]
-        if entry["annotation_kind"] == "cog_orthogroup":
-            assert quoted == cells[(candidate["tier"], candidate["level"])], (
-                "the rate beside the suggestion is the SAME cell the shipped ladder holds"
-            )
-        assert candidate["value"], "a quoted level must name what it asserts"
+        for offer in candidate["offers"]:
+            quoted = offer["calibration"]
+            if quoted is None:
+                continue
+            assert quoted["tier"] == candidate["tier"]
+            assert quoted["level"] == offer["level"] and quoted["facet"] == offer["facet"]
+            if entry["annotation_kind"] == "cog_orthogroup":
+                assert quoted == cells[(candidate["tier"], offer["facet"], offer["level"])], (
+                    "the rate beside the suggestion is the SAME cell the shipped ladder holds"
+                )
+            assert offer["value"], "a quoted rung must name what it asserts"
+            # ⛔ A SUGGESTED rung must rest on a cell with a real rate; a refused one need not.
+            if offer["suggested"]:
+                assert quoted["pairs"] >= MIN_PAIRS
+                assert quoted["agreement"] is not None and quoted["agreement"] >= CALLING_FLOOR
+            checked += 1
+    assert checked, "no offer was examined — this test would pass on an empty response"

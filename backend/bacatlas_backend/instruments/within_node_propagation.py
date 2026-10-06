@@ -41,10 +41,10 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
     GENE_VALUE_COLUMN,
-    LEVEL_LABEL,
     cog_levels,
     ec_levels,
     go_rung,
+    rungs_by_facet,
     single_rung,
 )
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
@@ -159,18 +159,29 @@ def unanimous_at_deepest_shared_rung(
 
     ⛔ **`None` is counted in NEITHER column.** Where no rung is stated by all of them there is nothing
     to compare, and scoring that as agreement is how a measurement quietly flatters itself.
+
+    ⭐ **Every FACET, independently, and the node must agree on all of them** (2026-10-06). GO states
+    three unrelated things — what the protein does, what process it is in, where it is — and the old
+    test pooled them into one set, so two genes "agreed" by sharing a cellular-component class while
+    contradicting each other about the molecular function. That was an OR across three questions. It
+    is now an AND over the questions both genes actually answer, which is what *"these genes agree"*
+    means. The other three vocabularies have one facet, so nothing about them changes.
     """
     folded = [_fold_gene(annotation_kind, value, fold) for value in values]
-    rung = next(
-        (level for level in sorted(LEVEL_LABEL[annotation_kind], reverse=True) if all(one[level] for one in folded)),
-        None,
-    )
-    if rung is None:
+    verdicts: list[bool] = []
+    for ladder in rungs_by_facet(annotation_kind).values():
+        # The deepest rung of THIS facet that every gene states — `1.1.1.1` and `1.1.1.2` share
+        # `1.1.1` at L3 and must be compared there, not at the shallowest rung they both reach.
+        rung = next((r for r in ladder if all(one[r] for one in folded)), None)
+        if rung is None:
+            continue  # nothing comparable in this facet; it votes neither way
+        shared = folded[0][rung]
+        for one in folded[1:]:
+            shared = shared & one[rung]
+        verdicts.append(bool(shared))
+    if not verdicts:
         return None
-    shared = folded[0][rung]
-    for one in folded[1:]:
-        shared = shared & one[rung]
-    return bool(shared)
+    return all(verdicts)
 
 
 def compute_propagation(

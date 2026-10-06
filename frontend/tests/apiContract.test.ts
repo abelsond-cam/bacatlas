@@ -790,8 +790,11 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       );
       if (!go?.candidate) return; // ecoli's `over_cap` has no GO neighbour to refuse
       if (go.candidate.donor.term !== "GO:0008150") return;
-      expect(go.candidate.level).toBeNull();
-      expect(go.candidate.value).toBeNull();
+      // ⚠ Not merely "nothing suggested" — NOTHING READABLE. A root-only donor has an empty claim
+      // in every namespace, so there is no rung to offer at all, which is a stronger statement than
+      // a rung that was offered and refused on its rate.
+      expect(go.candidate.offers).toEqual([]);
+      expect(go.candidate.suggested_count).toBe(0);
       expect(go.candidate.tier).toBe("0.98-0.99");
     });
 
@@ -857,8 +860,12 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       const card = tab.find(".infer");
       expect(card.exists()).toBe(true);
       expect(card.find(".infer-tag").text()).toBe("inferred");
+      // ⚠ One offer per readable rung since 2026-10-06. COG has one axis, so exactly one — and
+      // asserting that keeps this test honest if COG ever gains a facet.
+      const suggested = cog.candidate!.offers.filter((offer) => offer.suggested);
+      expect(suggested).toHaveLength(1);
       // the measured rate, with its n — both, or the rate means nothing
-      const cell = cog.candidate!.calibration!;
+      const cell = suggested[0]!.calibration!;
       expect(card.find(".infer-rate").text()).toContain(
         `${(cell.agreement! * 100).toFixed(1)}%`,
       );
@@ -867,7 +874,7 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(card.text()).toContain("carried no COG");
       // ⛔ the ladder shipped with the response, and the row the suggestion was read from
       const used = card.findAll(".infer-row-used");
-      expect(used).toHaveLength(1);
+      expect(used).toHaveLength(cog.candidate!.offers.length);
       expect(used[0]!.text()).toContain(cell.tier);
     });
 

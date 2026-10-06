@@ -100,23 +100,24 @@ def test_an_EC_value_folds_exactly_as_the_neighbour_ladder_folds_it():
     If this module folded them itself, the rung the page quotes for propagation could differ from the
     rung it quotes for transfer, on the same locus, in the same card.
     """
+    # ⚠ A rung is `(facet, depth)` since 2026-10-06. EC has one axis, so its facet is None.
     full = _fold_gene(EC, ["1.1.1.1"])
-    assert full[4] == frozenset({"1.1.1.1"})
-    assert full[1] == frozenset({"1"})
+    assert full[(None, 4)] == frozenset({"1.1.1.1"})
+    assert full[(None, 1)] == frozenset({"1"})
     # dash-padded: states L3 and above, and NOTHING at L4 — incomparable, not a disagreement
     padded = _fold_gene(EC, ["2.7.10.-"])
-    assert padded[4] == frozenset()
-    assert padded[3] == frozenset({"2.7.10"})
+    assert padded[(None, 4)] == frozenset()
+    assert padded[(None, 3)] == frozenset({"2.7.10"})
     # a gene carrying a SET of codes keeps both
     both = _fold_gene(EC, ["1.6.5.9", "7.1.1.-"])
-    assert both[1] == frozenset({"1", "7"})
+    assert both[(None, 1)] == frozenset({"1", "7"})
 
 
 def test_a_COG_gene_folds_at_the_rung_the_page_shows():
     """⚠ `cog_levels`' L1 rung is the LOCUS's category set, which one gene does not have."""
     folded = _fold_gene(COG, "COG3206")
-    assert folded[2] == frozenset({"COG3206"})
-    assert folded[1] == frozenset(), "a single gene carries no locus-level category set"
+    assert folded[(None, 2)] == frozenset({"COG3206"})
+    assert folded[(None, 1)] == frozenset(), "a single gene carries no locus-level category set"
 
 
 def test_every_supported_vocabulary_has_a_gene_column_and_a_derived_predicate():

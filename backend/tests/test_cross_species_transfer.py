@@ -24,7 +24,7 @@ from pathlib import Path
 import pytest
 
 from bacatlas_backend.instruments.annotation_transfer import (
-    _chance_by_level,
+    _chance_by_rung,
     tally_cells,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind
@@ -45,7 +45,8 @@ xs = _load_script()
 
 
 def _cog(accession: str, category: str) -> dict[int, frozenset[str]]:
-    return {2: frozenset({accession}), 1: frozenset({category})}
+    # ⚠ A rung is `(facet, depth)` since 2026-10-06; COG has one axis, so its facet is None.
+    return {(None, 2): frozenset({accession}), (None, 1): frozenset({category})}
 
 
 @pytest.fixture
@@ -69,11 +70,11 @@ def test_the_cross_species_null_is_the_DONOR_pool_and_does_not_self_exclude(two_
     both = {**donor, **recipient}
     edges = [(101, 1, 0.995), (102, 2, 0.995), (103, 1, 0.995)]
 
-    right = tally_cells(both, edges, COG, donor_pool=donor)[(">= 0.99", 1)]
+    right = tally_cells(both, edges, COG, donor_pool=donor)[(">= 0.99", (None, 1))]
     assert right.chance == pytest.approx(2 / 4)
 
     # the wrong null: the union of both catalogues, self-excluding as a within-species run does
-    wrong = tally_cells(both, edges, COG)[(">= 0.99", 1)]
+    wrong = tally_cells(both, edges, COG)[(">= 0.99", (None, 1))]
     assert wrong.chance == pytest.approx((5 - 1) / (7 - 1))
     assert wrong.chance != pytest.approx(right.chance), "the fixture must be able to tell them apart"
     # ⛔ agreement is IDENTICAL under both nulls — which is why a wrong null is invisible
@@ -81,10 +82,10 @@ def test_the_cross_species_null_is_the_DONOR_pool_and_does_not_self_exclude(two_
 
 
 def test_self_exclusion_is_dropped_only_when_the_focal_node_is_not_in_the_pool(two_catalogues):
-    """The two modes of `_chance_by_level`, on one pool, so the arithmetic is visible."""
+    """The two modes of `_chance_by_rung`, on one pool, so the arithmetic is visible."""
     donor, _recipient = two_catalogues
-    excluded = _chance_by_level(donor, 1, self_excluded=True)
-    included = _chance_by_level(donor, 1, self_excluded=False)
+    excluded = _chance_by_rung(donor, (None, 1), self_excluded=True)
+    included = _chance_by_rung(donor, (None, 1), self_excluded=False)
     assert included(frozenset({"E"})) == pytest.approx(2 / 4)
     assert excluded(frozenset({"E"})) == pytest.approx((2 - 1) / (4 - 1))
     # a claim nothing in the pool holds: 0 either way, and never negative
@@ -97,7 +98,7 @@ def test_a_claim_no_donor_holds_scores_zero_chance_and_no_lift(two_catalogues):
     donor, _recipient = two_catalogues
     levels = {**donor, 101: _cog("COG9999", "Z"), 102: _cog("COG9999", "Z")}
     cells = tally_cells(levels, [(101, 1, 0.995), (102, 2, 0.995)], COG, donor_pool=donor)
-    cell = cells[(">= 0.99", 1)]
+    cell = cells[(">= 0.99", (None, 1))]
     assert cell.chance == 0.0
     assert cell.lift is None, "⛔ never an unbounded ratio — lift is None where chance is 0"
 
@@ -371,8 +372,8 @@ def test_the_rule_chooses_which_donor_the_walk_takes(walk_inputs):
 
     assert by_median["state"]["labelled"][0] == 1 and by_max["state"]["labelled"][0] == 1
     # the median takes E2 at 0.995 — the top tier; the max takes E1 at 0.985 — one tier down
-    assert list(by_median["by_tier"]) == [(">= 0.99", 2)]
-    assert list(by_max["by_tier"]) == [("0.98-0.99", 2)]
+    assert list(by_median["by_tier"]) == [(">= 0.99", (None, 2))]
+    assert list(by_max["by_tier"]) == [("0.98-0.99", (None, 2))]
     assert by_median["examples"][0][1] == "E2" and by_max["examples"][0][1] == "E1"
 
 
@@ -380,7 +381,7 @@ def test_a_dash_padded_donor_quotes_no_deeper_than_it_states(walk_inputs):
     """`quotable_level` is what stops the transfer promising a depth the donor cannot supply."""
     recipient_ids, donor_ids, _levels = walk_inputs
     #: a donor with COG categories but no orthogroup accession can only supply the L1 rung
-    donor_levels = {1: {2: frozenset(), 1: frozenset({"E"})}}
+    donor_levels = {1: {(None, 2): frozenset(), (None, 1): frozenset({"E"})}}
     reach = _walk(
         _rows(("1098", "E1", 0.995, 1)),
         rule="cross",
@@ -390,7 +391,7 @@ def test_a_dash_padded_donor_quotes_no_deeper_than_it_states(walk_inputs):
         recipient_levels={},
     )
     assert reach["state"]["labelled"][0] == 1
-    assert list(reach["by_tier"]) == [(">= 0.99", 1)], "the >= 0.99 tier permits L2; the donor has only L1"
+    assert list(reach["by_tier"]) == [(">= 0.99", (None, 1))], "the >= 0.99 tier permits L2; the donor has only L1"
 
 
 def test_the_two_reach_columns_must_describe_the_SAME_nodes(walk_inputs, capsys):
@@ -450,7 +451,7 @@ def test_the_within_species_graph_feeds_the_SAME_walk_as_the_map(walk_inputs):
     assert reach["state"]["labelled"] == [1, 7], "101 takes 102's call"
     assert reach["state"]["no_annotated_donor"] == [1, 3], "102's only neighbour (101) carries nothing"
     assert reach["state"]["no_candidate_at_all"] == [1, 5], "103 is in no neighbour list"
-    assert list(reach["by_tier"]) == [(">= 0.99", 2)]
+    assert list(reach["by_tier"]) == [(">= 0.99", (None, 2))]
 
 
 def test_a_longer_candidate_list_reaches_more_donors_WHATEVER_the_embedding_does(walk_inputs):

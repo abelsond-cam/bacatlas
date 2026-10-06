@@ -495,9 +495,16 @@ export const INFERENCE_KINDS = [
 ] as const;
 export type InferenceKind = (typeof INFERENCE_KINDS)[number];
 
-/** One (similarity tier, depth) cell of the measured ladder. */
+/** One (similarity tier, facet, depth) cell of the measured ladder. */
 export interface CalibrationCell {
   readonly tier: string;
+  /**
+   * ⛔ `null` for COG, EC and KEGG, which have one axis; one of the three GO namespaces for GO.
+   * A ladder keyed on `level` alone would collapse GO's three cells per tier into one — and they
+   * are not interchangeable: at 0.94-0.96 cellular component agrees 84.2 % / 86.2 % of the time
+   * and molecular function 60.3 % / 70.5 %.
+   */
+  readonly facet: string | null;
   readonly level: number;
   readonly level_label: string;
   readonly pairs: number;
@@ -601,9 +608,26 @@ export interface TransferCandidate {
     readonly catalogue_ordinal: number;
     readonly display_name: string | null;
   };
-  /** `null` where the tier is too remote to call, or the donor states nothing this deep. */
-  readonly level: number | null;
-  readonly value: readonly string[] | null;
+  /**
+   * ⭐ One entry per rung the donor can be READ at, each with its own verdict — up to three for GO,
+   * at most one for the others. Empty where the tier is too remote to call or the donor states
+   * nothing readable.
+   *
+   * ⛔ A rung that is quotable but NOT suggested still appears, carrying the cell that refused it.
+   * Dropping it would leave a reader unable to see that a claim was considered and declined, which
+   * is the one thing the floor owes them. **Read `suggested`, never the list being non-empty.**
+   */
+  readonly offers: readonly TransferOffer[];
+  /** How many of `offers` cleared the floor. `0` is a refusal, and the card says so. */
+  readonly suggested_count: number;
+}
+
+/** One rung of one donor: what it would say, and whether the measurement lets it. */
+export interface TransferOffer {
+  readonly facet: string | null;
+  readonly level: number;
+  readonly suggested: boolean;
+  readonly value: readonly string[];
   readonly calibration: CalibrationCell | null;
 }
 
