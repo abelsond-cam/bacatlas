@@ -77,24 +77,39 @@ def session(database_url):
 
 # ── the ladder is a DECISION, so it is pinned ───────────────────────────────────────────────────
 def test_the_ladder_is_the_one_David_chose_and_a_change_to_it_must_be_deliberate():
-    """⛔ David, 2026-10-03 — nuna `PROJECT_STATE.md` §6. Not a tuning parameter.
+    """⛔ David, 2026-10-03 and 2026-10-06 — nuna `PROJECT_STATE.md` §6. Not a tuning parameter.
 
-    Three separate decisions live in these two constants, and each was argued from a measurement:
-    below 0.96 is ONE tier because 0.95-0.96 and 0.90-0.95 were indistinguishable; nothing below
-    0.90 appears at all ("definitely too remote to call"); and EC quotes its full code only in the
-    top tier, dropping a level at 0.98-0.99 where the full code is 84 % and the sub-subclass 95 %.
+    Each boundary was argued from a measurement: nothing below 0.90 appears at all ("definitely too
+    remote to call"); EC quotes its full code only in the top tier, dropping a level at 0.98-0.99
+    where the full code is 84 % and the sub-subclass 95 %.
+
+    ⭐ **The bottom tier split at 0.94 on 2026-10-06, and this test is what made it deliberate** — it
+    failed the moment `TIERS` changed, which is the whole reason it is written as an equality against
+    a literal rather than as a property. It had been one band, 0.90-0.96, because 0.95-0.96 and
+    0.90-0.95 were statistically indistinguishable; that was true of the GO claim as it was then
+    compared, and stopped being true once a GO claim was closed upward through the slim. Measured on
+    the closed claim, GO steps at 0.94 in BOTH species — ecoli 73.2 % → 80.2 %, kp 72.7 % → 80.0 %
+    — so `0.94-0.96` reads 82.2 % / 84.0 % and clears the calling floor while `0.90-0.94` reads
+    71.2 % / 72.6 % and does not.
+
+    ⚠ `TIERS` is shared by all four vocabularies, so the split re-cut every bottom cell. Checked
+    rather than assumed: COG tops out at 35.8 % / 37.9 %, EC at 40.0 % / 43.5 %, KEGG at 25.9 % /
+    34.5 %, so both halves go on refusing and the split costs them nothing.
     """
     assert [name for name, _, _ in TIERS] == [
-        ">= 0.99", "0.98-0.99", "0.97-0.98", "0.96-0.97", "0.90-0.96",
+        ">= 0.99", "0.98-0.99", "0.97-0.98", "0.96-0.97", "0.94-0.96", "0.90-0.94",
     ]
-    assert [low for _, low, _ in TIERS] == [0.99, 0.98, 0.97, 0.96, 0.90]
+    assert [low for _, low, _ in TIERS] == [0.99, 0.98, 0.97, 0.96, 0.94, 0.90]
     assert tier_for(0.8999) == NOT_CALLED, "below 0.90 is never called"
     assert tier_for(None) == NOT_CALLED, "a missing cosine is not a tier"
+    # ⚠ The new boundary itself, both sides of it — half-open, so 0.94 is the STRONGER tier.
+    assert tier_for(0.94) == "0.94-0.96"
+    assert tier_for(0.9399) == "0.90-0.94"
     assert QUOTED_LEVEL[AnnotationKind.EC_NUMBER] == {
-        ">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1,
+        ">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1, "0.96-0.97": 1, "0.94-0.96": 1, "0.90-0.94": 1,
     }
     assert QUOTED_LEVEL[AnnotationKind.COG_ORTHOGROUP] == {
-        ">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1,
+        ">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1, "0.96-0.97": 1, "0.94-0.96": 1, "0.90-0.94": 1,
     }
 
 
@@ -178,8 +193,8 @@ def test_the_floor_is_a_SEPARATE_decision_from_the_depth():
     assert callable_level(AnnotationKind.COG_ORTHOGROUP, "0.97-0.98", cog_levels("COG1", ["J"]), thin) is None
 
     # ⛔ a cell with no measured rate cannot clear a floor. The card used to print the value anyway.
-    unmeasured = _ladder(AnnotationKind.KEGG_ORTHOLOGY, {("0.90-0.96", 1): None})
-    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.90-0.96",
+    unmeasured = _ladder(AnnotationKind.KEGG_ORTHOLOGY, {("0.90-0.94", 1): None})
+    assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.90-0.94",
                           {1: frozenset({"K01991"})}, unmeasured) is None
     # and a cell that is simply absent
     assert callable_level(AnnotationKind.KEGG_ORTHOLOGY, "0.96-0.97",

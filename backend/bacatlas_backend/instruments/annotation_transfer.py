@@ -45,15 +45,38 @@ from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 
 #: ⛔ **The ladder is a DECISION (David, 2026-10-03), not a measurement** — recorded in nuna
-#: `PROJECT_STATE.md` §6. Half-open `[low, high)`, ordered strongest first. Below 0.96 is ONE tier
-#: because 0.95-0.96 and 0.90-0.95 were statistically indistinguishable, and three indistinguishable
-#: claims read worse than one; below 0.90 nothing is called at all ("definitely too remote to call").
+#: `PROJECT_STATE.md` §6. Half-open `[low, high)`, ordered strongest first. Below 0.90 nothing is
+#: called at all ("definitely too remote to call").
+#:
+#: ⭐ **The bottom tier was split at 0.94 on 2026-10-06 (David), and it is now the only tier whose
+#: boundary was placed by a measurement.** It had been one band, 0.90-0.96, on the finding that
+#: 0.95-0.96 and 0.90-0.95 were statistically indistinguishable — which was true of the GO claim as
+#: it was then compared, and stopped being true once a GO claim was closed upward through the slim.
+#: Measured on the closed claim, GO's agreement steps cleanly at 0.94 in BOTH species:
+#:
+#:   bin        0.90-0.92  0.92-0.94  0.94-0.95  0.95-0.96
+#:   ecoli         65.9 %     73.2 %     80.2 %     84.0 %
+#:   kp            72.3 %     72.7 %     80.0 %     86.9 %
+#:
+#: so `0.94-0.96` reads **82.2 % / 84.0 %** and clears the calling floor, while `0.90-0.94` reads
+#: **71.2 % / 72.6 %** and does not. David, 2026-10-06: *"I suspect that will clear 80% bar. Then we
+#: have a cleaner claim."*
+#:
+#: ⚠ **The split re-cuts EVERY vocabulary's bottom cell, because `TIERS` is shared** — and for the
+#: other three it changes no behaviour, which was checked rather than assumed: COG tops out at
+#: 35.8 % / 37.9 %, EC at 40.0 % / 43.5 %, KEGG at 25.9 % / 34.5 %, so both halves go on refusing.
+#: The split buys GO a callable tier and costs the others nothing.
+#:
+#: ⚠ `0.90-0.94` is kept as a TIER rather than folded into `NOT_CALLED`. It is measured and shown,
+#: and the floor refuses it on its own merits; making it uncallable by construction would stop the
+#: walk naming a donor there, which is the one thing a reader can still use.
 TIERS: tuple[tuple[str, float, float], ...] = (
     (">= 0.99", 0.99, 1.01),
     ("0.98-0.99", 0.98, 0.99),
     ("0.97-0.98", 0.97, 0.98),
     ("0.96-0.97", 0.96, 0.97),
-    ("0.90-0.96", 0.90, 0.96),
+    ("0.94-0.96", 0.94, 0.96),
+    ("0.90-0.94", 0.90, 0.94),
 )
 #: Not a tier: a cosine this low is shown as a neighbour and carries NO suggested function.
 NOT_CALLED = "< 0.90"
@@ -68,10 +91,38 @@ NOT_CALLED = "< 0.90"
 #: agree by construction. A graded middle for GO needs the GO DAG, which is `function_inference`
 #: §9's deferred work.
 QUOTED_LEVEL: dict[AnnotationKind, dict[str, int]] = {
-    AnnotationKind.EC_NUMBER: {">= 0.99": 4, "0.98-0.99": 3, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.COG_ORTHOGROUP: {">= 0.99": 2, "0.98-0.99": 2, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.GENE_ONTOLOGY_SLIM: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
-    AnnotationKind.KEGG_ORTHOLOGY: {">= 0.99": 1, "0.98-0.99": 1, "0.97-0.98": 1, "0.96-0.97": 1, "0.90-0.96": 1},
+    AnnotationKind.EC_NUMBER: {
+        ">= 0.99": 4,
+        "0.98-0.99": 3,
+        "0.97-0.98": 1,
+        "0.96-0.97": 1,
+        "0.94-0.96": 1,
+        "0.90-0.94": 1,
+    },
+    AnnotationKind.COG_ORTHOGROUP: {
+        ">= 0.99": 2,
+        "0.98-0.99": 2,
+        "0.97-0.98": 1,
+        "0.96-0.97": 1,
+        "0.94-0.96": 1,
+        "0.90-0.94": 1,
+    },
+    AnnotationKind.GENE_ONTOLOGY_SLIM: {
+        ">= 0.99": 1,
+        "0.98-0.99": 1,
+        "0.97-0.98": 1,
+        "0.96-0.97": 1,
+        "0.94-0.96": 1,
+        "0.90-0.94": 1,
+    },
+    AnnotationKind.KEGG_ORTHOLOGY: {
+        ">= 0.99": 1,
+        "0.98-0.99": 1,
+        "0.97-0.98": 1,
+        "0.96-0.97": 1,
+        "0.94-0.96": 1,
+        "0.90-0.94": 1,
+    },
 }
 LEVEL_LABEL: dict[AnnotationKind, dict[int, str]] = {
     AnnotationKind.EC_NUMBER: {4: "full EC code", 3: "EC sub-subclass", 2: "EC subclass", 1: "EC class"},
@@ -84,12 +135,12 @@ MIN_PAIRS = 30
 
 #: ⛔⛔ **Whether to speak at all — a DIFFERENT constant from `QUOTED_LEVEL`, which is how DEEP.**
 #:
-#: `QUOTED_LEVEL` says a 0.90-0.96 neighbour may be quoted at level 1. It does **not** say the call
+#: `QUOTED_LEVEL` says a 0.90-0.94 neighbour may be quoted at level 1. It does **not** say the call
 #: is worth making, and until 2026-10-05 nothing did: the page printed *"Suggested KEGG orthology:
 #: K01991"* from a rank-5 neighbour at cosine 0.9293, where kp KEGG agreement is **24.3 % over 481
 #: pairs** — wrong about three times in four — with *"145x more often than a random annotated node"*
 #: underneath it. Both numbers were right and together they invited exactly the wrong reading.
-#: COG category at 0.90-0.96 (33.6 % / 35.6 %) and EC class (42.7 %) printed the same way.
+#: COG category at the bottom tier (33.6 % / 35.6 %) and EC class (42.7 %) printed the same way.
 #:
 #: ⚠ **It costs a great deal of coverage and that was the point.** Of the suggestions made today,
 #: 10-39 % survive the floor. The one cell it turns on is COG/EC at `0.97-0.98` — 78.1 % ecoli,

@@ -775,6 +775,26 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(checked).toBe(CASES.length * NAMESPACES.length);
     });
 
+    it("⭐⭐ a donor whose GO claim is a NAMESPACE ROOT suggests nothing — on real bytes", () => {
+      // ⛔ The clearest case the GO closure produces, and it turned up in the recorded bytes by
+      // itself. The kp `over_cap` locus has a 0.986 neighbour — a strong tier where GO agreement is
+      // 91.8 % — whose own top GO term is `GO:0008150`, the BIOLOGICAL PROCESS ROOT. It is an
+      // ancestor of every biological-process term, so it says only "this protein does something".
+      // Before the claim was closed and the roots removed, the page would have offered it as this
+      // node's suggested function.
+      //
+      // ⚠ Empty means "states nothing comparable", which is neither agreement nor disagreement — so
+      // the refusal is correct even though the tier and the rate would both have allowed a call.
+      const go = recorded.loci.over_cap?.function.inference.vocabularies.find(
+        (v) => v.annotation_kind === "gene_ontology_slim",
+      );
+      if (!go?.candidate) return; // ecoli's `over_cap` has no GO neighbour to refuse
+      if (go.candidate.donor.term !== "GO:0008150") return;
+      expect(go.candidate.level).toBeNull();
+      expect(go.candidate.value).toBeNull();
+      expect(go.candidate.tier).toBe("0.98-0.99");
+    });
+
     it("⭐ EC and KEGG arrive NAMED, on real bytes", () => {
       // ⚠ This assertion is the inverse of the one it replaces. Until 2026-10-05 it read "a KEGG
       // row is present and NEVER named" and the EC row carried `name: null` too — the first on a

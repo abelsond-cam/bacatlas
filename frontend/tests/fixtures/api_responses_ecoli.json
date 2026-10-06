@@ -192,26 +192,48 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.12609970674486803,
-        "chance": 0.0009028639371381425,
-        "interval_high": 0.13331542575612546,
-        "interval_low": 0.11922081550786992,
+        "agreement": 0.14169040835707503,
+        "chance": 0.000997607568120398,
+        "interval_high": 0.15137180713877385,
+        "interval_low": 0.13253150853501677,
         "level": 2,
         "level_label": "COG orthogroup",
-        "lift": 139.6663456783679,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 142.03020594965543,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.33560117302052783,
-        "chance": 0.06858123731107627,
-        "interval_high": 0.3456970992387057,
-        "interval_low": 0.3256533453515655,
+        "agreement": 0.35764482431149097,
+        "chance": 0.07051263027491671,
+        "interval_high": 0.37069135261729835,
+        "interval_low": 0.3448058830559092,
         "level": 1,
         "level_label": "COG category",
-        "lift": 4.893483789134354,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 5.072067556083142,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.100920245398773,
+        "chance": 0.0007498500668554411,
+        "interval_high": 0.11173490883151979,
+        "interval_low": 0.091045029998845,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 134.58723264770848,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.3,
+        "chance": 0.06546197842928994,
+        "interval_high": 0.31595892655597396,
+        "interval_low": 0.2845118806057461,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.582812912140304,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -400,48 +422,92 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.0997648639570037,
-        "chance": 0.0014109536439217156,
-        "interval_high": 0.11105157203615579,
-        "interval_low": 0.08950977278672914,
+        "agreement": 0.10343228200371057,
+        "chance": 0.0014787286916997568,
+        "interval_high": 0.11699993972003477,
+        "interval_low": 0.09127533380002338,
         "level": 4,
         "level_label": "full EC code",
-        "lift": 70.70740019474303,
-        "pairs": 2977,
-        "tier": "0.90-0.96"
+        "lift": 69.94676074406732,
+        "pairs": 2156,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.18401015228426396,
-        "chance": 0.020193694336576497,
-        "interval_high": 0.19641557820912695,
-        "interval_low": 0.17222032238079535,
+        "agreement": 0.19145114942528735,
+        "chance": 0.020227388928280556,
+        "interval_high": 0.20648759900114244,
+        "interval_low": 0.17726505036028467,
         "level": 3,
         "level_label": "EC sub-subclass",
-        "lift": 9.112257976044011,
-        "pairs": 3940,
-        "tier": "0.90-0.96"
+        "lift": 9.464946271815311,
+        "pairs": 2784,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.22559334475165158,
-        "chance": 0.05486524937449119,
-        "interval_high": 0.23866209943866826,
-        "interval_low": 0.21303996597496208,
+        "agreement": 0.23451635351426584,
+        "chance": 0.05489917951826143,
+        "interval_high": 0.2503550217161383,
+        "interval_low": 0.21938646787800753,
         "level": 2,
         "level_label": "EC subclass",
-        "lift": 4.111771063170233,
-        "pairs": 4087,
-        "tier": "0.90-0.96"
+        "lift": 4.2717642699242395,
+        "pairs": 2874,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.42669481585737745,
-        "chance": 0.2208702181451367,
-        "interval_high": 0.44160166351970914,
-        "interval_low": 0.41191996709343587,
+        "agreement": 0.4352901934623082,
+        "chance": 0.22075486625966945,
+        "interval_high": 0.45310955071205783,
+        "interval_low": 0.4176364606697551,
         "level": 1,
         "level_label": "EC class",
-        "lift": 1.9318802663426118,
-        "pairs": 4263,
-        "tier": "0.90-0.96"
+        "lift": 1.971826038707954,
+        "pairs": 2998,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.09013398294762484,
+        "chance": 0.0012329719106581045,
+        "interval_high": 0.11167945366101317,
+        "interval_low": 0.07240631504900338,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 73.10303030303051,
+        "pairs": 821,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.16608996539792387,
+        "chance": 0.0201125474998075,
+        "interval_high": 0.1886429188487395,
+        "interval_low": 0.14574894983401857,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 8.258027253857998,
+        "pairs": 1156,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.2044517724649629,
+        "chance": 0.05478485759115,
+        "interval_high": 0.2280644360447296,
+        "interval_low": 0.1827052154859216,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 3.7319029646978628,
+        "pairs": 1213,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.40632411067193674,
+        "chance": 0.22114359755432977,
+        "interval_high": 0.43363407087200057,
+        "interval_low": 0.37958138486337245,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.8373767776483445,
+        "pairs": 1265,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -449,64 +515,75 @@
       "representation": "esm"
      },
      "gene_ontology_slim": {
-      "annotated_locus_count": 5450,
+      "annotated_locus_count": 5285,
       "annotation_kind": "gene_ontology_slim",
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.943519188993483,
-        "chance": 0.11619494784698954,
-        "interval_high": 0.9545094939278178,
-        "interval_low": 0.930068207955199,
+        "agreement": 0.946199829205807,
+        "chance": 0.2979437465212457,
+        "interval_high": 0.9577248233022289,
+        "interval_low": 0.9317567885167604,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 8.120139528234475,
-        "pairs": 1381,
+        "lift": 3.175766701780182,
+        "pairs": 1171,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9,
-        "chance": 0.13905027458920058,
-        "interval_high": 0.9176663075542543,
-        "interval_low": 0.879042684634571,
+        "agreement": 0.9259681093394078,
+        "chance": 0.3558249083061579,
+        "interval_high": 0.9414927687441917,
+        "interval_low": 0.906732127881234,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 6.472479127847038,
-        "pairs": 930,
+        "lift": 2.602313912613135,
+        "pairs": 878,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.8569332355099046,
-        "chance": 0.16368010338512765,
-        "interval_high": 0.8745197831533371,
-        "interval_low": 0.8373403182658763,
+        "agreement": 0.9159226190476191,
+        "chance": 0.35352329922316683,
+        "interval_high": 0.9295996497725121,
+        "interval_low": 0.8998746742133332,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 5.235414798667384,
-        "pairs": 1363,
+        "lift": 2.5908408895828656,
+        "pairs": 1344,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.676949443016281,
-        "chance": 0.170433542596355,
-        "interval_high": 0.6956175683321122,
-        "interval_low": 0.6576997821675965,
+        "agreement": 0.8727668845315905,
+        "chance": 0.396762537128565,
+        "interval_high": 0.8857804983308134,
+        "interval_low": 0.8585074073691706,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.9719261402641215,
-        "pairs": 2334,
+        "lift": 2.199720998983287,
+        "pairs": 2295,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.5402171504542433,
-        "chance": 0.1668389563365322,
-        "interval_high": 0.5504796634135587,
-        "interval_low": 0.5299204180230859,
+        "agreement": 0.8223817412111173,
+        "chance": 0.4146269893254769,
+        "interval_high": 0.8323157918256257,
+        "interval_low": 0.8119921092910816,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.2379557048089356,
-        "pairs": 9026,
-        "tier": "0.90-0.96"
+        "lift": 1.9834254941989753,
+        "pairs": 5433,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7123164519029068,
+        "chance": 0.37371196755484387,
+        "interval_high": 0.7274247386858962,
+        "interval_low": 0.6967198840343191,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 1.9060573750514727,
+        "pairs": 3337,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -563,15 +640,26 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.2986111111111111,
-        "chance": 0.0017939404677533661,
-        "interval_high": 0.33721989806551106,
-        "interval_low": 0.2626708307128311,
+        "agreement": 0.34536082474226804,
+        "chance": 0.0019252266799155374,
+        "interval_high": 0.3939815089414147,
+        "interval_low": 0.2997722936155368,
         "level": 1,
         "level_label": "KEGG orthology",
-        "lift": 166.45541838134432,
-        "pairs": 576,
-        "tier": "0.90-0.96"
+        "lift": 179.38709677419365,
+        "pairs": 388,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.20212765957446807,
+        "chance": 0.0015229880724399458,
+        "interval_high": 0.26523294229556993,
+        "interval_low": 0.15095207701202545,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 132.71782178217836,
+        "pairs": 188,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -656,14 +744,14 @@
         "name": "ligase activity",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 2915,
-         "interval_high": 0.998374816012604,
-         "interval_low": 0.9941422154015023,
+         "checkable_node_count": 2897,
+         "interval_high": 0.9990504706249981,
+         "interval_low": 0.9954884935156156,
          "min_nodes": 30,
          "one_gene_node_count": 2,
          "prevalence_band": "core",
-         "rate": 0.9969125214408233,
-         "unanimous_node_count": 2906
+         "rate": 0.9979288919571971,
+         "unanimous_node_count": 2891
         },
         "term": "GO:0016874"
        },
@@ -2856,26 +2944,48 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.12609970674486803,
-        "chance": 0.0009028639371381425,
-        "interval_high": 0.13331542575612546,
-        "interval_low": 0.11922081550786992,
+        "agreement": 0.14169040835707503,
+        "chance": 0.000997607568120398,
+        "interval_high": 0.15137180713877385,
+        "interval_low": 0.13253150853501677,
         "level": 2,
         "level_label": "COG orthogroup",
-        "lift": 139.6663456783679,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 142.03020594965543,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.33560117302052783,
-        "chance": 0.06858123731107627,
-        "interval_high": 0.3456970992387057,
-        "interval_low": 0.3256533453515655,
+        "agreement": 0.35764482431149097,
+        "chance": 0.07051263027491671,
+        "interval_high": 0.37069135261729835,
+        "interval_low": 0.3448058830559092,
         "level": 1,
         "level_label": "COG category",
-        "lift": 4.893483789134354,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 5.072067556083142,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.100920245398773,
+        "chance": 0.0007498500668554411,
+        "interval_high": 0.11173490883151979,
+        "interval_low": 0.091045029998845,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 134.58723264770848,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.3,
+        "chance": 0.06546197842928994,
+        "interval_high": 0.31595892655597396,
+        "interval_low": 0.2845118806057461,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.582812912140304,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -3064,48 +3174,92 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.0997648639570037,
-        "chance": 0.0014109536439217156,
-        "interval_high": 0.11105157203615579,
-        "interval_low": 0.08950977278672914,
+        "agreement": 0.10343228200371057,
+        "chance": 0.0014787286916997568,
+        "interval_high": 0.11699993972003477,
+        "interval_low": 0.09127533380002338,
         "level": 4,
         "level_label": "full EC code",
-        "lift": 70.70740019474303,
-        "pairs": 2977,
-        "tier": "0.90-0.96"
+        "lift": 69.94676074406732,
+        "pairs": 2156,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.18401015228426396,
-        "chance": 0.020193694336576497,
-        "interval_high": 0.19641557820912695,
-        "interval_low": 0.17222032238079535,
+        "agreement": 0.19145114942528735,
+        "chance": 0.020227388928280556,
+        "interval_high": 0.20648759900114244,
+        "interval_low": 0.17726505036028467,
         "level": 3,
         "level_label": "EC sub-subclass",
-        "lift": 9.112257976044011,
-        "pairs": 3940,
-        "tier": "0.90-0.96"
+        "lift": 9.464946271815311,
+        "pairs": 2784,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.22559334475165158,
-        "chance": 0.05486524937449119,
-        "interval_high": 0.23866209943866826,
-        "interval_low": 0.21303996597496208,
+        "agreement": 0.23451635351426584,
+        "chance": 0.05489917951826143,
+        "interval_high": 0.2503550217161383,
+        "interval_low": 0.21938646787800753,
         "level": 2,
         "level_label": "EC subclass",
-        "lift": 4.111771063170233,
-        "pairs": 4087,
-        "tier": "0.90-0.96"
+        "lift": 4.2717642699242395,
+        "pairs": 2874,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.42669481585737745,
-        "chance": 0.2208702181451367,
-        "interval_high": 0.44160166351970914,
-        "interval_low": 0.41191996709343587,
+        "agreement": 0.4352901934623082,
+        "chance": 0.22075486625966945,
+        "interval_high": 0.45310955071205783,
+        "interval_low": 0.4176364606697551,
         "level": 1,
         "level_label": "EC class",
-        "lift": 1.9318802663426118,
-        "pairs": 4263,
-        "tier": "0.90-0.96"
+        "lift": 1.971826038707954,
+        "pairs": 2998,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.09013398294762484,
+        "chance": 0.0012329719106581045,
+        "interval_high": 0.11167945366101317,
+        "interval_low": 0.07240631504900338,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 73.10303030303051,
+        "pairs": 821,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.16608996539792387,
+        "chance": 0.0201125474998075,
+        "interval_high": 0.1886429188487395,
+        "interval_low": 0.14574894983401857,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 8.258027253857998,
+        "pairs": 1156,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.2044517724649629,
+        "chance": 0.05478485759115,
+        "interval_high": 0.2280644360447296,
+        "interval_low": 0.1827052154859216,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 3.7319029646978628,
+        "pairs": 1213,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.40632411067193674,
+        "chance": 0.22114359755432977,
+        "interval_high": 0.43363407087200057,
+        "interval_low": 0.37958138486337245,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.8373767776483445,
+        "pairs": 1265,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -3113,64 +3267,75 @@
       "representation": "esm"
      },
      "gene_ontology_slim": {
-      "annotated_locus_count": 5450,
+      "annotated_locus_count": 5285,
       "annotation_kind": "gene_ontology_slim",
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.943519188993483,
-        "chance": 0.11619494784698954,
-        "interval_high": 0.9545094939278178,
-        "interval_low": 0.930068207955199,
+        "agreement": 0.946199829205807,
+        "chance": 0.2979437465212457,
+        "interval_high": 0.9577248233022289,
+        "interval_low": 0.9317567885167604,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 8.120139528234475,
-        "pairs": 1381,
+        "lift": 3.175766701780182,
+        "pairs": 1171,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9,
-        "chance": 0.13905027458920058,
-        "interval_high": 0.9176663075542543,
-        "interval_low": 0.879042684634571,
+        "agreement": 0.9259681093394078,
+        "chance": 0.3558249083061579,
+        "interval_high": 0.9414927687441917,
+        "interval_low": 0.906732127881234,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 6.472479127847038,
-        "pairs": 930,
+        "lift": 2.602313912613135,
+        "pairs": 878,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.8569332355099046,
-        "chance": 0.16368010338512765,
-        "interval_high": 0.8745197831533371,
-        "interval_low": 0.8373403182658763,
+        "agreement": 0.9159226190476191,
+        "chance": 0.35352329922316683,
+        "interval_high": 0.9295996497725121,
+        "interval_low": 0.8998746742133332,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 5.235414798667384,
-        "pairs": 1363,
+        "lift": 2.5908408895828656,
+        "pairs": 1344,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.676949443016281,
-        "chance": 0.170433542596355,
-        "interval_high": 0.6956175683321122,
-        "interval_low": 0.6576997821675965,
+        "agreement": 0.8727668845315905,
+        "chance": 0.396762537128565,
+        "interval_high": 0.8857804983308134,
+        "interval_low": 0.8585074073691706,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.9719261402641215,
-        "pairs": 2334,
+        "lift": 2.199720998983287,
+        "pairs": 2295,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.5402171504542433,
-        "chance": 0.1668389563365322,
-        "interval_high": 0.5504796634135587,
-        "interval_low": 0.5299204180230859,
+        "agreement": 0.8223817412111173,
+        "chance": 0.4146269893254769,
+        "interval_high": 0.8323157918256257,
+        "interval_low": 0.8119921092910816,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.2379557048089356,
-        "pairs": 9026,
-        "tier": "0.90-0.96"
+        "lift": 1.9834254941989753,
+        "pairs": 5433,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7123164519029068,
+        "chance": 0.37371196755484387,
+        "interval_high": 0.7274247386858962,
+        "interval_low": 0.6967198840343191,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 1.9060573750514727,
+        "pairs": 3337,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -3227,15 +3392,26 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.2986111111111111,
-        "chance": 0.0017939404677533661,
-        "interval_high": 0.33721989806551106,
-        "interval_low": 0.2626708307128311,
+        "agreement": 0.34536082474226804,
+        "chance": 0.0019252266799155374,
+        "interval_high": 0.3939815089414147,
+        "interval_low": 0.2997722936155368,
         "level": 1,
         "level_label": "KEGG orthology",
-        "lift": 166.45541838134432,
-        "pairs": 576,
-        "tier": "0.90-0.96"
+        "lift": 179.38709677419365,
+        "pairs": 388,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.20212765957446807,
+        "chance": 0.0015229880724399458,
+        "interval_high": 0.26523294229556993,
+        "interval_low": 0.15095207701202545,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 132.71782178217836,
+        "pairs": 188,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -3354,14 +3530,14 @@
        "annotation_kind": "gene_ontology_slim",
        "candidate": {
         "calibration": {
-         "agreement": 0.9,
-         "chance": 0.13905027458920058,
-         "interval_high": 0.9176663075542543,
-         "interval_low": 0.879042684634571,
+         "agreement": 0.9259681093394078,
+         "chance": 0.3558249083061579,
+         "interval_high": 0.9414927687441917,
+         "interval_low": 0.906732127881234,
          "level": 1,
          "level_label": "GO slim term",
-         "lift": 6.472479127847038,
-         "pairs": 930,
+         "lift": 2.602313912613135,
+         "pairs": 878,
          "tier": "0.98-0.99"
         },
         "cosine": 0.986387,
@@ -3376,14 +3552,14 @@
          "node_label": "2604",
          "propagation": {
           "annotation_kind": "gene_ontology_slim",
-          "checkable_node_count": 2915,
-          "interval_high": 0.998374816012604,
-          "interval_low": 0.9941422154015023,
+          "checkable_node_count": 2897,
+          "interval_high": 0.9990504706249981,
+          "interval_low": 0.9954884935156156,
           "min_nodes": 30,
           "one_gene_node_count": 2,
           "prevalence_band": "core",
-          "rate": 0.9969125214408233,
-          "unanimous_node_count": 2906
+          "rate": 0.9979288919571971,
+          "unanimous_node_count": 2891
          },
          "term": "GO:0016020"
         },
@@ -5030,26 +5206,48 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.12609970674486803,
-        "chance": 0.0009028639371381425,
-        "interval_high": 0.13331542575612546,
-        "interval_low": 0.11922081550786992,
+        "agreement": 0.14169040835707503,
+        "chance": 0.000997607568120398,
+        "interval_high": 0.15137180713877385,
+        "interval_low": 0.13253150853501677,
         "level": 2,
         "level_label": "COG orthogroup",
-        "lift": 139.6663456783679,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 142.03020594965543,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.33560117302052783,
-        "chance": 0.06858123731107627,
-        "interval_high": 0.3456970992387057,
-        "interval_low": 0.3256533453515655,
+        "agreement": 0.35764482431149097,
+        "chance": 0.07051263027491671,
+        "interval_high": 0.37069135261729835,
+        "interval_low": 0.3448058830559092,
         "level": 1,
         "level_label": "COG category",
-        "lift": 4.893483789134354,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 5.072067556083142,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.100920245398773,
+        "chance": 0.0007498500668554411,
+        "interval_high": 0.11173490883151979,
+        "interval_low": 0.091045029998845,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 134.58723264770848,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.3,
+        "chance": 0.06546197842928994,
+        "interval_high": 0.31595892655597396,
+        "interval_low": 0.2845118806057461,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.582812912140304,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -5238,48 +5436,92 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.0997648639570037,
-        "chance": 0.0014109536439217156,
-        "interval_high": 0.11105157203615579,
-        "interval_low": 0.08950977278672914,
+        "agreement": 0.10343228200371057,
+        "chance": 0.0014787286916997568,
+        "interval_high": 0.11699993972003477,
+        "interval_low": 0.09127533380002338,
         "level": 4,
         "level_label": "full EC code",
-        "lift": 70.70740019474303,
-        "pairs": 2977,
-        "tier": "0.90-0.96"
+        "lift": 69.94676074406732,
+        "pairs": 2156,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.18401015228426396,
-        "chance": 0.020193694336576497,
-        "interval_high": 0.19641557820912695,
-        "interval_low": 0.17222032238079535,
+        "agreement": 0.19145114942528735,
+        "chance": 0.020227388928280556,
+        "interval_high": 0.20648759900114244,
+        "interval_low": 0.17726505036028467,
         "level": 3,
         "level_label": "EC sub-subclass",
-        "lift": 9.112257976044011,
-        "pairs": 3940,
-        "tier": "0.90-0.96"
+        "lift": 9.464946271815311,
+        "pairs": 2784,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.22559334475165158,
-        "chance": 0.05486524937449119,
-        "interval_high": 0.23866209943866826,
-        "interval_low": 0.21303996597496208,
+        "agreement": 0.23451635351426584,
+        "chance": 0.05489917951826143,
+        "interval_high": 0.2503550217161383,
+        "interval_low": 0.21938646787800753,
         "level": 2,
         "level_label": "EC subclass",
-        "lift": 4.111771063170233,
-        "pairs": 4087,
-        "tier": "0.90-0.96"
+        "lift": 4.2717642699242395,
+        "pairs": 2874,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.42669481585737745,
-        "chance": 0.2208702181451367,
-        "interval_high": 0.44160166351970914,
-        "interval_low": 0.41191996709343587,
+        "agreement": 0.4352901934623082,
+        "chance": 0.22075486625966945,
+        "interval_high": 0.45310955071205783,
+        "interval_low": 0.4176364606697551,
         "level": 1,
         "level_label": "EC class",
-        "lift": 1.9318802663426118,
-        "pairs": 4263,
-        "tier": "0.90-0.96"
+        "lift": 1.971826038707954,
+        "pairs": 2998,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.09013398294762484,
+        "chance": 0.0012329719106581045,
+        "interval_high": 0.11167945366101317,
+        "interval_low": 0.07240631504900338,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 73.10303030303051,
+        "pairs": 821,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.16608996539792387,
+        "chance": 0.0201125474998075,
+        "interval_high": 0.1886429188487395,
+        "interval_low": 0.14574894983401857,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 8.258027253857998,
+        "pairs": 1156,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.2044517724649629,
+        "chance": 0.05478485759115,
+        "interval_high": 0.2280644360447296,
+        "interval_low": 0.1827052154859216,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 3.7319029646978628,
+        "pairs": 1213,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.40632411067193674,
+        "chance": 0.22114359755432977,
+        "interval_high": 0.43363407087200057,
+        "interval_low": 0.37958138486337245,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.8373767776483445,
+        "pairs": 1265,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -5287,64 +5529,75 @@
       "representation": "esm"
      },
      "gene_ontology_slim": {
-      "annotated_locus_count": 5450,
+      "annotated_locus_count": 5285,
       "annotation_kind": "gene_ontology_slim",
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.943519188993483,
-        "chance": 0.11619494784698954,
-        "interval_high": 0.9545094939278178,
-        "interval_low": 0.930068207955199,
+        "agreement": 0.946199829205807,
+        "chance": 0.2979437465212457,
+        "interval_high": 0.9577248233022289,
+        "interval_low": 0.9317567885167604,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 8.120139528234475,
-        "pairs": 1381,
+        "lift": 3.175766701780182,
+        "pairs": 1171,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9,
-        "chance": 0.13905027458920058,
-        "interval_high": 0.9176663075542543,
-        "interval_low": 0.879042684634571,
+        "agreement": 0.9259681093394078,
+        "chance": 0.3558249083061579,
+        "interval_high": 0.9414927687441917,
+        "interval_low": 0.906732127881234,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 6.472479127847038,
-        "pairs": 930,
+        "lift": 2.602313912613135,
+        "pairs": 878,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.8569332355099046,
-        "chance": 0.16368010338512765,
-        "interval_high": 0.8745197831533371,
-        "interval_low": 0.8373403182658763,
+        "agreement": 0.9159226190476191,
+        "chance": 0.35352329922316683,
+        "interval_high": 0.9295996497725121,
+        "interval_low": 0.8998746742133332,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 5.235414798667384,
-        "pairs": 1363,
+        "lift": 2.5908408895828656,
+        "pairs": 1344,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.676949443016281,
-        "chance": 0.170433542596355,
-        "interval_high": 0.6956175683321122,
-        "interval_low": 0.6576997821675965,
+        "agreement": 0.8727668845315905,
+        "chance": 0.396762537128565,
+        "interval_high": 0.8857804983308134,
+        "interval_low": 0.8585074073691706,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.9719261402641215,
-        "pairs": 2334,
+        "lift": 2.199720998983287,
+        "pairs": 2295,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.5402171504542433,
-        "chance": 0.1668389563365322,
-        "interval_high": 0.5504796634135587,
-        "interval_low": 0.5299204180230859,
+        "agreement": 0.8223817412111173,
+        "chance": 0.4146269893254769,
+        "interval_high": 0.8323157918256257,
+        "interval_low": 0.8119921092910816,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.2379557048089356,
-        "pairs": 9026,
-        "tier": "0.90-0.96"
+        "lift": 1.9834254941989753,
+        "pairs": 5433,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7123164519029068,
+        "chance": 0.37371196755484387,
+        "interval_high": 0.7274247386858962,
+        "interval_low": 0.6967198840343191,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 1.9060573750514727,
+        "pairs": 3337,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -5401,15 +5654,26 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.2986111111111111,
-        "chance": 0.0017939404677533661,
-        "interval_high": 0.33721989806551106,
-        "interval_low": 0.2626708307128311,
+        "agreement": 0.34536082474226804,
+        "chance": 0.0019252266799155374,
+        "interval_high": 0.3939815089414147,
+        "interval_low": 0.2997722936155368,
         "level": 1,
         "level_label": "KEGG orthology",
-        "lift": 166.45541838134432,
-        "pairs": 576,
-        "tier": "0.90-0.96"
+        "lift": 179.38709677419365,
+        "pairs": 388,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.20212765957446807,
+        "chance": 0.0015229880724399458,
+        "interval_high": 0.26523294229556993,
+        "interval_low": 0.15095207701202545,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 132.71782178217836,
+        "pairs": 188,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -5456,7 +5720,7 @@
          "display_name": "tnp",
          "node_label": "4050",
          "rank": 2,
-         "tier": "0.90-0.96"
+         "tier": "0.94-0.96"
         },
         {
          "carries_annotation": false,
@@ -5465,7 +5729,7 @@
          "display_name": "locus 16011",
          "node_label": "16011",
          "rank": 3,
-         "tier": "0.90-0.96"
+         "tier": "0.90-0.94"
         },
         {
          "carries_annotation": false,
@@ -5474,7 +5738,7 @@
          "display_name": "locus 16217",
          "node_label": "16217",
          "rank": 4,
-         "tier": "0.90-0.96"
+         "tier": "0.90-0.94"
         },
         {
          "carries_annotation": false,
@@ -5522,14 +5786,14 @@
         "name": "transposase activity",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 1054,
-         "interval_high": 0.9941626586837768,
-         "interval_low": 0.9814087312105138,
+         "checkable_node_count": 1034,
+         "interval_high": 0.9973379702219692,
+         "interval_low": 0.9873980434433146,
          "min_nodes": 30,
          "one_gene_node_count": 21,
          "prevalence_band": "shell",
-         "rate": 0.9895635673624289,
-         "unanimous_node_count": 1043
+         "rate": 0.9941972920696325,
+         "unanimous_node_count": 1028
         },
         "term": "GO:0004803"
        },
@@ -5556,7 +5820,7 @@
          "display_name": "tnp",
          "node_label": "4050",
          "rank": 2,
-         "tier": "0.90-0.96"
+         "tier": "0.94-0.96"
         },
         {
          "carries_annotation": false,
@@ -5565,7 +5829,7 @@
          "display_name": "locus 16011",
          "node_label": "16011",
          "rank": 3,
-         "tier": "0.90-0.96"
+         "tier": "0.90-0.94"
         },
         {
          "carries_annotation": false,
@@ -5574,7 +5838,7 @@
          "display_name": "locus 16217",
          "node_label": "16217",
          "rank": 4,
-         "tier": "0.90-0.96"
+         "tier": "0.90-0.94"
         },
         {
          "carries_annotation": false,
@@ -8607,26 +8871,48 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.12609970674486803,
-        "chance": 0.0009028639371381425,
-        "interval_high": 0.13331542575612546,
-        "interval_low": 0.11922081550786992,
+        "agreement": 0.14169040835707503,
+        "chance": 0.000997607568120398,
+        "interval_high": 0.15137180713877385,
+        "interval_low": 0.13253150853501677,
         "level": 2,
         "level_label": "COG orthogroup",
-        "lift": 139.6663456783679,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 142.03020594965543,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.33560117302052783,
-        "chance": 0.06858123731107627,
-        "interval_high": 0.3456970992387057,
-        "interval_low": 0.3256533453515655,
+        "agreement": 0.35764482431149097,
+        "chance": 0.07051263027491671,
+        "interval_high": 0.37069135261729835,
+        "interval_low": 0.3448058830559092,
         "level": 1,
         "level_label": "COG category",
-        "lift": 4.893483789134354,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 5.072067556083142,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.100920245398773,
+        "chance": 0.0007498500668554411,
+        "interval_high": 0.11173490883151979,
+        "interval_low": 0.091045029998845,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 134.58723264770848,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.3,
+        "chance": 0.06546197842928994,
+        "interval_high": 0.31595892655597396,
+        "interval_low": 0.2845118806057461,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.582812912140304,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -8815,48 +9101,92 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.0997648639570037,
-        "chance": 0.0014109536439217156,
-        "interval_high": 0.11105157203615579,
-        "interval_low": 0.08950977278672914,
+        "agreement": 0.10343228200371057,
+        "chance": 0.0014787286916997568,
+        "interval_high": 0.11699993972003477,
+        "interval_low": 0.09127533380002338,
         "level": 4,
         "level_label": "full EC code",
-        "lift": 70.70740019474303,
-        "pairs": 2977,
-        "tier": "0.90-0.96"
+        "lift": 69.94676074406732,
+        "pairs": 2156,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.18401015228426396,
-        "chance": 0.020193694336576497,
-        "interval_high": 0.19641557820912695,
-        "interval_low": 0.17222032238079535,
+        "agreement": 0.19145114942528735,
+        "chance": 0.020227388928280556,
+        "interval_high": 0.20648759900114244,
+        "interval_low": 0.17726505036028467,
         "level": 3,
         "level_label": "EC sub-subclass",
-        "lift": 9.112257976044011,
-        "pairs": 3940,
-        "tier": "0.90-0.96"
+        "lift": 9.464946271815311,
+        "pairs": 2784,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.22559334475165158,
-        "chance": 0.05486524937449119,
-        "interval_high": 0.23866209943866826,
-        "interval_low": 0.21303996597496208,
+        "agreement": 0.23451635351426584,
+        "chance": 0.05489917951826143,
+        "interval_high": 0.2503550217161383,
+        "interval_low": 0.21938646787800753,
         "level": 2,
         "level_label": "EC subclass",
-        "lift": 4.111771063170233,
-        "pairs": 4087,
-        "tier": "0.90-0.96"
+        "lift": 4.2717642699242395,
+        "pairs": 2874,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.42669481585737745,
-        "chance": 0.2208702181451367,
-        "interval_high": 0.44160166351970914,
-        "interval_low": 0.41191996709343587,
+        "agreement": 0.4352901934623082,
+        "chance": 0.22075486625966945,
+        "interval_high": 0.45310955071205783,
+        "interval_low": 0.4176364606697551,
         "level": 1,
         "level_label": "EC class",
-        "lift": 1.9318802663426118,
-        "pairs": 4263,
-        "tier": "0.90-0.96"
+        "lift": 1.971826038707954,
+        "pairs": 2998,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.09013398294762484,
+        "chance": 0.0012329719106581045,
+        "interval_high": 0.11167945366101317,
+        "interval_low": 0.07240631504900338,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 73.10303030303051,
+        "pairs": 821,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.16608996539792387,
+        "chance": 0.0201125474998075,
+        "interval_high": 0.1886429188487395,
+        "interval_low": 0.14574894983401857,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 8.258027253857998,
+        "pairs": 1156,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.2044517724649629,
+        "chance": 0.05478485759115,
+        "interval_high": 0.2280644360447296,
+        "interval_low": 0.1827052154859216,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 3.7319029646978628,
+        "pairs": 1213,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.40632411067193674,
+        "chance": 0.22114359755432977,
+        "interval_high": 0.43363407087200057,
+        "interval_low": 0.37958138486337245,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.8373767776483445,
+        "pairs": 1265,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -8864,64 +9194,75 @@
       "representation": "esm"
      },
      "gene_ontology_slim": {
-      "annotated_locus_count": 5450,
+      "annotated_locus_count": 5285,
       "annotation_kind": "gene_ontology_slim",
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.943519188993483,
-        "chance": 0.11619494784698954,
-        "interval_high": 0.9545094939278178,
-        "interval_low": 0.930068207955199,
+        "agreement": 0.946199829205807,
+        "chance": 0.2979437465212457,
+        "interval_high": 0.9577248233022289,
+        "interval_low": 0.9317567885167604,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 8.120139528234475,
-        "pairs": 1381,
+        "lift": 3.175766701780182,
+        "pairs": 1171,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9,
-        "chance": 0.13905027458920058,
-        "interval_high": 0.9176663075542543,
-        "interval_low": 0.879042684634571,
+        "agreement": 0.9259681093394078,
+        "chance": 0.3558249083061579,
+        "interval_high": 0.9414927687441917,
+        "interval_low": 0.906732127881234,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 6.472479127847038,
-        "pairs": 930,
+        "lift": 2.602313912613135,
+        "pairs": 878,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.8569332355099046,
-        "chance": 0.16368010338512765,
-        "interval_high": 0.8745197831533371,
-        "interval_low": 0.8373403182658763,
+        "agreement": 0.9159226190476191,
+        "chance": 0.35352329922316683,
+        "interval_high": 0.9295996497725121,
+        "interval_low": 0.8998746742133332,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 5.235414798667384,
-        "pairs": 1363,
+        "lift": 2.5908408895828656,
+        "pairs": 1344,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.676949443016281,
-        "chance": 0.170433542596355,
-        "interval_high": 0.6956175683321122,
-        "interval_low": 0.6576997821675965,
+        "agreement": 0.8727668845315905,
+        "chance": 0.396762537128565,
+        "interval_high": 0.8857804983308134,
+        "interval_low": 0.8585074073691706,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.9719261402641215,
-        "pairs": 2334,
+        "lift": 2.199720998983287,
+        "pairs": 2295,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.5402171504542433,
-        "chance": 0.1668389563365322,
-        "interval_high": 0.5504796634135587,
-        "interval_low": 0.5299204180230859,
+        "agreement": 0.8223817412111173,
+        "chance": 0.4146269893254769,
+        "interval_high": 0.8323157918256257,
+        "interval_low": 0.8119921092910816,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.2379557048089356,
-        "pairs": 9026,
-        "tier": "0.90-0.96"
+        "lift": 1.9834254941989753,
+        "pairs": 5433,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7123164519029068,
+        "chance": 0.37371196755484387,
+        "interval_high": 0.7274247386858962,
+        "interval_low": 0.6967198840343191,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 1.9060573750514727,
+        "pairs": 3337,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -8978,15 +9319,26 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.2986111111111111,
-        "chance": 0.0017939404677533661,
-        "interval_high": 0.33721989806551106,
-        "interval_low": 0.2626708307128311,
+        "agreement": 0.34536082474226804,
+        "chance": 0.0019252266799155374,
+        "interval_high": 0.3939815089414147,
+        "interval_low": 0.2997722936155368,
         "level": 1,
         "level_label": "KEGG orthology",
-        "lift": 166.45541838134432,
-        "pairs": 576,
-        "tier": "0.90-0.96"
+        "lift": 179.38709677419365,
+        "pairs": 388,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.20212765957446807,
+        "chance": 0.0015229880724399458,
+        "interval_high": 0.26523294229556993,
+        "interval_low": 0.15095207701202545,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 132.71782178217836,
+        "pairs": 188,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -9071,14 +9423,14 @@
         "name": "hydrolase activity",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 2915,
-         "interval_high": 0.998374816012604,
-         "interval_low": 0.9941422154015023,
+         "checkable_node_count": 2897,
+         "interval_high": 0.9990504706249981,
+         "interval_low": 0.9954884935156156,
          "min_nodes": 30,
          "one_gene_node_count": 2,
          "prevalence_band": "core",
-         "rate": 0.9969125214408233,
-         "unanimous_node_count": 2906
+         "rate": 0.9979288919571971,
+         "unanimous_node_count": 2891
         },
         "term": "GO:0016787"
        },
@@ -9096,7 +9448,7 @@
          "display_name": "lysS",
          "node_label": "3013",
          "rank": 1,
-         "tier": "0.90-0.96"
+         "tier": "0.94-0.96"
         }
        ]
       }
@@ -10707,26 +11059,48 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.12609970674486803,
-        "chance": 0.0009028639371381425,
-        "interval_high": 0.13331542575612546,
-        "interval_low": 0.11922081550786992,
+        "agreement": 0.14169040835707503,
+        "chance": 0.000997607568120398,
+        "interval_high": 0.15137180713877385,
+        "interval_low": 0.13253150853501677,
         "level": 2,
         "level_label": "COG orthogroup",
-        "lift": 139.6663456783679,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 142.03020594965543,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.33560117302052783,
-        "chance": 0.06858123731107627,
-        "interval_high": 0.3456970992387057,
-        "interval_low": 0.3256533453515655,
+        "agreement": 0.35764482431149097,
+        "chance": 0.07051263027491671,
+        "interval_high": 0.37069135261729835,
+        "interval_low": 0.3448058830559092,
         "level": 1,
         "level_label": "COG category",
-        "lift": 4.893483789134354,
-        "pairs": 8525,
-        "tier": "0.90-0.96"
+        "lift": 5.072067556083142,
+        "pairs": 5265,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.100920245398773,
+        "chance": 0.0007498500668554411,
+        "interval_high": 0.11173490883151979,
+        "interval_low": 0.091045029998845,
+        "level": 2,
+        "level_label": "COG orthogroup",
+        "lift": 134.58723264770848,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.3,
+        "chance": 0.06546197842928994,
+        "interval_high": 0.31595892655597396,
+        "interval_low": 0.2845118806057461,
+        "level": 1,
+        "level_label": "COG category",
+        "lift": 4.582812912140304,
+        "pairs": 3260,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -10915,48 +11289,92 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.0997648639570037,
-        "chance": 0.0014109536439217156,
-        "interval_high": 0.11105157203615579,
-        "interval_low": 0.08950977278672914,
+        "agreement": 0.10343228200371057,
+        "chance": 0.0014787286916997568,
+        "interval_high": 0.11699993972003477,
+        "interval_low": 0.09127533380002338,
         "level": 4,
         "level_label": "full EC code",
-        "lift": 70.70740019474303,
-        "pairs": 2977,
-        "tier": "0.90-0.96"
+        "lift": 69.94676074406732,
+        "pairs": 2156,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.18401015228426396,
-        "chance": 0.020193694336576497,
-        "interval_high": 0.19641557820912695,
-        "interval_low": 0.17222032238079535,
+        "agreement": 0.19145114942528735,
+        "chance": 0.020227388928280556,
+        "interval_high": 0.20648759900114244,
+        "interval_low": 0.17726505036028467,
         "level": 3,
         "level_label": "EC sub-subclass",
-        "lift": 9.112257976044011,
-        "pairs": 3940,
-        "tier": "0.90-0.96"
+        "lift": 9.464946271815311,
+        "pairs": 2784,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.22559334475165158,
-        "chance": 0.05486524937449119,
-        "interval_high": 0.23866209943866826,
-        "interval_low": 0.21303996597496208,
+        "agreement": 0.23451635351426584,
+        "chance": 0.05489917951826143,
+        "interval_high": 0.2503550217161383,
+        "interval_low": 0.21938646787800753,
         "level": 2,
         "level_label": "EC subclass",
-        "lift": 4.111771063170233,
-        "pairs": 4087,
-        "tier": "0.90-0.96"
+        "lift": 4.2717642699242395,
+        "pairs": 2874,
+        "tier": "0.94-0.96"
        },
        {
-        "agreement": 0.42669481585737745,
-        "chance": 0.2208702181451367,
-        "interval_high": 0.44160166351970914,
-        "interval_low": 0.41191996709343587,
+        "agreement": 0.4352901934623082,
+        "chance": 0.22075486625966945,
+        "interval_high": 0.45310955071205783,
+        "interval_low": 0.4176364606697551,
         "level": 1,
         "level_label": "EC class",
-        "lift": 1.9318802663426118,
-        "pairs": 4263,
-        "tier": "0.90-0.96"
+        "lift": 1.971826038707954,
+        "pairs": 2998,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.09013398294762484,
+        "chance": 0.0012329719106581045,
+        "interval_high": 0.11167945366101317,
+        "interval_low": 0.07240631504900338,
+        "level": 4,
+        "level_label": "full EC code",
+        "lift": 73.10303030303051,
+        "pairs": 821,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.16608996539792387,
+        "chance": 0.0201125474998075,
+        "interval_high": 0.1886429188487395,
+        "interval_low": 0.14574894983401857,
+        "level": 3,
+        "level_label": "EC sub-subclass",
+        "lift": 8.258027253857998,
+        "pairs": 1156,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.2044517724649629,
+        "chance": 0.05478485759115,
+        "interval_high": 0.2280644360447296,
+        "interval_low": 0.1827052154859216,
+        "level": 2,
+        "level_label": "EC subclass",
+        "lift": 3.7319029646978628,
+        "pairs": 1213,
+        "tier": "0.90-0.94"
+       },
+       {
+        "agreement": 0.40632411067193674,
+        "chance": 0.22114359755432977,
+        "interval_high": 0.43363407087200057,
+        "interval_low": 0.37958138486337245,
+        "level": 1,
+        "level_label": "EC class",
+        "lift": 1.8373767776483445,
+        "pairs": 1265,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -10964,64 +11382,75 @@
       "representation": "esm"
      },
      "gene_ontology_slim": {
-      "annotated_locus_count": 5450,
+      "annotated_locus_count": 5285,
       "annotation_kind": "gene_ontology_slim",
       "calling_floor": 0.8,
       "cells": [
        {
-        "agreement": 0.943519188993483,
-        "chance": 0.11619494784698954,
-        "interval_high": 0.9545094939278178,
-        "interval_low": 0.930068207955199,
+        "agreement": 0.946199829205807,
+        "chance": 0.2979437465212457,
+        "interval_high": 0.9577248233022289,
+        "interval_low": 0.9317567885167604,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 8.120139528234475,
-        "pairs": 1381,
+        "lift": 3.175766701780182,
+        "pairs": 1171,
         "tier": ">= 0.99"
        },
        {
-        "agreement": 0.9,
-        "chance": 0.13905027458920058,
-        "interval_high": 0.9176663075542543,
-        "interval_low": 0.879042684634571,
+        "agreement": 0.9259681093394078,
+        "chance": 0.3558249083061579,
+        "interval_high": 0.9414927687441917,
+        "interval_low": 0.906732127881234,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 6.472479127847038,
-        "pairs": 930,
+        "lift": 2.602313912613135,
+        "pairs": 878,
         "tier": "0.98-0.99"
        },
        {
-        "agreement": 0.8569332355099046,
-        "chance": 0.16368010338512765,
-        "interval_high": 0.8745197831533371,
-        "interval_low": 0.8373403182658763,
+        "agreement": 0.9159226190476191,
+        "chance": 0.35352329922316683,
+        "interval_high": 0.9295996497725121,
+        "interval_low": 0.8998746742133332,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 5.235414798667384,
-        "pairs": 1363,
+        "lift": 2.5908408895828656,
+        "pairs": 1344,
         "tier": "0.97-0.98"
        },
        {
-        "agreement": 0.676949443016281,
-        "chance": 0.170433542596355,
-        "interval_high": 0.6956175683321122,
-        "interval_low": 0.6576997821675965,
+        "agreement": 0.8727668845315905,
+        "chance": 0.396762537128565,
+        "interval_high": 0.8857804983308134,
+        "interval_low": 0.8585074073691706,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.9719261402641215,
-        "pairs": 2334,
+        "lift": 2.199720998983287,
+        "pairs": 2295,
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.5402171504542433,
-        "chance": 0.1668389563365322,
-        "interval_high": 0.5504796634135587,
-        "interval_low": 0.5299204180230859,
+        "agreement": 0.8223817412111173,
+        "chance": 0.4146269893254769,
+        "interval_high": 0.8323157918256257,
+        "interval_low": 0.8119921092910816,
         "level": 1,
         "level_label": "GO slim term",
-        "lift": 3.2379557048089356,
-        "pairs": 9026,
-        "tier": "0.90-0.96"
+        "lift": 1.9834254941989753,
+        "pairs": 5433,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.7123164519029068,
+        "chance": 0.37371196755484387,
+        "interval_high": 0.7274247386858962,
+        "interval_low": 0.6967198840343191,
+        "level": 1,
+        "level_label": "GO slim term",
+        "lift": 1.9060573750514727,
+        "pairs": 3337,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -11078,15 +11507,26 @@
         "tier": "0.96-0.97"
        },
        {
-        "agreement": 0.2986111111111111,
-        "chance": 0.0017939404677533661,
-        "interval_high": 0.33721989806551106,
-        "interval_low": 0.2626708307128311,
+        "agreement": 0.34536082474226804,
+        "chance": 0.0019252266799155374,
+        "interval_high": 0.3939815089414147,
+        "interval_low": 0.2997722936155368,
         "level": 1,
         "level_label": "KEGG orthology",
-        "lift": 166.45541838134432,
-        "pairs": 576,
-        "tier": "0.90-0.96"
+        "lift": 179.38709677419365,
+        "pairs": 388,
+        "tier": "0.94-0.96"
+       },
+       {
+        "agreement": 0.20212765957446807,
+        "chance": 0.0015229880724399458,
+        "interval_high": 0.26523294229556993,
+        "interval_low": 0.15095207701202545,
+        "level": 1,
+        "level_label": "KEGG orthology",
+        "lift": 132.71782178217836,
+        "pairs": 188,
+        "tier": "0.90-0.94"
        }
       ],
       "locus_count": 17531,
@@ -11199,14 +11639,14 @@
         "name": "nucleic acid binding",
         "propagation": {
          "annotation_kind": "gene_ontology_slim",
-         "checkable_node_count": 1054,
-         "interval_high": 0.9941626586837768,
-         "interval_low": 0.9814087312105138,
+         "checkable_node_count": 1034,
+         "interval_high": 0.9973379702219692,
+         "interval_low": 0.9873980434433146,
          "min_nodes": 30,
          "one_gene_node_count": 21,
          "prevalence_band": "shell",
-         "rate": 0.9895635673624289,
-         "unanimous_node_count": 1043
+         "rate": 0.9941972920696325,
+         "unanimous_node_count": 1028
         },
         "term": "GO:0003676"
        },

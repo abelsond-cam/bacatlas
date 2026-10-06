@@ -591,7 +591,7 @@ function withInference(entry: VocabularyInference): FunctionResponse {
       ) as FunctionResponse["calibration"]),
       cog_orthogroup: {
         ...ladder("cog_orthogroup"),
-        cells: [cell(), cell({ tier: "0.90-0.96", agreement: 0.336, pairs: 8525, lift: 4.9 })],
+        cells: [cell(), cell({ tier: "0.90-0.94", agreement: 0.336, pairs: 8525, lift: 4.9 })],
       },
     },
   });
@@ -654,7 +654,7 @@ describe("the inferred-function card", () => {
           candidate: {
             rank: 1,
             cosine: 0.9293,
-            tier: "0.90-0.96",
+            tier: "0.90-0.94",
             donor: {
               node_label: "3511",
               catalogue_ordinal: 3511,
