@@ -180,8 +180,19 @@ class State:
     source: dict[int, str]
     #: The held-out nodes, with their hidden truth. The only nodes precision may be scored on.
     masked: dict[int, frozenset[str]]
-    #: The donor that supplied each propagated label, for the worked examples.
-    donor: dict[int, tuple[str, int, float | None]] = field(default_factory=dict)
+    #: ⭐⭐ **Every certainty signal the call had available, per node.** David, 2026-10-11:
+    #: *"a similarity of 0.8 with esm of 0.99 must be better than bacformer 0.5 and esm 0.99."*
+    #: One cosine cannot express that, so the record carries four things:
+    #:
+    #: * `esm_cosine` — the ESM cosine to the donor actually used;
+    #: * `bacformer_cosine` — the cosine to the donor BACFORMER independently chose, which under the
+    #:   concurrence rule is a different node and measures how strongly the second geometry backed a
+    #:   concurring claim;
+    #: * `pair_bacformer_cosine` — the Bacformer cosine of **the same donor pair**, which is what
+    #:   David described. ⛔ It is `None` wherever that pair is absent from the Bacformer shortlist,
+    #:   and the share where it exists is REPORTED rather than quietly dropped: within a species the
+    #:   stored walk is only five deep, so the same pair is often simply not there.
+    donor: dict[int, dict] = field(default_factory=dict)
 
     def truth_of(self, node: int) -> frozenset[str]:
         """The held-out truth for a masked node. ⛔ RAISES for anything else."""
@@ -400,6 +411,21 @@ def nearest_labelled(problem: Problem, state: State, node: int, rep: str) -> tup
     return None
 
 
+def _pair_cosine(
+    walk: dict[int, list[tuple[int, int, float]]], node: int, neighbour: int
+) -> float | None:
+    """The cosine of this exact pair in `walk`, or `None` if the pair is not in the stored shortlist.
+
+    ⛔ `None` means *not stored*, which is a different statement from *not similar* — the within-
+    species walk keeps five neighbours, so most pairs are simply absent. Treating absence as a low
+    cosine would manufacture a correlation between certainty and shortlist depth.
+    """
+    for _rank, candidate, cosine in walk.get(node, ()):
+        if candidate == neighbour:
+            return cosine
+    return None
+
+
 def interpolate(
     problem: Problem, state: State, policy: tuple[float | None, float | None], *, rule: str = "concur"
 ) -> dict[int, frozenset[str]]:
@@ -429,7 +455,16 @@ def interpolate(
             chosen = esm if (esm_ok and bacformer_ok and (esm[0] & bacformer[0])) else None
         if chosen is not None:
             assigned[node] = chosen[0]
-            state.donor[node] = (rule, chosen[2], chosen[1])
+            # ⚠ The same-pair Bacformer cosine exists only if the ESM donor also sits in this node's
+            # Bacformer top-5. `_pair_cosine` returns None otherwise and the stratifier reports how
+            # often that happened.
+            state.donor[node] = {
+                "rule": rule,
+                "donor": chosen[2],
+                "esm_cosine": esm[1] if esm else None,
+                "bacformer_cosine": bacformer[1] if bacformer else None,
+                "pair_bacformer_cosine": _pair_cosine(problem.walk["BACFORMER"], node, chosen[2]),
+            }
     return assigned
 
 
@@ -536,7 +571,26 @@ def extrapolate(
             )
         if chosen is not None:
             assigned[node] = chosen[0]
-            recipient_state.donor[node] = (f"extra:{rule}", chosen[2], chosen[1])
+            # ⭐ Across species the same-pair lookup almost always succeeds: the maps carry a mean of
+            # 23.3 (ESM) and 35.6 (Bacformer) donors per node against the walk's five.
+            donor_label = donor.node_label[chosen[2]]
+            pair = next(
+                (
+                    cosine
+                    for label, cosine, _rank in maps["BACFORMER"].get(
+                        recipient.node_label[node], ()
+                    )
+                    if label == donor_label
+                ),
+                None,
+            )
+            recipient_state.donor[node] = {
+                "rule": f"extra:{rule}",
+                "donor": chosen[2],
+                "esm_cosine": found["ESM"][1] if "ESM" in found else None,
+                "bacformer_cosine": found["BACFORMER"][1] if "BACFORMER" in found else None,
+                "pair_bacformer_cosine": pair,
+            }
     return assigned
 
 
@@ -566,7 +620,13 @@ def uniref_propagate(problem: Problem, state: State) -> dict[int, frozenset[str]
                 witness = other
         if shared:
             assigned[node] = shared
-            state.donor[node] = ("uniref50", witness, None)
+            state.donor[node] = {
+                "rule": "uniref50",
+                "donor": witness,
+                "esm_cosine": None,
+                "bacformer_cosine": None,
+                "pair_bacformer_cosine": None,
+            }
     return assigned
 
 
@@ -851,6 +911,533 @@ def report_cross_reach(
         )
 
 
+#: ⭐⭐ **Certainty is TWO-DIMENSIONAL, and that was measured rather than assumed.**
+#:
+#: David, 2026-10-11: *"The bacformer certainty must help give accuracy at least … a similarity of
+#: 0.8 with esm of 0.99 must be better than bacformer 0.5 and esm 0.99."* He is right, and an earlier
+#: version of this file dismissed Bacformer on a bad argument — that David's ESM band edges leave
+#: every Bacformer bin empty, which is true and irrelevant. The question is whether Bacformer orders
+#: accuracy **at fixed ESM**, which needs no shared scale at all. Measured over 4,620 held-out calls
+#: carrying both cosines, within each ESM band, lowest Bacformer third → highest:
+#:
+#:   ESM >= 0.99     95.8 % → 96.8 %   (+1.0)   — saturated; Bacformer adds nothing
+#:   ESM 0.95-0.99   76.8 % → 94.5 %  (+17.7)   — ⭐ the band where 45 % of all calls live
+#:   ESM 0.90-0.95   61.9 % → 86.7 %  (+24.8)
+#:   ESM < 0.90      42.9 % → 75.0 %  (+32.1)   — n=22, directional only
+#:
+#: ⛔ **The bar is 0.60 and it was chosen on one catalogue and scored on the other**, which is the
+#: one thing the earlier interpolation policies did not survive. Within ESM 0.95-0.99 it reads
+#: 92.7 % (ecoli) / 94.6 % (kp held out) above the bar against 85.6 % / 79.8 % below it, and every
+#: bar from 0.40 to 0.75 tracks between the two catalogues within ~2 points.
+BACFORMER_BAR = 0.60
+
+#: The ESM-only bands the conditional test above is tabulated over. ⚠ NOT a certainty scheme on
+#: their own — that is the point of `CERTAINTY_TIERS`.
+ESM_BANDS: tuple[tuple[str, float, float], ...] = (
+    (">= 0.99", 0.99, 1.01),
+    ("0.95-0.99", 0.95, 0.99),
+    ("0.90-0.95", 0.90, 0.95),
+    ("< 0.90", -1.01, 0.90),
+)
+
+#: The six tiers, strongest first. ⭐ **D ≈ C**, which is the finding in one line: a high Bacformer
+#: cosine buys back roughly one whole ESM band.
+CERTAINTY_TIERS: tuple[str, ...] = (
+    "A · ESM ≥ 0.99",
+    "B · ESM 0.95-0.99 · Bac ≥ 0.60",
+    "C · ESM 0.95-0.99 · Bac < 0.60",
+    "D · ESM 0.90-0.95 · Bac ≥ 0.60",
+    "E · ESM 0.90-0.95 · Bac < 0.60",
+    "F · ESM < 0.90",
+)
+#: Which tiers clear the 90 % bar on held-out truth, with the interval to back it:
+#: A 96.7 % (95.9-97.4) and B 94.0 % (92.3-95.4). C 85.0 %, D 84.6 %, E 79.6 %, F 73.9 % do not.
+CALLABLE_TIERS: frozenset[str] = frozenset(CERTAINTY_TIERS[:2])
+
+
+def bacformer_certainty(signals: dict) -> float | None:
+    """The Bacformer cosine a call's certainty is read from — same pair first, own donor as fallback.
+
+    ⛔ **The same pair is the better axis and it is missing a quarter of the time.** It separates
+    accuracy by +17.7 points inside ESM 0.95-0.99 against the own-donor axis's +13.0, so it is
+    preferred — but the within-species walk stores only five neighbours, so the ESM donor is often
+    absent from the Bacformer shortlist. Falling back keeps every call in a tier (the fallback covers
+    24 % of calls at 88.8 % accuracy against the same-pair 90.1 %) rather than dropping a quarter of
+    them into an unmeasured bin, which would silently make every tier look better than it is.
+    """
+    pair = signals.get("pair_bacformer_cosine")
+    return pair if pair is not None else signals.get("bacformer_cosine")
+
+
+def tier_of(signals: dict) -> str:
+    """Which certainty tier a call falls in, from both cosines."""
+    esm = signals.get("esm_cosine")
+    if esm is None or esm < 0.90:
+        return CERTAINTY_TIERS[5]
+    bacformer = bacformer_certainty(signals)
+    strong = bacformer is not None and bacformer >= BACFORMER_BAR
+    if esm >= 0.99:
+        return CERTAINTY_TIERS[0]
+    if esm >= 0.95:
+        return CERTAINTY_TIERS[1] if strong else CERTAINTY_TIERS[2]
+    return CERTAINTY_TIERS[3] if strong else CERTAINTY_TIERS[4]
+
+
+def _stratify(
+    problem: Problem, state: State, assigned: dict[int, frozenset[str]]
+) -> list[dict]:
+    """One row per certainty band: what it gained, and how right it was.
+
+    ⭐ David's Q4: *"some will be extremely high and others lower"*. A policy reported as one rate is
+    an average over bands that differ, and the average is what the page currently quotes.
+
+    ⛔ A band's precision is `None` below `MIN_SCORED_TO_RETIRE` held-out nodes — never 0.0, which
+    would read as *measured and bad* rather than *not measured*. Its gain is still counted, because
+    the nodes are gained whether or not the band happens to hold enough masked nodes to check.
+    """
+    grouped: dict[str, list[int]] = {name: [] for name in CERTAINTY_TIERS}
+    for node in assigned:
+        grouped[tier_of(state.donor.get(node, {}))].append(node)
+    rows = []
+    for name in CERTAINTY_TIERS:
+        nodes = grouped[name]
+        subset = {node: assigned[node] for node in nodes}
+        _called, scored, rate = precision(state, subset)
+        rows.append(
+            {
+                "band": name,
+                "callable": name in CALLABLE_TIERS,
+                "nodes": len(nodes),
+                "genes": sum(problem.gene_count[node] for node in nodes),
+                "scored": scored,
+                "precision": rate if scored >= MIN_SCORED_TO_RETIRE else None,
+                "precision_unguarded": rate,
+                "precision_by_gene": precision_by_gene(problem, state, subset),
+            }
+        )
+    return rows
+
+
+def measure_one_pass(
+    problems: dict[str, dict[str, Problem]],
+    states: dict[str, dict[str, State]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+    cross_bars: dict[str, float | None],
+) -> dict:
+    """⭐ THE deliverable: one pass — inter, then extra, with intra applied continuously.
+
+    ⛔⛔ **TWO RUNS, because coverage and precision cannot honestly come from the same one.**
+
+    * **the coverage run** holds NO mask. Every true label is available as a donor, which is the real
+      deployment, and the nodes it labels are the genuinely unannotated ones. Its node and gene
+      counts are the achievable coverage.
+    * **the precision run** holds the mask. It is the only run with held-out truth, so it is the only
+      one that can state a rate.
+
+    ⛔ **Reading coverage off the masked run would understate it, and badly.** With 20 % of ecoli's
+    COG labels withheld, the pass recovered 224 of 999 masked nodes and the other 775 — which are
+    large, ~68 genes each — simply vanish from the census, so gene coverage read 58.8 % against a
+    69.5 % baseline. A figure drawn from that would show one pass LOSING coverage.
+
+    ⚠ So every stratum carries its gain from one run and its rate from the other, and says so. The
+    two runs label different node sets, so a band's `nodes`/`genes` and its `precision` are not
+    numerator and denominator of each other and must never be divided.
+
+    ecoli gets interpolation only; there is no donor species for it.
+    """
+    record: dict = {
+        "mask_seed": MASK_SEED,
+        "certainty_bands": list(CERTAINTY_TIERS),
+        "callable_bands": sorted(CALLABLE_TIERS),
+        "certainty_axis": (
+            "ESM cosine of the donor used, split by the Bacformer cosine of the same pair "
+            f"(own-donor cosine where the shortlist lacks it) at {BACFORMER_BAR}"
+        ),
+        "bacformer_bar": BACFORMER_BAR,
+        "gain_from": "the UNMASKED coverage run — every true label available as a donor",
+        "rates_from": "the MASKED precision run — the only run with held-out truth",
+        "catalogues": {},
+    }
+    for catalogue in CATALOGUES:
+        problem_any = problems[catalogue]["cog"]
+        record["catalogues"][catalogue] = {
+            "node_total": problem_any.node_total,
+            "gene_total": problem_any.gene_total,
+            "claims": {},
+        }
+
+    def one_pass(key: str, masked: bool) -> dict[str, tuple[Problem, State, dict[str, dict]]]:
+        """Interpolate both species, then extrapolate into kp. Returns per-catalogue state."""
+        working = {
+            catalogue: (
+                states[catalogue][key].copy()
+                if masked
+                else State(dict(problems[catalogue][key].truth), {}, {})
+            )
+            for catalogue in CATALOGUES
+        }
+        out: dict[str, tuple[Problem, State, dict[str, dict]]] = {}
+        for catalogue in CATALOGUES:
+            problem, state = problems[catalogue][key], working[catalogue]
+            assigned = interpolate(problem, state, INTERPOLATION_POLICY[key])
+            _called, scored, rate = precision(state, assigned)
+            out[catalogue] = (
+                problem,
+                state,
+                {
+                    "inter": {
+                        "called": len(assigned),
+                        "scored": scored,
+                        "precision": rate,
+                        "precision_by_gene": precision_by_gene(problem, state, assigned),
+                        "strata": _stratify(problem, state, assigned),
+                    }
+                },
+            )
+            apply(state, assigned, "inter", 1)
+        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        state = working["kp-nuna4"]
+        assigned = extrapolate(recipient, state, donor, working["ecoli-nuna4"], maps, cross_bars)
+        _called, scored, rate = precision(state, assigned)
+        out["kp-nuna4"][2]["extra"] = {
+            "called": len(assigned),
+            "scored": scored,
+            "precision": rate,
+            "precision_by_gene": precision_by_gene(recipient, state, assigned),
+            "strata": _stratify(recipient, state, assigned),
+        }
+        apply(state, assigned, "extra", 1)
+        return out
+
+    for key, label, _kind, _rung in CLAIMS:
+        coverage = one_pass(key, masked=False)
+        scored_run = one_pass(key, masked=True)
+        for catalogue in CATALOGUES:
+            problem, state, gains = coverage[catalogue]
+            _p, _s, rates = scored_run[catalogue]
+            whole = State(dict(problem.truth), {}, {})
+            mechanisms: dict[str, dict] = {}
+            for mechanism, gained in gains.items():
+                by_band = {row["band"]: row for row in rates[mechanism]["strata"]}
+                mechanisms[mechanism] = {
+                    "called": gained["called"],
+                    "precision": rates[mechanism]["precision"],
+                    "precision_by_gene": rates[mechanism]["precision_by_gene"],
+                    "scored": rates[mechanism]["scored"],
+                    "strata": [
+                        {
+                            "band": row["band"],
+                            "nodes": row["nodes"],
+                            "genes": row["genes"],
+                            "scored": by_band[row["band"]]["scored"],
+                            "precision": by_band[row["band"]]["precision"],
+                            "precision_by_gene": by_band[row["band"]]["precision_by_gene"],
+                        }
+                        for row in gained["strata"]
+                    ],
+                }
+            record["catalogues"][catalogue]["claims"][key] = {
+                "label": label,
+                "baseline": census(problem, whole),
+                "after_one_pass": census(problem, state),
+                "masked": len(states[catalogue][key].masked),
+                "mechanisms": mechanisms,
+            }
+    return record
+
+
+def scoreable_calls(
+    problems: dict[str, dict[str, Problem]],
+    states: dict[str, dict[str, State]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+    cross_bars: dict[str, float | None],
+) -> list[dict]:
+    """⭐⭐ One row per HELD-OUT call, with every certainty signal it had and whether it was right.
+
+    This is the thing to emit rather than another aggregate. David, 2026-10-11: *"We want a way of
+    estimating the actual accuracy"* — which needs the joint distribution of the two cosines against
+    correctness, not a table already collapsed over one of them. Written once; every stratification,
+    every band edge and any calibration is then a few seconds of work over the CSV instead of
+    another full run.
+
+    ⛔ Only masked nodes appear. A call on a node that was never annotated has no truth and cannot
+    be a row here, which is measurement rule 1 again.
+    """
+    rows: list[dict] = []
+    for key, label, _kind, _rung in CLAIMS:
+        working = {catalogue: states[catalogue][key].copy() for catalogue in CATALOGUES}
+        passes: list[tuple[str, str, Problem, State, dict[int, frozenset[str]]]] = []
+        for catalogue in CATALOGUES:
+            problem, state = problems[catalogue][key], working[catalogue]
+            assigned = interpolate(problem, state, INTERPOLATION_POLICY[key])
+            passes.append((catalogue, "inter", problem, state, assigned))
+        for _catalogue, _mechanism, _problem, state, assigned in list(passes):
+            apply(state, assigned, "inter", 1)
+        recipient = problems["kp-nuna4"][key]
+        state = working["kp-nuna4"]
+        assigned = extrapolate(
+            recipient, state, problems["ecoli-nuna4"][key], working["ecoli-nuna4"], maps, cross_bars
+        )
+        passes.append(("kp-nuna4", "extra", recipient, state, assigned))
+
+        for catalogue, mechanism, problem, state, assigned in passes:
+            for node, claim in assigned.items():
+                if node not in state.masked:
+                    continue
+                signals = state.donor.get(node, {})
+                rows.append(
+                    {
+                        "catalogue": catalogue,
+                        "claim": key,
+                        "claim_label": label,
+                        "mechanism": mechanism,
+                        "node": node,
+                        "node_label": problem.node_label[node],
+                        "gene_count": problem.gene_count[node],
+                        "esm_cosine": signals.get("esm_cosine"),
+                        "bacformer_cosine": signals.get("bacformer_cosine"),
+                        "pair_bacformer_cosine": signals.get("pair_bacformer_cosine"),
+                        "donor": signals.get("donor"),
+                        "correct": int(bool(claim & state.truth_of(node))),
+                    }
+                )
+    return rows
+
+
+def report_certainty_surface(rows: list[dict]) -> None:
+    """⭐ Does Bacformer add accuracy AT FIXED ESM? David's question, as a 2×N table.
+
+    ⛔ **The test has to be conditional**, because the two cosines are correlated: a marginal table
+    showing *"high Bacformer is more accurate"* would be satisfied entirely by high Bacformer pairs
+    also having high ESM. Within an ESM band, Bacformer either orders accuracy or it does not.
+
+    ⚠ Pooled over both catalogues and both mechanisms, because 16 cells over a few hundred held-out
+    calls leaves nothing measurable otherwise. Every cell prints its n.
+    """
+    print(f"\n{'=' * 118}\nS9 — DOES BACFORMER ADD CERTAINTY AT FIXED ESM?\n{'=' * 118}")
+    print("  Pooled over catalogues and mechanisms. Bacformer terciles are computed WITHIN each ESM")
+    print("  band, so each row's three cells hold a third of that band's calls by construction.")
+    print("  ⚠ 'same pair' uses the Bacformer cosine of the SAME donor pair where the shortlist holds")
+    print("    it; 'own donor' uses the cosine to the donor Bacformer itself chose, always available.\n")
+    for axis_name, column in (("own donor", "bacformer_cosine"), ("same pair", "pair_bacformer_cosine")):
+        usable = [row for row in rows if row[column] is not None and row["esm_cosine"] is not None]
+        print(
+            f"  Bacformer axis = {axis_name}: {len(usable):,} of {len(rows):,} held-out calls carry it"
+            f" ({len(usable) / len(rows):.0%})"
+        )
+        print(
+            f"    {'ESM band':<12}{'n':>7}{'overall':>9}"
+            f"{'low third':>12}{'n':>6}{'mid third':>12}{'n':>6}{'top third':>12}{'n':>6}{'top - low':>11}"
+        )
+        for name, low, high in ESM_BANDS:
+            inside = [row for row in usable if low <= (row["esm_cosine"] or -1) < high]
+            if not inside:
+                print(f"    {name:<12}{0:>7}      no calls")
+                continue
+            ordered = sorted(inside, key=lambda row: row[column])
+            cut = len(ordered) // 3
+            thirds = [ordered[:cut], ordered[cut : 2 * cut], ordered[2 * cut :]] if cut else [[], [], ordered]
+            overall = sum(row["correct"] for row in inside) / len(inside)
+            cells = [
+                (sum(row["correct"] for row in third) / len(third) if third else None, len(third))
+                for third in thirds
+            ]
+            delta = (
+                cells[2][0] - cells[0][0] if cells[2][0] is not None and cells[0][0] is not None else None
+            )
+            print(
+                f"    {name:<12}{len(inside):>7,}{overall:>9.1%}"
+                + "".join(f"{_pct(rate):>12}{n:>6,}" for rate, n in cells)
+                + (f"{delta:>+11.1%}" if delta is not None else f"{'—':>11}")
+            )
+        print()
+
+
+def report_strata(record: dict) -> None:
+    """S8 — the gain stratified by certainty, which is what the headline figures are drawn from."""
+    print(f"\n{'=' * 118}\nS8 — ANNOTATION GAIN, BY PREDICTION, STRATIFIED BY CERTAINTY\n{'=' * 118}")
+    print("  Certainty is the ESM cosine of the donor actually used — the same scale within and across")
+    print("  species (≥0.99 holds 12.1 % of within pairs and 11.2 % of cross ones).")
+    print("  ⛔ 'nodes +' and 'genes +' come from the UNMASKED coverage run; 'prec' from the MASKED one.")
+    print("     They label different node sets on purpose, so never divide one by the other.")
+    print(f"  ⛔ A band's rate is — below {MIN_SCORED_TO_RETIRE} held-out nodes: not measured, not zero.\n")
+    for catalogue, body in record["catalogues"].items():
+        for claim in body["claims"].values():
+            print(f"  {catalogue} · {claim['label']}")
+            print(
+                f"    {'mechanism':<9}{'band':<12}{'nodes +':>9}{'genes +':>10}{'scored':>8}"
+                f"{'prec':>8}{'by gene':>9}"
+            )
+            for mechanism, measured in claim["mechanisms"].items():
+                for row in measured["strata"]:
+                    print(
+                        f"    {mechanism:<9}{row['band']:<12}{row['nodes']:>9,}{row['genes']:>10,}"
+                        f"{row['scored']:>8,}{_pct(row['precision'])}{_pct(row['precision_by_gene'])}"
+                    )
+                print(
+                    f"    {mechanism:<9}{'ALL':<12}{measured['called']:>9,}"
+                    f"{sum(r['genes'] for r in measured['strata']):>10,}{measured['scored']:>8,}"
+                    f"{_pct(measured['precision'])}{_pct(measured['precision_by_gene'])}"
+                )
+            before, after = claim["baseline"], claim["after_one_pass"]
+            print(
+                f"    → nodes {before['nodes']:,} ({before['node_share']:.1%})"
+                f" → {after['nodes']:,} ({after['node_share']:.1%})"
+                f"  ·  genes {before['genes_carrying_share']:.1%} carrying"
+                f" → {before['genes_covered_share']:.1%} after intra"
+                f" → {after['genes_covered_share']:.1%} after one pass"
+            )
+
+
+def _after_inter(problem: Problem, state: State, claim_key: str) -> State:
+    """A detached copy of `state` with one round of interpolation applied — the 2×2's treatment."""
+    advanced = state.copy()
+    apply(advanced, interpolate(problem, advanced, INTERPOLATION_POLICY[claim_key]), "inter", 1)
+    return advanced
+
+
+def report_interaction(
+    problems: dict[str, dict[str, Problem]],
+    states: dict[str, dict[str, State]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+    cross_bars: dict[str, float | None],
+) -> None:
+    """⭐ David's Q1: how much does interpolation change what extrapolation can do?
+
+    A 2×2, because *"interpolation first"* is TWO different interventions and they act on opposite
+    sides of the transfer:
+
+    * **donor side** — interpolating *ecoli* gives kp more donors to read from, and those donors
+      carry propagated labels rather than true ones;
+    * **recipient side** — interpolating *kp* takes nodes off the table before extrapolation sees
+      them, so extra is left with whatever interpolation could not reach.
+
+    ⛔ **The four cells are not comparable on `called` alone**, and that is the trap this table is
+    shaped to avoid: a recipient that has already been interpolated has fewer unlabelled nodes, so
+    extra's `called` falls for a reason that has nothing to do with the donors. The last column is
+    therefore precision restricted to the masked nodes **every cell calls**, which is the only
+    population all four can be read against.
+    """
+    print(f"\n{'=' * 118}\nS5b — DOES INTERPOLATION HELP EXTRAPOLATION? (the 2×2)\n{'=' * 118}")
+    print("  Recipient is always kp. Donor is always ecoli. Scored on kp's masked held-out nodes.")
+    print("  ⛔ 'common' is precision over the masked nodes ALL FOUR cells call — the only fair column")
+    print("     when the cells call different numbers of nodes for structural reasons.\n")
+    for key, label, _kind, _rung in CLAIMS:
+        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        cells: dict[tuple[bool, bool], tuple[dict[int, frozenset[str]], State]] = {}
+        for donor_interpolated in (False, True):
+            donor_state = (
+                _after_inter(donor, states["ecoli-nuna4"][key], key)
+                if donor_interpolated
+                else states["ecoli-nuna4"][key].copy()
+            )
+            for recipient_interpolated in (False, True):
+                recipient_state = (
+                    _after_inter(recipient, states["kp-nuna4"][key], key)
+                    if recipient_interpolated
+                    else states["kp-nuna4"][key].copy()
+                )
+                assigned = extrapolate(
+                    recipient, recipient_state, donor, donor_state, maps, cross_bars
+                )
+                cells[(donor_interpolated, recipient_interpolated)] = (assigned, recipient_state)
+        common = set.intersection(
+            *(
+                {node for node in assigned if node in state.masked}
+                for assigned, state in cells.values()
+            )
+        )
+        print(f"  {label}")
+        print(
+            f"    {'donor ecoli':<14}{'recipient kp':<16}{'called':>8}{'scored':>8}{'prec':>8}"
+            f"{'by gene':>9}{'common':>9}{'n common':>10}{'kp nodes':>10}"
+        )
+        for (donor_interpolated, recipient_interpolated), (assigned, state) in cells.items():
+            _called, scored, rate = precision(state, assigned)
+            by_gene = precision_by_gene(problem=recipient, state=state, assigned=assigned)
+            restricted = {node: assigned[node] for node in common}
+            _c, _s, common_rate = precision(state, restricted)
+            cover = (len(state.label) + len(assigned)) / recipient.node_total
+            print(
+                f"    {'+ inter' if donor_interpolated else 'truth only':<14}"
+                f"{'+ inter' if recipient_interpolated else 'truth only':<16}"
+                f"{len(assigned):>8,}{scored:>8,}{_pct(rate)}{_pct(by_gene)}{_pct(common_rate)}"
+                f"{len(common):>10,}{cover:>10.1%}"
+            )
+
+
+def report_concordance(
+    problems: dict[str, dict[str, Problem]],
+    states: dict[str, dict[str, State]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+    cross_bars: dict[str, float | None],
+) -> None:
+    """⭐ David's Q2: where interpolation and extrapolation both call a kp node, do they agree?
+
+    ⭐⭐ **This is the one accuracy measure here that needs no held-out truth at all**, which makes it
+    the only one that could be run on the nodes we actually want to annotate rather than on annotated
+    nodes standing in for them. Two mechanisms reading DIFFERENT donor pools — one inside kp, one
+    inside ecoli — landing on the same claim is evidence about the claim.
+
+    ⚠ **And it is genuinely two predictions, unlike the ESM/Bacformer concurrence test.** That one
+    compared two geometries over the SAME donor pool, and because a COG claim is a single accession
+    *"the claims intersect"* collapsed to *"the claims are equal"*; 19-28 % of nodes even got the
+    identical donor from both maps. Here the donors are in different species and cannot coincide.
+    ⚠ They are still correlated through the representation: both read ESM cosines.
+
+    The payoff column is the last pair — precision WHEN THEY AGREE against precision when they do
+    not. If agreement separates them, it is a filter that costs reach and buys precision without
+    needing a threshold on either side.
+    """
+    print(f"\n{'=' * 118}\nS5c — DO INTERPOLATION AND EXTRAPOLATION AGREE? (kp, both from TRUTH donors)\n{'=' * 118}")
+    print("  Both mechanisms run independently on the same kp state, each reading only TRUE labels.")
+    print("  ⭐ Needs no held-out truth to compute, so it is the one measure that transfers to the")
+    print("     nodes we actually want to annotate. Precision columns still use the masked set.\n")
+    print(
+        f"  {'claim':<22}{'inter':>8}{'extra':>8}{'both':>8}{'agree':>8}{'rate':>8}"
+        f"{'prec|agree':>12}{'n':>6}{'prec|differ':>13}{'n':>6}"
+    )
+    rows: list[tuple[str, dict]] = []
+    for key, label, _kind, _rung in CLAIMS:
+        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        state = states["kp-nuna4"][key]
+        inter_calls = interpolate(recipient, state.copy(), INTERPOLATION_POLICY[key])
+        extra_calls = extrapolate(
+            recipient, state.copy(), donor, states["ecoli-nuna4"][key], maps, cross_bars
+        )
+        both = set(inter_calls) & set(extra_calls)
+        agreeing = {node for node in both if inter_calls[node] & extra_calls[node]}
+        scored_agree = {node: inter_calls[node] for node in agreeing if node in state.masked}
+        scored_differ = {
+            node: inter_calls[node] for node in (both - agreeing) if node in state.masked
+        }
+        _c, n_agree, rate_agree = precision(state, scored_agree)
+        _c, n_differ, rate_differ = precision(state, scored_differ)
+        print(
+            f"  {label:<22}{len(inter_calls):>8,}{len(extra_calls):>8,}{len(both):>8,}"
+            f"{len(agreeing):>8,}{len(agreeing) / len(both) if both else 0:>8.1%}"
+            f"{_pct(rate_agree)}{n_agree:>6,}{_pct(rate_differ)}{n_differ:>6,}"
+        )
+        rows.append((label, {"inter": inter_calls, "extra": extra_calls, "both": both}))
+
+    print("\n  ⚠ What each mechanism reaches ALONE, and what agreement costs in reach:")
+    print(
+        f"  {'claim':<22}{'inter only':>12}{'extra only':>12}{'both':>8}{'agreeing':>10}"
+        f"{'union':>8}{'agree/union':>13}"
+    )
+    for label, parts in rows:
+        inter_only = len(set(parts["inter"]) - parts["both"])
+        extra_only = len(set(parts["extra"]) - parts["both"])
+        union = len(set(parts["inter"]) | set(parts["extra"]))
+        agreeing = sum(
+            1 for node in parts["both"] if parts["inter"][node] & parts["extra"][node]
+        )
+        print(
+            f"  {label:<22}{inter_only:>12,}{extra_only:>12,}{len(parts['both']):>8,}"
+            f"{agreeing:>10,}{union:>8,}{agreeing / union if union else 0:>13.1%}"
+        )
+
+
 def run_loop(
     claim_key: str,
     problems: dict[str, dict[str, Problem]],
@@ -1035,7 +1622,18 @@ def main() -> None:
     parser.add_argument(
         "--stage",
         default="all",
-        choices=("all", "baseline", "intra", "inter", "extra", "loop", "uniref"),
+        choices=(
+            "all",
+            "baseline",
+            "intra",
+            "inter",
+            "extra",
+            "interaction",
+            "concordance",
+            "loop",
+            "uniref",
+            "strata",
+        ),
     )
     parser.add_argument("--cross-esm", required=False, help="ecoli→kp ESM cross-species map (TSV, with its .json)")
     parser.add_argument("--cross-bacformer", required=False, help="the same map built on Bacformer")
@@ -1057,6 +1655,16 @@ def main() -> None:
         help="keep only this many cross-species donors per node — 5 matches the within-species walk",
     )
     parser.add_argument("--cross-esm-bar", type=float, default=None)
+    parser.add_argument(
+        "--json-out",
+        default=None,
+        help="write the one-pass record here, so a figure reads measured numbers rather than typed ones",
+    )
+    parser.add_argument(
+        "--calls-out",
+        default=None,
+        help="write one row per held-out call with both cosines and whether it was right",
+    )
     parser.add_argument("--cross-bacformer-bar", type=float, default=None)
     arguments = parser.parse_args()
 
@@ -1119,13 +1727,35 @@ def main() -> None:
         )
         print("  ⛔ The within-species walk stores FIVE. Extrapolation looking further is a property of")
         print("     how the maps were BUILT, not of the mechanism — run with --cross-depth 5 to compare.")
-    elif arguments.stage in ("all", "extra", "loop", "uniref"):
+    elif arguments.stage in (
+        "all", "extra", "interaction", "concordance", "loop", "uniref", "strata",
+    ):
         raise SystemExit("FATAL: --cross-esm and --cross-bacformer are required for the extra/loop stages")
 
     cross_bars = {"ESM": arguments.cross_esm_bar, "BACFORMER": arguments.cross_bacformer_bar}
     if arguments.stage in ("all", "extra"):
         report_extra(problems, states, maps)
         report_cross_reach(problems, states, maps)
+    if arguments.stage in ("all", "strata"):
+        record = measure_one_pass(problems, states, maps, cross_bars)
+        report_strata(record)
+        calls = scoreable_calls(problems, states, maps, cross_bars)
+        report_certainty_surface(calls)
+        if arguments.calls_out:
+            with open(arguments.calls_out, "w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(calls[0]))
+                writer.writeheader()
+                writer.writerows(calls)
+            print(f"  ⭐ {len(calls):,} held-out calls written to {arguments.calls_out}")
+        if arguments.json_out:
+            # ⛔ The figure reads THIS, never a number typed into a plot script. `~/.claude/CLAUDE.md`:
+            # a number is of record only if it names the artifact it was read from.
+            Path(arguments.json_out).write_text(json.dumps(record, indent=2))
+            print(f"\n  ⭐ one-pass record written to {arguments.json_out}")
+    if arguments.stage in ("all", "interaction"):
+        report_interaction(problems, states, maps, cross_bars)
+    if arguments.stage in ("all", "concordance"):
+        report_concordance(problems, states, maps, cross_bars)
 
     if arguments.stage in ("all", "loop"):
         print(f"\n{'=' * 118}\nS6 — THE LOOP: inter → extra → inter → … (intra applied continuously)\n{'=' * 118}")
