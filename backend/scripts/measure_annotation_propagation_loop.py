@@ -361,13 +361,24 @@ def census(problem: Problem, state: State) -> dict[str, float | int]:
     """⭐ David's FOUR numbers, every time — nodes (n, %) and genes (n, %).
 
     Two gene numbers, because intrapolation is the difference between them and nothing else is:
-    `genes_carrying` counts only the member genes that hold the claim themselves, `genes_covered`
-    counts every gene of every labelled node — which is what the node's label means once intra has
-    run. ⛔ Node coverage is IDENTICAL in both: intra cannot annotate a node that had nothing.
+    `genes_carrying` counts the member genes that hold the claim themselves **anywhere in the
+    catalogue**, `genes_covered` counts every gene of every labelled node plus the carrying genes of
+    the nodes that have no label — which is what the node's label means once intra has run.
+    ⛔ Node coverage is IDENTICAL in both: intra cannot annotate a node that had nothing.
     """
     nodes = len(state.label)
-    carrying = sum(problem.genes_carrying.get(node, 0) for node in state.label)
-    covered = sum(problem.gene_count[node] for node in state.label)
+    # ⛔⛔ **A gene is annotated if IT carries the claim, OR its node holds a label.** Summing
+    # `genes_carrying` over LABELLED nodes only — which this did until 2026-10-11 — silently drops
+    # every gene whose node has no node-level claim in this facet. The node claim is the rank-0
+    # modal vote, so a node can hold genes stating a molecular function and still have no rank-0
+    # molecular-function row. Measured: that excluded 25,751 ecoli molecular-function genes from the
+    # baseline (5.26 points), and 1,157 of them sat inside nodes the pass later labelled, so the
+    # pass was credited with genes the annotation source had already annotated.
+    carrying = sum(problem.genes_carrying.values())
+    covered = sum(
+        problem.gene_count[node] if node in state.label else problem.genes_carrying.get(node, 0)
+        for node in problem.gene_count
+    )
     return {
         "nodes": nodes,
         "node_share": nodes / problem.node_total,
@@ -1012,7 +1023,17 @@ def _stratify(
                 "scored": scored,
                 "precision": rate if scored >= MIN_SCORED_TO_RETIRE else None,
                 "precision_unguarded": rate,
-                "precision_by_gene": precision_by_gene(problem, state, subset),
+                # ⛔ **The SAME guard, and it was missing here.** `precision` was suppressed below
+                # 30 held-out nodes while the gene-weighted rate beside it was not, so the table
+                # printed `—   0.0%` off a single node — an honest dash beside a measured-looking
+                # zero, in the one column its own preamble forbids. 18 of 72 strata rows were
+                # affected; two rested on one node each.
+                "precision_by_gene": (
+                    precision_by_gene(problem, state, subset)
+                    if scored >= MIN_SCORED_TO_RETIRE
+                    else None
+                ),
+                "precision_by_gene_unguarded": precision_by_gene(problem, state, subset),
             }
         )
     return rows
@@ -1023,6 +1044,8 @@ def measure_one_pass(
     states: dict[str, dict[str, State]],
     maps: dict[str, dict[str, list[tuple[str, float, int]]]],
     cross_bars: dict[str, float | None],
+    *,
+    mask_fraction: float,
 ) -> dict:
     """⭐ THE deliverable: one pass — inter, then extra, with intra applied continuously.
 
@@ -1046,6 +1069,10 @@ def measure_one_pass(
     ecoli gets interpolation only; there is no donor species for it.
     """
     record: dict = {
+        # ⛔ **The fraction, not just the seed.** It changes every rate in this record — kp
+        # round-1 extrapolation reads 93.1 % at 0.20 and 84.9 % at 0.50 — and a record that names
+        # only the seed cannot be told apart from a run at another fraction.
+        "mask_fraction": mask_fraction,
         "mask_seed": MASK_SEED,
         "certainty_bands": list(CERTAINTY_TIERS),
         "callable_bands": sorted(CALLABLE_TIERS),
@@ -1056,6 +1083,15 @@ def measure_one_pass(
         "bacformer_bar": BACFORMER_BAR,
         "gain_from": "the UNMASKED coverage run — every true label available as a donor",
         "rates_from": "the MASKED precision run — the only run with held-out truth",
+        # ⚠ The two runs also differ in DONOR QUALITY, not only in which nodes they call, because
+        # ecoli is interpolated before kp is extrapolated into in both. Giving the precision run the
+        # coverage run's ecoli donors raises kp extrapolation precision by 6.5 / 5.7 / 3.4 / 4.2
+        # points (COG / MF / BP / CC) at mask 0.50 and 1.5 / 1.2 / 1.1 / 1.3 at 0.20. The published
+        # rate is therefore CONSERVATIVE against the pool its gain was measured under.
+        "donor_pool_note": (
+            "extrapolation's rate is measured against a donor pool poorer than the one its gain is "
+            "measured under, so it understates by ~1.1-1.5 points at mask 0.20 and ~3.4-6.5 at 0.50"
+        ),
         "catalogues": {},
     }
     for catalogue in CATALOGUES:
@@ -1256,8 +1292,9 @@ def report_certainty_surface(rows: list[dict]) -> None:
 def report_strata(record: dict) -> None:
     """S8 — the gain stratified by certainty, which is what the headline figures are drawn from."""
     print(f"\n{'=' * 118}\nS8 — ANNOTATION GAIN, BY PREDICTION, STRATIFIED BY CERTAINTY\n{'=' * 118}")
-    print("  Certainty is the ESM cosine of the donor actually used — the same scale within and across")
-    print("  species (≥0.99 holds 12.1 % of within pairs and 11.2 % of cross ones).")
+    print("  Certainty is TWO-dimensional: the ESM cosine of the donor used, split by the Bacformer")
+    print(f"  cosine of the same donor pair at {BACFORMER_BAR}. ⚠ Bacformer orders accuracy BELOW ESM 0.99")
+    print("  and not at or above it, where the claim is already saturated at ~96.7 %.")
     print("  ⛔ 'nodes +' and 'genes +' come from the UNMASKED coverage run; 'prec' from the MASKED one.")
     print("     They label different node sets on purpose, so never divide one by the other.")
     print(f"  ⛔ A band's rate is — below {MIN_SCORED_TO_RETIRE} held-out nodes: not measured, not zero.\n")
@@ -1265,17 +1302,17 @@ def report_strata(record: dict) -> None:
         for claim in body["claims"].values():
             print(f"  {catalogue} · {claim['label']}")
             print(
-                f"    {'mechanism':<9}{'band':<12}{'nodes +':>9}{'genes +':>10}{'scored':>8}"
+                f"    {'mechanism':<10}{'tier':<32}{'nodes +':>9}{'genes +':>10}{'scored':>8}"
                 f"{'prec':>8}{'by gene':>9}"
             )
             for mechanism, measured in claim["mechanisms"].items():
                 for row in measured["strata"]:
                     print(
-                        f"    {mechanism:<9}{row['band']:<12}{row['nodes']:>9,}{row['genes']:>10,}"
+                        f"    {mechanism:<10}{row['band']:<32}{row['nodes']:>9,}{row['genes']:>10,}"
                         f"{row['scored']:>8,}{_pct(row['precision'])}{_pct(row['precision_by_gene'])}"
                     )
                 print(
-                    f"    {mechanism:<9}{'ALL':<12}{measured['called']:>9,}"
+                    f"    {mechanism:<10}{'ALL':<32}{measured['called']:>9,}"
                     f"{sum(r['genes'] for r in measured['strata']):>10,}{measured['scored']:>8,}"
                     f"{_pct(measured['precision'])}{_pct(measured['precision_by_gene'])}"
                 )
@@ -1737,7 +1774,9 @@ def main() -> None:
         report_extra(problems, states, maps)
         report_cross_reach(problems, states, maps)
     if arguments.stage in ("all", "strata"):
-        record = measure_one_pass(problems, states, maps, cross_bars)
+        record = measure_one_pass(
+            problems, states, maps, cross_bars, mask_fraction=arguments.mask_fraction
+        )
         report_strata(record)
         calls = scoreable_calls(problems, states, maps, cross_bars)
         report_certainty_surface(calls)

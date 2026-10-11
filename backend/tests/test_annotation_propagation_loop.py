@@ -23,6 +23,7 @@ from measure_annotation_propagation_loop import (  # noqa: E402
     TARGET,
     Problem,
     State,
+    _stratify,
     apply,
     census,
     interpolate,
@@ -113,6 +114,56 @@ def test_census_separates_genes_carrying_from_genes_covered():
     assert numbers["genes_carrying"] == 46
     assert numbers["genes_covered"] == 111
     assert numbers["genes_covered_share"] == pytest.approx(111 / 113)
+
+
+def test_a_gene_carrying_the_claim_counts_even_where_its_node_holds_no_label():
+    """⛔ The defect an audit found on 2026-10-11, and the toy above could not have caught it.
+
+    A node's label is the rank-0 modal vote over its members, so a node can hold genes stating a
+    molecular function and still carry no rank-0 molecular-function row. Summing `genes_carrying`
+    over LABELLED nodes only dropped every such gene from the baseline — 25,751 ecoli
+    molecular-function genes, 5.26 points — and 1,157 of them sat inside nodes the pass later
+    labelled, so the pass was credited with genes the annotation source had already annotated.
+    """
+    # Node 4 carries the claim on 1 of its 1 genes but has NO node-level label.
+    problem = toy(
+        truth={1: frozenset({"A"})},
+        gene_count={1: 100, 4: 8},
+        genes_carrying={1: 40, 4: 3},
+    )
+    numbers = census(problem, State(label=dict(problem.truth), source={}, masked={}))
+    assert numbers["genes_carrying"] == 43, "node 4's three annotated genes are annotated at source"
+    assert numbers["genes_covered"] == 103, "node 1 contributes all 100; node 4 only its three"
+    assert numbers["nodes"] == 1, "node 4 still holds no node-level claim"
+
+
+def test_the_pass_is_not_credited_with_genes_the_source_already_annotated():
+    """The other half of the same defect: labelling node 4 must gain 5 genes, not 8."""
+    problem = toy(
+        truth={1: frozenset({"A"})},
+        gene_count={1: 100, 4: 8},
+        genes_carrying={1: 40, 4: 3},
+    )
+    state = State(label=dict(problem.truth), source={}, masked={})
+    before = census(problem, state)
+    apply(state, {4: frozenset({"A"})}, "inter", 1)
+    after = census(problem, state)
+    assert after["genes_covered"] - before["genes_covered"] == 5
+
+
+def test_a_strata_rate_below_the_floor_is_none_in_BOTH_columns():
+    """⛔ `precision_by_gene` escaped the guard and printed 0.0 % off one node beside an honest dash."""
+    problem = toy(truth={1: frozenset({"A"}), 3: frozenset({"B"})})
+    state = State(label={1: frozenset({"A"})}, source={}, masked={3: frozenset({"B"})})
+    assigned = interpolate(problem, state, (None, None))
+    rows = _stratify(problem, state, assigned)
+    called = [row for row in rows if row["nodes"]]
+    assert called, "node 3 should have been called"
+    for row in called:
+        assert row["scored"] < 30
+        assert row["precision"] is None
+        assert row["precision_by_gene"] is None, "the guard must cover the gene-weighted rate too"
+        assert row["precision_unguarded"] == 0.0, "the unguarded value is kept, just not published"
 
 
 def test_mask_removes_the_label_from_the_working_state_and_keeps_the_truth():
