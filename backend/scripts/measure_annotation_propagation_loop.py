@@ -673,8 +673,11 @@ def _pct(value: float | None) -> str:
 def report_baseline(problems: dict[str, dict[str, Problem]], gaps: dict[str, dict[str, int]]) -> None:
     """S2 — where every claim starts, in nodes and in genes, before anything propagates."""
     print(f"\n{'=' * 118}\nS2 — THE BASELINE CENSUS\n{'=' * 118}")
-    print("  ⚠ 'genes carrying' counts member genes holding the claim themselves; 'genes covered' counts")
-    print("    every gene of every annotated node — the two differ by exactly what intrapolation does.\n")
+    print("  ⚠ 'genes carrying' counts member genes holding the claim themselves, anywhere in the")
+    print("    catalogue; 'genes cover' counts every gene of every node holding a node-level claim,")
+    print("    PLUS the carrying genes of the nodes that hold none — the two differ by exactly what")
+    print("    intrapolation does. ⛔ A node's claim is the rank-0 modal vote, so a node can hold genes")
+    print("    stating a facet and carry no claim in it; those genes are annotated either way.\n")
     header = f"  {'catalogue':<12}{'claim':<22}{'nodes':>8}  {'of all':>7}"
     print(header + f"{'genes carry':>13}{'of all':>8}{'genes cover':>13}{'of all':>8}")
     for catalogue in CATALOGUES:
@@ -1019,7 +1022,16 @@ def _stratify(
                 "band": name,
                 "callable": name in CALLABLE_TIERS,
                 "nodes": len(nodes),
-                "genes": sum(problem.gene_count[node] for node in nodes),
+                # ⛔⛔ **The gene gain, net of what the source already annotated** — the same
+                # correction `census` carries, and it did NOT reach here in the first pass, so the
+                # certainty figure re-credited exactly the genes the other figure had stopped
+                # claiming. Measured: the two figures disagreed by 1,157-6,672 genes on six of
+                # eight gene panels (0 on both COG panels, which is the control), up to 1.36 points
+                # of catalogue share. Labelling a node gains only its members that were NOT already
+                # carrying the claim themselves.
+                "genes": sum(
+                    problem.gene_count[node] - problem.genes_carrying.get(node, 0) for node in nodes
+                ),
                 "scored": scored,
                 "precision": rate if scored >= MIN_SCORED_TO_RETIRE else None,
                 "precision_unguarded": rate,

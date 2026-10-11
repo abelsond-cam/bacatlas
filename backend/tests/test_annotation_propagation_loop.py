@@ -166,6 +166,28 @@ def test_a_strata_rate_below_the_floor_is_none_in_BOTH_columns():
         assert row["precision_unguarded"] == 0.0, "the unguarded value is kept, just not published"
 
 
+def test_the_strata_gene_gain_sums_to_the_census_gene_gain():
+    """⛔ The cross-figure identity. Two figures drawing the same gain must agree on its size.
+
+    An audit found the census correction had reached `census` and not `_stratify`, so the
+    certainty figure re-credited the pass with 1,157-6,672 genes per panel that the other figure
+    had stopped claiming — both COG panels agreeing exactly, which is what identified it as the
+    facet-splitting bug rather than a new one. This asserts the two can never drift again.
+    """
+    problem = toy(
+        truth={1: frozenset({"A"})},
+        gene_count={1: 100, 3: 1, 4: 8},
+        genes_carrying={1: 40, 4: 3},
+    )
+    state = State(label=dict(problem.truth), source={}, masked={})
+    before = census(problem, state)
+    assigned = interpolate(problem, state, (None, None))
+    rows = _stratify(problem, state, assigned)
+    apply(state, assigned, "inter", 1)
+    after = census(problem, state)
+    assert sum(row["genes"] for row in rows) == after["genes_covered"] - before["genes_covered"]
+
+
 def test_mask_removes_the_label_from_the_working_state_and_keeps_the_truth():
     """A masked node is genuinely unlabelled for the run, and its truth is reachable only via `masked`."""
     problem = toy(truth={node: frozenset({"A"}) for node in range(1, 11)})
