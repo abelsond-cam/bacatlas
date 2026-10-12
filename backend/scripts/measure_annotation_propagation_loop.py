@@ -1252,6 +1252,175 @@ def scoreable_calls(
     return rows
 
 
+def unrestricted_calls(
+    problems: dict[str, dict[str, Problem]],
+    states: dict[str, dict[str, State]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+) -> list[dict]:
+    """⭐⭐ Every held-out node's nearest TRUE-labelled donor — NO bar, NO concurrence filter.
+
+    ⛔⛔ **`scoreable_calls` cannot be used to fit an accuracy model, and the reason is selection.**
+    It records the calls the shipped POLICIES made, and those policies filter twice:
+
+    * **the bars censor the plane.** Measured on its output: COG interpolation has a minimum ESM
+      cosine of 0.960 and molecular function 0.970, with literally zero observations below — because
+      that is where `INTERPOLATION_POLICY` cuts. A model fitted there cannot say anything about the
+      region a reader most wants to ask about, and would be extrapolating off its own support if
+      asked.
+    * **⛔ worse, `concur` records only pairs that ALREADY AGREED.** Every interpolation row in that
+      file is one where the ESM donor and the Bacformer donor carried intersecting claims, which is
+      a higher-accuracy subset by construction. Fitting on it would answer *"given the two maps
+      concur, how accurate is a donor"* while appearing to answer *"how accurate is a donor"*.
+
+    So this takes **every** masked node that reaches a labelled donor at all, records the ESM-nearest
+    one whatever its cosine, and keeps concurrence as a **covariate** rather than a filter — which
+    is also the better use of it, since it then enters the model as a third predictor instead of
+    silently conditioning the other two.
+
+    ⚠ Donors carry TRUE labels only (the masked state, before any propagation), because the quantity
+    a page needs is *"a donor with a real label sits at this similarity — how often is it right?"*
+    """
+    rows: list[dict] = []
+    for key, label, _kind, _rung in CLAIMS:
+        for catalogue in CATALOGUES:
+            problem, state = problems[catalogue][key], states[catalogue][key]
+            for node in state.masked:
+                esm = nearest_labelled(problem, state, node, "ESM")
+                if esm is None:
+                    continue
+                bacformer = nearest_labelled(problem, state, node, "BACFORMER")
+                rows.append(
+                    {
+                        "catalogue": catalogue,
+                        "claim": key,
+                        "claim_label": label,
+                        "mechanism": "inter",
+                        "node": node,
+                        "gene_count": problem.gene_count[node],
+                        "esm_cosine": esm[1],
+                        "pair_bacformer_cosine": _pair_cosine(problem.walk["BACFORMER"], node, esm[2]),
+                        "bacformer_cosine": bacformer[1] if bacformer else None,
+                        "same_donor": int(bool(bacformer and bacformer[2] == esm[2])),
+                        "concur": int(bool(bacformer and (esm[0] & bacformer[0]))),
+                        "correct": int(bool(esm[0] & state.truth_of(node))),
+                    }
+                )
+
+        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        state, donor_state = states["kp-nuna4"][key], states["ecoli-nuna4"][key]
+        donor_id_of = {name: identifier for identifier, name in donor.node_label.items()}
+        for node in state.masked:
+            found: dict[str, tuple[frozenset[str], float, int]] = {}
+            for rep in REPS:
+                for donor_label, cosine, _rank in maps[rep].get(recipient.node_label[node], ()):
+                    donor_node = donor_id_of.get(donor_label)
+                    if donor_node is not None and donor_node in donor_state.label:
+                        found[rep] = (donor_state.label[donor_node], cosine, donor_node)
+                        break
+            if "ESM" not in found:
+                continue
+            esm = found["ESM"]
+            bacformer = found.get("BACFORMER")
+            pair = next(
+                (
+                    cosine
+                    for name, cosine, _rank in maps["BACFORMER"].get(recipient.node_label[node], ())
+                    if name == donor.node_label[esm[2]]
+                ),
+                None,
+            )
+            rows.append(
+                {
+                    "catalogue": "kp-nuna4",
+                    "claim": key,
+                    "claim_label": label,
+                    "mechanism": "extra",
+                    "node": node,
+                    "gene_count": recipient.gene_count[node],
+                    "esm_cosine": esm[1],
+                    "pair_bacformer_cosine": pair,
+                    "bacformer_cosine": bacformer[1] if bacformer else None,
+                    "same_donor": int(bool(bacformer and bacformer[2] == esm[2])),
+                    "concur": int(bool(bacformer and (esm[0] & bacformer[0]))),
+                    "correct": int(bool(esm[0] & state.truth_of(node))),
+                }
+            )
+    return rows
+
+
+def coverage_candidates(
+    problems: dict[str, dict[str, Problem]],
+    maps: dict[str, dict[str, list[tuple[str, float, int]]]],
+) -> list[dict]:
+    """⭐ Every call the UNMASKED pass could make, with its covariates and NO truth.
+
+    This is the population a fitted accuracy surface is applied to. The held-out calls say what a
+    similarity is worth; these say how many calls sit at each similarity, and the two together say
+    how much annotation a given rule actually keeps. ⛔ There is no `correct` column and there
+    cannot be: these are the unannotated nodes, which is the whole point of annotating them.
+    """
+    rows: list[dict] = []
+    for key, label, _kind, _rung in CLAIMS:
+        truth_states = {
+            catalogue: State(dict(problems[catalogue][key].truth), {}, {}) for catalogue in CATALOGUES
+        }
+        for catalogue in CATALOGUES:
+            problem, state = problems[catalogue][key], truth_states[catalogue]
+            for node in problem.gene_count:
+                if node in state.label:
+                    continue
+                esm = nearest_labelled(problem, state, node, "ESM")
+                if esm is None:
+                    continue
+                bacformer = nearest_labelled(problem, state, node, "BACFORMER")
+                rows.append(
+                    {
+                        "catalogue": catalogue, "claim": key, "claim_label": label,
+                        "mechanism": "inter", "node": node,
+                        "gene_count": problem.gene_count[node],
+                        "esm_cosine": esm[1],
+                        "pair_bacformer_cosine": _pair_cosine(problem.walk["BACFORMER"], node, esm[2]),
+                        "bacformer_cosine": bacformer[1] if bacformer else None,
+                        "concur": int(bool(bacformer and (esm[0] & bacformer[0]))),
+                    }
+                )
+        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        state, donor_state = truth_states["kp-nuna4"], truth_states["ecoli-nuna4"]
+        donor_id_of = {name: identifier for identifier, name in donor.node_label.items()}
+        for node in recipient.gene_count:
+            if node in state.label:
+                continue
+            found: dict[str, tuple[frozenset[str], float, int]] = {}
+            for rep in REPS:
+                for donor_label, cosine, _rank in maps[rep].get(recipient.node_label[node], ()):
+                    donor_node = donor_id_of.get(donor_label)
+                    if donor_node is not None and donor_node in donor_state.label:
+                        found[rep] = (donor_state.label[donor_node], cosine, donor_node)
+                        break
+            if "ESM" not in found:
+                continue
+            esm, bacformer = found["ESM"], found.get("BACFORMER")
+            pair = next(
+                (
+                    cosine
+                    for name, cosine, _rank in maps["BACFORMER"].get(recipient.node_label[node], ())
+                    if name == donor.node_label[esm[2]]
+                ),
+                None,
+            )
+            rows.append(
+                {
+                    "catalogue": "kp-nuna4", "claim": key, "claim_label": label,
+                    "mechanism": "extra", "node": node,
+                    "gene_count": recipient.gene_count[node],
+                    "esm_cosine": esm[1], "pair_bacformer_cosine": pair,
+                    "bacformer_cosine": bacformer[1] if bacformer else None,
+                    "concur": int(bool(bacformer and (esm[0] & bacformer[0]))),
+                }
+            )
+    return rows
+
+
 def report_certainty_surface(rows: list[dict]) -> None:
     """⭐ Does Bacformer add accuracy AT FIXED ESM? David's question, as a 2×N table.
 
@@ -1682,6 +1851,7 @@ def main() -> None:
             "loop",
             "uniref",
             "strata",
+            "surface",
         ),
     )
     parser.add_argument("--cross-esm", required=False, help="ecoli→kp ESM cross-species map (TSV, with its .json)")
@@ -1708,6 +1878,17 @@ def main() -> None:
         "--json-out",
         default=None,
         help="write the one-pass record here, so a figure reads measured numbers rather than typed ones",
+    )
+    parser.add_argument(
+        "--candidates-out",
+        default=None,
+        help="every call the UNMASKED pass could make, with covariates and no truth — what a fitted"
+        " surface is applied to when asking how much annotation a rule keeps",
+    )
+    parser.add_argument(
+        "--surface-out",
+        default=None,
+        help="write the UNRESTRICTED held-out calls here — what an accuracy model must be fitted on",
     )
     parser.add_argument(
         "--calls-out",
@@ -1777,7 +1958,7 @@ def main() -> None:
         print("  ⛔ The within-species walk stores FIVE. Extrapolation looking further is a property of")
         print("     how the maps were BUILT, not of the mechanism — run with --cross-depth 5 to compare.")
     elif arguments.stage in (
-        "all", "extra", "interaction", "concordance", "loop", "uniref", "strata",
+        "all", "extra", "interaction", "concordance", "loop", "uniref", "strata", "surface",
     ):
         raise SystemExit("FATAL: --cross-esm and --cross-bacformer are required for the extra/loop stages")
 
@@ -1803,6 +1984,40 @@ def main() -> None:
             # a number is of record only if it names the artifact it was read from.
             Path(arguments.json_out).write_text(json.dumps(record, indent=2))
             print(f"\n  ⭐ one-pass record written to {arguments.json_out}")
+    if arguments.stage in ("all", "surface"):
+        unrestricted = unrestricted_calls(problems, states, maps)
+        print(f"\n{'=' * 118}\nS10 — THE UNRESTRICTED SURFACE (no bar, no concurrence filter)\n{'=' * 118}")
+        print(f"  {len(unrestricted):,} held-out calls — every masked node that reaches a labelled")
+        print("  donor at all, whatever its cosine and whether or not the two maps agree.")
+        print("  ⛔ The shipped policies see a SUBSET of this, selected on both axes a model needs.")
+        print(
+            f"  {'claim':<6}{'mech':<7}{'cat':<7}{'n':>7}{'min esm':>9}"
+            f"{'% < 0.96':>10}{'% concur':>10}{'accuracy':>10}"
+        )
+        groups: dict[tuple, list[dict]] = defaultdict(list)
+        for row in unrestricted:
+            groups[(row["claim"], row["mechanism"], row["catalogue"])].append(row)
+        for group, members in sorted(groups.items()):
+            cosines = sorted(row["esm_cosine"] for row in members)
+            print(
+                f"  {group[0]:<6}{group[1]:<7}{group[2][:5]:<7}{len(members):>7,}{cosines[0]:>9.3f}"
+                f"{sum(1 for c in cosines if c < 0.96) / len(members):>10.1%}"
+                f"{sum(row['concur'] for row in members) / len(members):>10.1%}"
+                f"{sum(row['correct'] for row in members) / len(members):>10.1%}"
+            )
+        if arguments.candidates_out:
+            candidates = coverage_candidates(problems, maps)
+            with open(arguments.candidates_out, "w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(candidates[0]))
+                writer.writeheader()
+                writer.writerows(candidates)
+            print(f"  ⭐ {len(candidates):,} coverage candidates written to {arguments.candidates_out}")
+        if arguments.surface_out:
+            with open(arguments.surface_out, "w", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=list(unrestricted[0]))
+                writer.writeheader()
+                writer.writerows(unrestricted)
+            print(f"\n  ⭐ written to {arguments.surface_out}")
     if arguments.stage in ("all", "interaction"):
         report_interaction(problems, states, maps, cross_bars)
     if arguments.stage in ("all", "concordance"):
