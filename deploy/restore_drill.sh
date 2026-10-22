@@ -102,9 +102,29 @@ restore_line=$(docker compose logs db 2>/dev/null | grep -o 'restore + ANALYZE f
 [ -n "$restore_line" ] && pass "$restore_line (inside the db container)" || fail "no restore line in the db log — did the dump restore?"
 
 # ── end to end, through the published port ────────────────────────────────────────────────────────
-get() { curl -fsS --max-time 20 "$1"; }
-status() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
+# ⛔ The origin may sit behind an HTTP-Basic gate (one shared lab credential in front of BOTH the app
+# and the API). Without a credential every check below 401s and the drill reports a broken deployment
+# when nothing is broken — which is what happened the first time this ran against a gated origin.
+# Set `BACATLAS_DRILL_AUTH=user:password` in `.env` (gitignored) and the drill authenticates. Leave it
+# unset and nothing changes, so an ungated deployment behaves exactly as before.
+auth=()
+[ -n "${BACATLAS_DRILL_AUTH:-}" ] && auth=(-u "$BACATLAS_DRILL_AUTH")
+get() { curl -fsS --max-time 20 "${auth[@]}" "$1"; }
+status() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${auth[@]}" "$@"; }
+# Deliberately WITHOUT the credential: used to prove the gate is actually closed.
+status_anon() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 json() { docker compose exec -T api python -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
+
+# The gate, if there is one. A rebuilt `web` that silently lost its auth config would otherwise pass
+# every check below and sit open on the internet — a failure no other check here can see.
+if [ -n "${BACATLAS_DRILL_AUTH:-}" ]; then
+  [ "$(status_anon "$url")" = "401" ] && pass "gate: the page refuses an anonymous request (401)" \
+    || fail "gate: the page answered $(status_anon "$url") to NO credential — the gate is OPEN"
+  [ "$(status_anon "$api/health")" = "401" ] && pass "gate: the API refuses an anonymous request (401)" \
+    || fail "gate: the API answered $(status_anon "$api/health") to NO credential — the API is OPEN"
+  [ "$(status_anon "${url}healthz")" = "200" ] && pass "gate: /healthz stays open, for the container healthcheck" \
+    || fail "gate: /healthz answered $(status_anon "${url}healthz") — the web healthcheck will fail"
+fi
 
 health=$(get "$api/health" || true)
 if echo "$health" | json 'd.get("schema_present") is True' 2>/dev/null | grep -q True; then
