@@ -86,7 +86,7 @@ host="${BACATLAS_HTTP_BIND:-127.0.0.1}"
 url="http://$host:${BACATLAS_HTTP_PORT:-8080}${base}"
 api="${url}api/v1"
 
-echo "BacAtlas restore drill — $(date -u +%FT%TZ)"
+echo "BacAtlas database deploy — $(date -u +%FT%TZ)"
 checksum=$( (sha256sum "$dump" 2>/dev/null || shasum -a 256 "$dump") | cut -c1-16)
 echo "  dump    $dump ($(du -h "$dump" | cut -f1), sha256 ${checksum}…)"
 echo "  schema  $dump_rev (matches the code)"
