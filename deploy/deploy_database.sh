@@ -1,16 +1,24 @@
 #!/usr/bin/env bash
-# The restore drill — the S3 exit criterion, as one command the owner runs unaided.
+# Deploy a database to this host: RESTORE, then SMOKE TEST. One command, two phases.
 #
-#   deploy/restore_drill.sh --yes-delete-the-database
+#   deploy/deploy_database.sh --yes-delete-the-database
 #
-# It DELETES the running database volume, restores it from the dump, times that, then checks the
-# stack end to end THROUGH THE PUBLISHED PORT — the path a reader's browser takes — and prints one
-# PASS/FAIL line per check and a summary. Exit status 0 means every check passed.
+#   RESTORE     delete the database volume and reload it from the snapshot, timed.
+#   SMOKE TEST  check the stack end to end THROUGH THE PUBLISHED PORT — the path a reader's browser
+#               takes. "Smoke test" in the usual sense: turn it on and see whether smoke comes out.
+#               It proves the deployment basically works. It does NOT prove the data is correct.
 #
-# ⛔ Destructive by design: `docker compose down -v` is how a new dump is loaded (the postgres image
-# restores only into an EMPTY volume), so the drill IS the upgrade procedure. It refuses to run
-# without the flag above, and it refuses before deleting anything if the dump is missing — a drill
-# that deletes the live database and then finds no dump has made an outage out of a rehearsal.
+# One PASS/FAIL line per check, then a summary. Exit status 0 means every check passed.
+#
+# ⚠ Renamed from `restore_drill.sh` (2026-10-22, David). A "restore drill" is a real term — rehearsing
+# a restore you hope never to need — but it named one of this script's three jobs and the least used:
+# day to day this is not a rehearsal, it is how new data reaches production.
+#
+# ⛔ Destructive by design: `docker compose down -v` is how a new snapshot is loaded (the postgres
+# image restores only into an EMPTY volume), so this script IS the upgrade procedure, and running it
+# against the CURRENT snapshot is also how you rehearse a recovery. It refuses without the flag
+# above, and refuses before deleting anything if the snapshot is missing or the wrong vintage — a
+# deploy that deletes the live database and then finds no snapshot has made an outage out of a test.
 #
 # Needs: Docker Engine 25+ with Compose v2, curl, and `.env` beside compose.yaml (see .env.example).
 # ⚠ Nothing else on the host — no Python: JSON is read with the api container's own interpreter.
@@ -19,14 +27,15 @@ set -Eeuo pipefail
 cd "$(dirname "$0")/.."
 
 if [ "${1:-}" != "--yes-delete-the-database" ]; then
-  echo "usage: deploy/restore_drill.sh --yes-delete-the-database"
+  echo "usage: deploy/deploy_database.sh --yes-delete-the-database"
   echo "  deletes the database volume, restores it from the dump, and checks the stack end to end."
   exit 2
 fi
 
 failures=0
-pass() { printf '  PASS  %s\n' "$1"; }
-fail() { printf '  FAIL  %s\n' "$1"; failures=$((failures + 1)); }
+checks=0
+pass() { printf '  PASS  %s\n' "$1"; checks=$((checks + 1)); }
+fail() { printf '  FAIL  %s\n' "$1"; failures=$((failures + 1)); checks=$((checks + 1)); }
 
 # ── preflight: nothing is deleted until all of this holds ─────────────────────────────────────────
 [ -f .env ] || { echo "no .env beside compose.yaml — copy .env.example and fill it in"; exit 2; }
@@ -85,8 +94,8 @@ echo "  serves  $url"
 echo "  engine  Docker $engine"
 echo
 
-# ── the drill ─────────────────────────────────────────────────────────────────────────────────────
-echo "deleting the database volume and restoring from the dump…"
+# ── RESTORE ──────────────────────────────────────────────────────────────────────────────────────
+echo "RESTORE — deleting the database volume and reloading it from the snapshot…"
 docker compose down -v --remove-orphans >/dev/null 2>&1
 started=$(date +%s)
 if docker compose up -d --wait >/dev/null 2>&1; then
@@ -101,29 +110,35 @@ fi
 restore_line=$(docker compose logs db 2>/dev/null | grep -o 'restore + ANALYZE finished in [0-9]* s' | tail -1 || true)
 [ -n "$restore_line" ] && pass "$restore_line (inside the db container)" || fail "no restore line in the db log — did the dump restore?"
 
-# ── end to end, through the published port ────────────────────────────────────────────────────────
-# ⛔ The origin may sit behind an HTTP-Basic gate (one shared lab credential in front of BOTH the app
-# and the API). Without a credential every check below 401s and the drill reports a broken deployment
-# when nothing is broken — which is what happened the first time this ran against a gated origin.
-# Set `BACATLAS_DRILL_AUTH=user:password` in `.env` (gitignored) and the drill authenticates. Leave it
-# unset and nothing changes, so an ungated deployment behaves exactly as before.
+restore_checks=$checks
+
+# ── SMOKE TEST — end to end, through the published port ──────────────────────────────────────────
+echo
+echo "SMOKE TEST — through the published port, the path a reader's browser takes…"
+# ⛔ The origin may sit behind BASIC AUTH (HTTP Basic authentication: one shared credential, in front
+# of BOTH the app and the API — no accounts, no sessions, no logout). Without a credential every check
+# below 401s and the smoke test reports a broken deployment when nothing is broken, which is what
+# happened the first time it ran against a protected origin. Set
+# `BACATLAS_SMOKE_TEST_AUTH=user:password` in `.env` (gitignored) and the smoke test authenticates.
+# Leave it unset and nothing changes, so an unprotected deployment behaves exactly as before.
 auth=()
-[ -n "${BACATLAS_DRILL_AUTH:-}" ] && auth=(-u "$BACATLAS_DRILL_AUTH")
+[ -n "${BACATLAS_SMOKE_TEST_AUTH:-}" ] && auth=(-u "$BACATLAS_SMOKE_TEST_AUTH")
 get() { curl -fsS --max-time 20 "${auth[@]}" "$1"; }
 status() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${auth[@]}" "$@"; }
-# Deliberately WITHOUT the credential: used to prove the gate is actually closed.
+# Deliberately WITHOUT the credential: used to prove basic auth is actually in force.
 status_anon() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 json() { docker compose exec -T api python -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
 
-# The gate, if there is one. A rebuilt `web` that silently lost its auth config would otherwise pass
-# every check below and sit open on the internet — a failure no other check here can see.
-if [ -n "${BACATLAS_DRILL_AUTH:-}" ]; then
-  [ "$(status_anon "$url")" = "401" ] && pass "gate: the page refuses an anonymous request (401)" \
-    || fail "gate: the page answered $(status_anon "$url") to NO credential — the gate is OPEN"
-  [ "$(status_anon "$api/health")" = "401" ] && pass "gate: the API refuses an anonymous request (401)" \
-    || fail "gate: the API answered $(status_anon "$api/health") to NO credential — the API is OPEN"
-  [ "$(status_anon "${url}healthz")" = "200" ] && pass "gate: /healthz stays open, for the container healthcheck" \
-    || fail "gate: /healthz answered $(status_anon "${url}healthz") — the web healthcheck will fail"
+# Basic auth, if this origin uses it. A rebuilt `web` that silently lost its auth configuration would
+# otherwise pass every check below while sitting open on the internet — a failure no other check here
+# can see, because every other one arrives authenticated.
+if [ -n "${BACATLAS_SMOKE_TEST_AUTH:-}" ]; then
+  [ "$(status_anon "$url")" = "401" ] && pass "basic auth: the page refuses an anonymous request (401)" \
+    || fail "basic auth: the page answered $(status_anon "$url") to NO credential — it is OPEN"
+  [ "$(status_anon "$api/health")" = "401" ] && pass "basic auth: the API refuses an anonymous request (401)" \
+    || fail "basic auth: the API answered $(status_anon "$api/health") to NO credential — the API is OPEN"
+  [ "$(status_anon "${url}healthz")" = "200" ] && pass "basic auth: /healthz stays exempt, for the container healthcheck" \
+    || fail "basic auth: /healthz answered $(status_anon "${url}healthz") — the web healthcheck will fail"
 fi
 
 health=$(get "$api/health" || true)
@@ -164,9 +179,10 @@ for key in $species; do
 done
 
 echo
+smoke_checks=$(( checks - restore_checks ))
 if [ "$failures" -eq 0 ]; then
-  echo "DRILL PASSED — restored and serving in ${elapsed} s."
+  echo "DATABASE DEPLOYED — restore ${restore_checks}/${restore_checks}, smoke test ${smoke_checks}/${smoke_checks}, serving in ${elapsed} s."
 else
-  echo "DRILL FAILED — $failures check(s) failed. The stack is left running for inspection."
+  echo "DEPLOY FAILED — $failures of $checks check(s) failed. The stack is left running for inspection."
   exit 1
 fi

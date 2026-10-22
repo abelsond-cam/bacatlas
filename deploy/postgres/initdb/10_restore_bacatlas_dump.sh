@@ -3,7 +3,7 @@
 #
 # Run by the official postgres image's entrypoint, and ⚠ ONLY on the first start against an EMPTY
 # data volume — that is the image's rule, not ours. A new dump is therefore never picked up by a
-# restart: the drill is `docker compose down -v` (drops the volume) and `docker compose up -d`.
+# restart: a deploy is `docker compose down -v` (drops the volume) and `docker compose up -d`.
 #
 # ⛔ If this script fails, the image has ALREADY run `initdb`, so the volume is no longer empty: the
 # container restarts (`restart: unless-stopped`), SKIPS this script, and comes up healthy on whatever

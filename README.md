@@ -72,10 +72,10 @@ the invoking shell override `.env`, and the Mac development setup sets `BACATLAS
 pg_dump -Fc -d bacatlas_dev -f deploy/dump/bacatlas.dump    # *.dump is gitignored
 ```
 
-**The restore drill.** One command does it and checks the result:
+**Deploying a database.** One command does it in two phases — RESTORE, then SMOKE TEST — and checks the result:
 
 ```bash
-deploy/restore_drill.sh --yes-delete-the-database
+deploy/deploy_database.sh --yes-delete-the-database
 ```
 
 It refuses to start unless the dump is present (so it cannot delete a database it cannot replace), then
@@ -86,7 +86,7 @@ It needs nothing on the host beyond Docker and curl. Measured on Docker Desktop 
 from an empty volume to all checks passing, 9 s of it the restore.
 
 By hand, since a dump is restored only into an EMPTY volume — the postgres image's rule — a new dump, or
-the drill itself, is:
+the deploy itself, is:
 
 ```bash
 docker compose down -v                  # ⛔ -v deletes the database volume; that is the point
@@ -143,7 +143,7 @@ of the four loaded today does, because nothing in `ingest` writes that column ye
 **A new catalogue, or changed data, is NOT a rebuild** — the database is a volume and `--build` leaves it
 alone deliberately. Re-ingest, or take a fresh dump and `docker compose down -v` as described above.
 
-**What this stack leaves to the host** — each checked in the drill, none decided here:
+**What this stack leaves to the host** — each checked by the smoke test, none decided here:
 
 - **Docker Engine 25 or later** (the healthchecks use `start_interval`).
 - **The published port binds `127.0.0.1`** by default. If the institution's reverse proxy runs on another
