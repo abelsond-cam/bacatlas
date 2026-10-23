@@ -7,7 +7,7 @@ from bacatlas_backend.configuration import Configuration
 
 DEV_URL = os.environ.get(
     "BACATLAS_TEST_DATABASE_URL",
-    f"postgresql+psycopg://{os.environ.get('USER', 'postgres')}@localhost:5432/bacatlas_dev",
+    f"postgresql+psycopg://{os.environ.get('USER', 'postgres')}@localhost:5432/bacatlas_ingest",
 )
 
 

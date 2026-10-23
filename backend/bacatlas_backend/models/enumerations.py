@@ -120,7 +120,7 @@ class GeneOntologyAgreementVerdict(enum.Enum):
 #: stored as 0/1/2 because one list serves all three namespaces.
 #:
 #: ⚠ **Verified against the DATA, not against a comment** (2026-09-14, the dev database — then
-#: named `syntitude_dev`, renamed `bacatlas_dev` 2026-09-26; same database, same rows): namespace 0
+#: the ingest database): namespace 0
 #: is dominated by *nucleic acid binding*, *metal ion binding*, *ion binding*; 1 by *transport*,
 #: *metabolic process*, *biosynthetic process*; 2 by *cytoplasm*, *plasma membrane*, *membrane*.
 #: Each namespace also carries its own root term as a slim class — literally `molecular_function`,

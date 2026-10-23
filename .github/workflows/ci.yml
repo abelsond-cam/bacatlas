@@ -48,7 +48,7 @@ jobs:
       # Both probe databases are DROPPED and rebuilt by the suites, per module — each gets its own.
       BACATLAS_PROBE_DATABASE_URL: postgresql+psycopg://bacatlas:bacatlas@localhost:5432/bacatlas_schema_probe_ci
       BACATLAS_MIGRATION_DATABASE_URL: postgresql+psycopg://bacatlas:bacatlas@localhost:5432/bacatlas_migrate_probe_ci
-      # ⛔ The health suite's own database. Unset, it defaults to `$USER@localhost/bacatlas_dev` — which
+      # ⛔ The health suite's own database. Unset, it defaults to `$USER@localhost/bacatlas_ingest` — which
       # exists on the Mac, so the suite passes there and fails here with a 503 on a server it cannot
       # reach. An EMPTY database is the right one: it is reachable, and unmigrated is the state whose
       # `run alembic upgrade head` note that suite exists to check.

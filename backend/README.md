@@ -12,13 +12,13 @@ block.
 ```bash
 brew install postgresql@16 && brew services start postgresql@16
 export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"
-createdb bacatlas_dev
-psql -d bacatlas_dev -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+createdb bacatlas_ingest
+psql -d bacatlas_ingest -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
 
 uv venv --python 3.13 .venv                    # from the repo root
 uv pip install --python .venv/bin/python -e backend
 
-export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_dev"
+export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_ingest"
 .venv/bin/python -m bacatlas_backend.serve --debug
 curl -s localhost:5001/api/v1/health | python3 -m json.tool
 ```
@@ -88,7 +88,7 @@ original. The pangenome layer needs `node_order`, `oriented_windows`, `arrangeme
 second implementation of any of those is exactly what this design exists to avoid.
 
 ```bash
-export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_dev"
+export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_ingest"
 
 # ONE genome layer for both species: contigs, genes, functional labels. Model-INDEPENDENT — a new
 # pangenome must never rewrite it. ~180 s for all 280 genomes.
@@ -206,7 +206,7 @@ it, rolls that genome back, and the run continues.
 .venv/bin/python -m pytest backend/tests -q
 ```
 
-They need the `bacatlas_dev` database running; override with `BACATLAS_TEST_DATABASE_URL`.
+They need the `bacatlas_ingest` database running; override with `BACATLAS_TEST_DATABASE_URL`.
 
 ### ⚠ The `nuna` cross-check runs from nuna's venv, not this one
 

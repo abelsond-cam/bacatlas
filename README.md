@@ -69,7 +69,7 @@ the invoking shell override `.env`, and the Mac development setup sets `BACATLAS
 **The dump.** Taken on the machine that ran the ingest, never on the server:
 
 ```bash
-pg_dump -Fc -d bacatlas_dev -f deploy/dump/bacatlas.dump    # *.dump is gitignored
+pg_dump -Fc -d bacatlas_ingest -f deploy/dump/bacatlas.dump    # *.dump is gitignored
 ```
 
 **Deploying a database.** One command does it in two phases — RESTORE, then SMOKE TEST — and checks the result:

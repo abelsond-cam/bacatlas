@@ -256,7 +256,7 @@ class DisplayedValueException:
 #: `BACATLAS_SEQUENCE_PARITY_EVERY_GENE=1`, 2026-09-18). The 28.6 % `index + 1` divergence is real in
 #: the database but was never on the page.
 #:
-#: Measured on the dev database (`syntitude_dev` when measured, `bacatlas_dev` since 2026-09-26 —
+#: Measured on the ingest database (`bacatlas_ingest` —
 #: renamed in place, so the measurement stands): `seqid == f"{sample_id}.{contig_name}"` on all 26,878 contigs, which is
 #: the rule below. The API serves both fields, so this is the card's choice of which to print — a
 #: difference a reader sees, recorded here rather than absorbed, and a decision for the owner.

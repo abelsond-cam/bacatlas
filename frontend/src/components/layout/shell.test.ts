@@ -446,10 +446,9 @@ describe("⭐ one header over both boxes: “Anchor to:”", () => {
 
 describe("⛔ the site's own name, in every place a reader meets it", () => {
   /**
-   * nuna's `test_the_page_carries_the_site_name_in_both_places` has guarded the static page since the
-   * site went bacformer.org → BacMapper.org → back → Syntitude.org → BacAtlas.org. The app had no
-   * equivalent, and a rename that reaches the header but not a tab label, a `<title>` or the ship's
-   * `aria-label` shows up only somewhere nobody looks.
+   * nuna's `test_the_page_carries_the_site_name_in_both_places` has guarded the static page through
+   * several renames; the app had no equivalent. A rename that reaches the header but not a tab label,
+   * a `<title>` or the ship's `aria-label` shows up only somewhere nobody looks.
    */
   it("names the site in the wordmark, with the masthead beside it on ONE line", () => {
     const header = mount(SiteHeader, { props: { catalogueKey: asCatalogueKey("ecoli"), collectionGenomeCount: 100 } });
@@ -494,8 +493,10 @@ describe("⛔ the site's own name, in every place a reader meets it", () => {
       expect(readFileSync(resolve(root, page), "utf8")).toContain("BacAtlas<span>.org</span>");
     }
 
-    // ⚠ This file is excluded BY NAME, not by a clever needle: its own docblock recounts the rename,
-    // and a test that cannot say what it is guarding is worse than one that names its exception.
+    // ⚠ This file is excluded BY NAME, not by a clever needle. It is the ONE place the retired brand
+    // may still appear, and it must: the string below is the needle, and you cannot assert a word's
+    // absence without writing it once. A test that cannot say what it is guarding is worse than one
+    // that names its exception.
     const self = "frontend/src/components/layout/shell.test.ts";
     const offenders = files
       .filter((file) => readFileSync(file, "utf8").includes("Syntitude"))

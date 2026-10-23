@@ -45,7 +45,7 @@ seen it (`~/.claude/CLAUDE.md`: gather the data, then STOP).
 
 Run from `backend/` with both `*-nuna4` catalogues loaded::
 
-    export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_dev"
+    export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_ingest"
     python scripts/measure_annotation_propagation_loop.py --stage all \
         --cross-esm ../../nuna/data/proc/analysis/cross_species/ecoli_to_kp_..._cross_species_neighbours.tsv \
         --cross-bacformer ../../nuna/data/proc/analysis/cross_species/ecoli_to_kp_..._BACFORMER_....tsv

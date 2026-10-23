@@ -76,7 +76,7 @@ if [ "$dump_rev" != "$code_rev" ]; then
   echo "     this code needs   $code_rev"
   echo "   Restoring it would leave a database that answers /health happily and 500s on real queries."
   echo "   Take a fresh one on the machine that ran the ingest, then re-run this drill:"
-  echo "     pg_dump -Fc -d bacatlas_dev -f $dump"
+  echo "     pg_dump -Fc -d bacatlas_ingest -f $dump"
   exit 2
 fi
 
@@ -86,7 +86,7 @@ host="${BACATLAS_HTTP_BIND:-127.0.0.1}"
 url="http://$host:${BACATLAS_HTTP_PORT:-8080}${base}"
 api="${url}api/v1"
 
-echo "BacAtlas database deploy — $(date -u +%FT%TZ)"
+echo "BacAtlas restore drill — $(date -u +%FT%TZ)"
 checksum=$( (sha256sum "$dump" 2>/dev/null || shasum -a 256 "$dump") | cut -c1-16)
 echo "  dump    $dump ($(du -h "$dump" | cut -f1), sha256 ${checksum}…)"
 echo "  schema  $dump_rev (matches the code)"
