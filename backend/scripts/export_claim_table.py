@@ -33,6 +33,7 @@ CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
 
 
 def main() -> None:
+    """Write `nodes.tsv`, `claims.tsv` and `claim_table.json` for every catalogue named."""
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--out-dir", type=Path, required=True)
     ap.add_argument("--catalogues", nargs="+", default=list(CATALOGUES))
@@ -43,7 +44,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     node_rows: list[tuple[str, str, int]] = []
-    claim_rows: list[tuple[str, str, str, str]] = []
+    claim_rows: list[tuple[str, str, str, str, str]] = []
     report: dict = {"catalogues": {}, "separator": SEPARATOR, "database_url_name": args.database_url.rsplit("/", 1)[-1]}
 
     with Session(create_engine(args.database_url)) as session:
@@ -56,15 +57,29 @@ def main() -> None:
             per_claim = {}
             for kind in C.CLAIM_KINDS:
                 carried = loaded.claims[kind.key]
+                # ⛔ The THIRD denominator. `n_carrying_genes` is the genes that state the claim
+                # THEMSELVES, which `n_genes` (every gene in a node that states it, i.e. carrying +
+                # intrapolation) is 2.0-3.0x larger than. Without this column the census can report
+                # nodes and genes-covered but not genes-carrying, and the baselines are quoted in all
+                # three — see `annotation-coverage-has-three-denominators`.
+                carrying = loaded.genes_carrying[kind.key]
                 for node, classes in carried.items():
                     # sorted, so the file is byte-stable across runs and a diff means a real change
                     claim_rows.append(
-                        (catalogue, kind.key, loaded.node_label[node], SEPARATOR.join(sorted(classes)))
+                        (
+                            catalogue,
+                            kind.key,
+                            loaded.node_label[node],
+                            SEPARATOR.join(sorted(classes)),
+                            str(int(carrying.get(node, 0))),
+                        )
                     )
                 per_claim[kind.key] = {
                     "label": kind.label,
                     "nodes_carrying": len(carried),
                     "node_share": round(len(carried) / loaded.node_total, 4),
+                    "genes_carrying": int(sum(carrying.get(node, 0) for node in carried)),
+                    "genes_covered": int(sum(loaded.gene_count[node] for node in carried)),
                 }
                 print(f"  {catalogue:<12} {kind.key:<4} {len(carried):>6,} nodes "
                       f"({100 * len(carried) / loaded.node_total:.1f}%)")  # fmt: skip
@@ -80,10 +95,13 @@ def main() -> None:
         fh.write("catalogue\tnode_label\tn_genes\n")
         fh.writelines("\t".join(map(str, r)) + "\n" for r in node_rows)
     with claims.open("w") as fh:
-        fh.write("catalogue\tclaim\tnode_label\tclasses\n")
+        fh.write("catalogue\tclaim\tnode_label\tclasses\tn_carrying_genes\n")
         fh.writelines("\t".join(r) + "\n" for r in claim_rows)
     (args.out_dir / "claim_table.json").write_text(json.dumps(report, indent=2))
-    print(f"\nwrote {nodes.name} ({len(node_rows):,} nodes), {claims.name} ({len(claim_rows):,} rows), claim_table.json")
+    print(
+        f"\nwrote {nodes.name} ({len(node_rows):,} nodes), "
+        f"{claims.name} ({len(claim_rows):,} rows), claim_table.json"
+    )
 
 
 if __name__ == "__main__":
