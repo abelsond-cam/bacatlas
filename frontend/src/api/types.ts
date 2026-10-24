@@ -783,6 +783,17 @@ export interface SpeciesCatalogueResponse {
     readonly exclusivity_form: string;
     /** ⚠ An absent section is NAMED, so an omission is never mistaken for a measured zero. */
     readonly omitted_sections: Readonly<Record<string, string>>;
+    /**
+     * ⭐ **How many genomes this catalogue holds in each anchor source group.** On the shell, not on
+     * the picker's own route, because it needs a `GROUP BY` and that route is budgeted at one
+     * statement and fires on every keystroke.
+     *
+     * ⛔ **Zeros are PRESENT.** The picker has to distinguish *"nothing matches what you typed"*
+     * from *"this catalogue holds none of these at all"*, and only the second is true of the
+     * complete-genome list on every catalogue loaded today — all 280 probe genomes are
+     * BioSample-keyed ATB assemblies. A reader told the first would keep typing.
+     */
+    readonly genome_source_groups: Readonly<Record<GenomeSourceGroup, number>>;
   };
   readonly model: {
     readonly key: string;
@@ -932,11 +943,27 @@ export interface GeneSequenceResponse {
  * got no window. Both are per LOCUS: a genome at ρ > 1 is counted once, or the number would exceed
  * the catalogue and mean nothing.
  */
+/**
+ * ⛔ **Which population a genome belongs to, and it is a claim about PROVENANCE.** The cohort holds
+ * two kinds with different properties: complete long-read genomes from NCBI (~4,000 in Klebsiella,
+ * short enough to browse) and AllTheBacteria short-read assemblies (~75,000, which need a
+ * type-to-narrow search). The anchor control offers a group and then a list within it, because one
+ * combobox over both serves neither.
+ *
+ * ⚠ **`ncbi_draft` is not one of the two lists the reader is offered, and it is still never
+ * hidden.** A `GCA_` long-read assembly that is not closed is NCBI-keyed and not complete —
+ * `metadata_v2` holds 5,519 LRA rows against 4,017 complete — so it belongs to neither promised
+ * group. Dropping it would make a control that claims to list every genome quietly not do so.
+ */
+export type GenomeSourceGroup = "ncbi_complete" | "ncbi_draft" | "atb";
+
 export interface GenomeRow {
   readonly sample_id: string;
   readonly collection_genome_ordinal: number;
   readonly locus_count: number;
   readonly arrangement_locus_count: number;
+  /** Derived server-side from the key form + the completeness flag; never a stored column. */
+  readonly source_group: GenomeSourceGroup;
 }
 
 /** `GET /species/{key}/genomes?q=` — replaces the resident `meta.genomes` + `anchorSearch`. */
@@ -947,6 +974,12 @@ export interface GenomeListResponse {
   /** How many match `q` before the limit — so a truncated list can say how much it left out. */
   readonly matched_genome_count: number;
   readonly truncated: boolean;
+  /**
+   * ⚠ Echoed back so a late answer to a SUPERSEDED filter can be discarded, exactly as `query`
+   * already is. The reader switches group and keystrokes race; without this the list can settle on
+   * the answer to the group they just left.
+   */
+  readonly source_group: GenomeSourceGroup | null;
   readonly genomes: readonly GenomeRow[];
 }
 

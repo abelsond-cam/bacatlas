@@ -2790,11 +2790,88 @@ td.fam-sym {
     position: absolute;
     left: 0;
     right: 0;
+    /* ⚠ The anchor box sits in a ~360px gutter, which three tabs cannot share legibly. The popover
+       is absolutely positioned, so it may be wider than the control it hangs from — and anchoring
+       on `left` means the extra width grows rightwards, into the track, not off-screen. */
+    min-width: 430px;
     top: calc(100% + 4px);
     z-index: 30;
     max-height: 280px;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+/* ⭐ The anchor's SOURCE-GROUP tabs — one row per catalogue, above the hits.
+   ⚠ `position: sticky` because the results list scrolls: a reader who has scrolled into the ATB
+   list must still be able to see which list they are in and get back to the other one. Without it
+   the tabs leave the viewport after six rows and the control looks like it has only one list. */
+.anchor-groups {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: flex;
+    gap: 2px;
+    padding: 4px 4px 0;
+    background: var(--paper);
+    border-bottom: 1px solid var(--rule-2);
+}
+
+.anchor-group {
+    display: flex;
+    align-items: baseline;
+    gap: 5px;
+    flex: 1 1 auto;
+    min-width: 0;
+    padding: 5px 7px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: none;
+    font: inherit;
+    font-size: 11px;
+    color: var(--ink-3);
+    text-align: left;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+/* ⛔ **The NAME truncates; the COUNT never does.** The first version put `overflow: hidden` +
+   `text-overflow: ellipsis` on the button itself, with the name as a bare text node. A bare text
+   node cannot be ellipsised independently, so the button clipped its whole content — and because
+   the count span comes last, the number vanished entirely: the tabs read "Complete geno",
+   "AllTheBacteria", "Draft genomes" with no counts at all. Found by screenshotting the running
+   page; 733 unit tests could not see it, because jsdom computes no layout. */
+.anchor-group .anchor-group-name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.anchor-group:hover {
+    color: var(--ink-2);
+}
+
+/* ⚠ Dimmed, NOT disabled. The reader can still open it, and it then says which of the two things
+   is true — "no complete NCBI genomes are in this catalogue yet" rather than "nothing matched".
+   A disabled tab would carry the count but refuse the sentence. */
+.anchor-group.empty {
+    opacity: 0.55;
+}
+
+/* ⚠ `--anchor` and not a new colour: it is this control's own hue and it is redefined for dark
+   mode (#c3643b / #e9916e), so the active tab matches the ⚓ mark the reader is already reading.
+   The first draft of this rule used `--ink-1` and `--accent`, NEITHER of which exists — an
+   undefined custom property falls back silently, so the tab would simply never have highlighted. */
+.anchor-group.on {
+    color: var(--ink);
+    border-bottom-color: var(--anchor);
+}
+
+/* What the catalogue HOLDS in this group — it must not move as the reader types. */
+.anchor-group .anchor-group-n {
+    flex: none;
+    font-size: 10px;
+    color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
 }
 
 .anchor-hit {

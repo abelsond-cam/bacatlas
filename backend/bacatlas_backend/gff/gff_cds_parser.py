@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import unquote
 
+from bacatlas_backend.gff.fasta_reader import read_fasta_block
 from bacatlas_backend.gff.gff_text_reader import open_gff_text
 
 FASTA_DIRECTIVE = "##FASTA"
@@ -137,28 +138,6 @@ def parse_genome_annotation(path: Path, *, want_sequence: bool = True) -> Parsed
             return ParsedGenomeAnnotation(tuple(features), {})
 
         if want_sequence:
-            sequences = _read_fasta_block(handle)
+            sequences = read_fasta_block(handle)
 
     return ParsedGenomeAnnotation(tuple(features), sequences)
-
-
-def _read_fasta_block(handle) -> dict[str, str]:
-    """Read the ``##FASTA`` block the caller has already positioned past.
-
-    Sequences are uppercased once, here, so no downstream comparison has to think about case.
-    """
-    sequences: dict[str, str] = {}
-    seqid: str | None = None
-    chunks: list[str] = []
-    for line in handle:
-        if line.startswith(">"):
-            if seqid is not None:
-                sequences[seqid] = "".join(chunks)
-            # The seqid is the first whitespace-delimited token, as in every FASTA.
-            seqid = line[1:].split()[0]
-            chunks = []
-        elif seqid is not None:
-            chunks.append(line.strip().upper())
-    if seqid is not None:
-        sequences[seqid] = "".join(chunks)
-    return sequences

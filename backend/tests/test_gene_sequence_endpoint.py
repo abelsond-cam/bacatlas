@@ -25,12 +25,11 @@ from bacatlas_backend.instruments.sql_cost_oracle import SqlCostOracle
 from bacatlas_backend.models.gene import Gene, GeneLocusMembership
 from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.locus import Locus
-from bacatlas_backend.services.gene_sequence_service import (
-    SequenceUnavailable,
-    _contig_sequences,
-    clear_parsed_genome_cache,
-    load_gene_sequences,
+from bacatlas_backend.sequence_source.contig_sequence_provider import (
+    ContigSequenceProvider,
+    GenomeSequenceRequest,
 )
+from bacatlas_backend.services.gene_sequence_service import SequenceUnavailable, load_gene_sequences
 
 PANGENOME = 1
 
@@ -61,6 +60,16 @@ def gff_root(application):
     return application.config["BACATLAS"].artifact_roots["gff"]
 
 
+@pytest.fixture()
+def provider(gff_root):
+    """The HELD-only chain — no ATB store, so these tests cannot reach the network.
+
+    ⛔ Function-scoped on purpose: a module-scoped provider would carry its parsed-genome cache
+    between tests, and the "one statement and one file" assertion below measures a cold read.
+    """
+    return ContigSequenceProvider(gff_root=gff_root, atb_store=None)
+
+
 def _a_gene(session, *, strand: str):
     """One (sample_id, node_label) whose gene sits on `strand`, away from either contig end."""
     row = session.execute(
@@ -86,7 +95,7 @@ def _a_gene(session, *, strand: str):
 
 
 # ── the flank orientation, which is the whole point ────────────────────────────────────────────
-def test_a_MINUS_strand_gene_takes_its_upstream_flank_from_the_HIGHER_coordinates(engine, gff_root):
+def test_a_MINUS_strand_gene_takes_its_upstream_flank_from_the_HIGHER_coordinates(engine, provider):
     """⛔⛔ **The bug of record, checked against the contig itself.**
 
     `load_meta_flanks` orients on strand and `app.js:4376-4386` states the convention. A reader
@@ -95,14 +104,14 @@ def test_a_MINUS_strand_gene_takes_its_upstream_flank_from_the_HIGHER_coordinate
     with Session(engine) as session:
         sample_id, label = _a_gene(session, strand="-")
         rows = load_gene_sequences(
-            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, gff_root=gff_root
+            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, sequence_provider=provider
         )
     assert rows, f"{sample_id} has no gene at {label}"
     gene = rows[0]
     assert gene.strand == "-"
 
-    contig = _contig_sequences(
-        str(gff_root / _dataset_id(engine, sample_id) / sample_id / f"{sample_id}.bakta.gff3.gz")
+    contig = provider.contig_sequences(
+        GenomeSequenceRequest(sample_id=sample_id, bakrep_dataset_id=_dataset_id(engine, sample_id))
     )[gene.seqid]
     higher = contig[gene.end_position : gene.end_position + 100]
     lower = contig[max(0, gene.start_position - 101) : gene.start_position - 1]
@@ -113,15 +122,15 @@ def test_a_MINUS_strand_gene_takes_its_upstream_flank_from_the_HIGHER_coordinate
     assert gene.sequence.upstream_flank_sequence != gene.sequence.downstream_flank_sequence
 
 
-def test_a_PLUS_strand_gene_takes_its_upstream_flank_from_the_LOWER_coordinates(engine, gff_root):
+def test_a_PLUS_strand_gene_takes_its_upstream_flank_from_the_LOWER_coordinates(engine, provider):
     with Session(engine) as session:
         sample_id, label = _a_gene(session, strand="+")
         rows = load_gene_sequences(
-            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, gff_root=gff_root
+            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, sequence_provider=provider
         )
     gene = rows[0]
-    contig = _contig_sequences(
-        str(gff_root / _dataset_id(engine, sample_id) / sample_id / f"{sample_id}.bakta.gff3.gz")
+    contig = provider.contig_sequences(
+        GenomeSequenceRequest(sample_id=sample_id, bakrep_dataset_id=_dataset_id(engine, sample_id))
     )[gene.seqid]
     assert gene.sequence.upstream_flank_sequence == contig[gene.start_position - 101 : gene.start_position - 1]
     assert gene.sequence.downstream_flank_sequence == contig[gene.end_position : gene.end_position + 100]
@@ -135,7 +144,7 @@ def _dataset_id(engine, sample_id: str) -> str:
 
 
 # ── the sliced values against the stored ones ──────────────────────────────────────────────────
-def test_the_sliced_sequence_REPRODUCES_the_columns_ingest_wrote(engine, gff_root):
+def test_the_sliced_sequence_REPRODUCES_the_columns_ingest_wrote(engine, provider):
     """⭐ Two independent computations of the same thing, from the same coordinates.
 
     `gc_percent` and `protein_length_aa` are columns written at ingest; the sequence here is sliced
@@ -160,7 +169,11 @@ def test_the_sliced_sequence_REPRODUCES_the_columns_ingest_wrote(engine, gff_roo
         ).all()
         for sample_id, label in pairs:
             for gene in load_gene_sequences(
-                session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, gff_root=gff_root
+                session,
+                pangenome_id=PANGENOME,
+                node_label=label,
+                sample_id=sample_id,
+                sequence_provider=provider,
             ):
                 assert gene.sequence.gc_percent == pytest.approx(gene.stored_gc_percent, abs=1e-9)
                 assert len(gene.sequence.protein_sequence) == gene.stored_protein_length_aa
@@ -210,7 +223,6 @@ def test_an_unknown_genome_and_an_unknown_locus_are_NAMED_404s(client):
 
 def test_an_unreadable_annotation_file_RAISES_rather_than_returning_no_genes(engine, tmp_path):
     """⛔ The distinction the whole endpoint turns on: *we could not read it* is not *there is none*."""
-    clear_parsed_genome_cache()
     with Session(engine) as session:
         sample_id, label = _a_gene(session, strand="+")
         with pytest.raises(SequenceUnavailable, match="not on this server"):
@@ -219,9 +231,8 @@ def test_an_unreadable_annotation_file_RAISES_rather_than_returning_no_genes(eng
                 pangenome_id=PANGENOME,
                 node_label=label,
                 sample_id=sample_id,
-                gff_root=tmp_path,
+                sequence_provider=ContigSequenceProvider(gff_root=tmp_path, atb_store=None),
             )
-    clear_parsed_genome_cache()
 
 
 # ── the things that are easy to get plausibly wrong ────────────────────────────────────────────
@@ -294,7 +305,7 @@ def test_rho_above_one_returns_EVERY_copy_with_its_ordinal(client, engine):
     assert len({gene["flat_index"] for gene in genes}) == copies
 
 
-def test_a_flank_that_RUNS_OFF_the_contig_says_so(client, engine, gff_root):
+def test_a_flank_that_RUNS_OFF_the_contig_says_so(client, engine):
     """⚠ Draft assemblies: mean contig 14.4 kb, ~14 genes, so this is common rather than exotic.
 
     A short flank that does not say it is short reads as a complete one.
@@ -325,14 +336,13 @@ def test_a_flank_that_RUNS_OFF_the_contig_says_so(client, engine, gff_root):
     assert len(gene["upstream_flank_sequence"]) < 100 or len(gene["downstream_flank_sequence"]) < 100
 
 
-def test_the_sequence_view_is_ONE_statement_and_ONE_file(application, engine, gff_root):
+def test_the_sequence_view_is_ONE_statement_and_ONE_file(application, engine, provider):
     """⚠ However many copies the genome holds. The file is opened once and cached per process."""
-    clear_parsed_genome_cache()
     with Session(engine) as session:
         sample_id, label = _a_gene(session, strand="+")
     with Session(engine) as session, SqlCostOracle(engine) as report:
         load_gene_sequences(
-            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, gff_root=gff_root
+            session, pangenome_id=PANGENOME, node_label=label, sample_id=sample_id, sequence_provider=provider
         )
     report.assert_at_most(1, what="one gene sequence view")
 
@@ -360,7 +370,7 @@ def test_each_flank_NAMES_the_contig_coordinates_it_came_from(client, engine):
     assert downstream[1] - downstream[0] + 1 == len(gene["downstream_flank_sequence"])
 
 
-def test_an_empty_flank_has_a_NULL_span_rather_than_a_zero_length_one(engine, gff_root):
+def test_an_empty_flank_has_a_NULL_span_rather_than_a_zero_length_one(engine):
     """⚠ `[1, 0]` is not a span; it is arithmetic leaking. A flank that does not exist says so."""
     from bacatlas_backend.gff.gene_sequence_reader import read_gene_sequence
 

@@ -82,8 +82,13 @@ def test_an_empty_query_lists_EVERY_collection_genome_in_the_order_meta_genomes_
     assert body["truncated"] is False
     # ⛔ The ordinal is the contract `arr.gid` indexed; the list is in it, never in accession order.
     assert [g["collection_genome_ordinal"] for g in body["genomes"]] == list(range(100))
+    # ⛔ An EXACT key set, not a subset: a row that quietly grew a field is a contract change, and
+    # this assertion is what makes someone come here and say so. `source_group` was added
+    # 2026-10-24 for the anchor control's two lists — `test_genome_source_groups.py` owns what it
+    # MEANS; this line only records that the row carries it.
     assert set(body["genomes"][0]) == {
         "sample_id", "collection_genome_ordinal", "locus_count", "arrangement_locus_count",
+        "source_group",
     }
 
 

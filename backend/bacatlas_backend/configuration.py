@@ -20,6 +20,43 @@ from pathlib import Path
 ARTIFACT_ROOT_KEYS = ("gff", "assemblies", "embeddings", "analysis")
 
 
+#: ⛔ The same truthy words `BACATLAS_SQL_ECHO` already accepted, in one place so a new flag cannot
+#: quietly recognise a different set — `BACATLAS_ATB_STREAMING=on` silently meaning *off* is exactly
+#: the kind of configuration bug that reads as "streaming does not work".
+TRUTHY_FLAG_VALUES = frozenset({"1", "true", "yes", "on"})
+
+
+def _flag(name: str) -> bool:
+    """A boolean environment flag. Absent is False."""
+    return os.environ.get(name, "").strip().lower() in TRUTHY_FLAG_VALUES
+
+
+def _optional_int(name: str) -> int | None:
+    """An integer override, or ``None``.
+
+    ⚠ Raises on a value that is set but unparseable, rather than falling back to the default — a
+    typo'd tuning knob must not look like one that was never set.
+    """
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return int(raw)
+    except ValueError as error:
+        raise RuntimeError(f"{name}={raw!r} is not an integer") from error
+
+
+def _optional_float(name: str) -> float | None:
+    """As `_optional_int`, for a duration."""
+    raw = os.environ.get(name)
+    if raw is None or not raw.strip():
+        return None
+    try:
+        return float(raw)
+    except ValueError as error:
+        raise RuntimeError(f"{name}={raw!r} is not a number") from error
+
+
 def _require(name: str) -> str:
     value = os.environ.get(name)
     if not value:
@@ -39,6 +76,21 @@ class Configuration:
     deployment_profile: str = "development"
     sql_echo: bool = False
 
+    #: ⭐ **Fetch a genome's assembly from AllTheBacteria when we do not hold its GFF.** Off by
+    #: default, so an existing deployment behaves exactly as it did until it is switched on. ⚠ It is
+    #: additive even when on: the held GFF always wins, so this can only change the answer for a
+    #: genome that previously returned `sequence_unavailable`.
+    atb_streaming_enabled: bool = False
+    #: Where fetched assemblies are cached. ⛔ **Never `$HOME` and never the repo** — on the instance
+    #: this is a directory under `/srv/bacatlas/`, on the budget below. `None` disables the disk
+    #: cache entirely, which is correct for a test and wrong for a server.
+    atb_cache_directory: Path | None = None
+    #: Overridable only so a test can point at a local stub; there is no second real value.
+    atb_base_url: str | None = None
+    atb_timeout_seconds: float | None = None
+    atb_max_concurrent_fetches: int | None = None
+    atb_cache_budget_bytes: int | None = None
+
     @classmethod
     def from_environment(cls) -> Configuration:
         """Build from ``BACATLAS_*`` variables. Raises on anything missing or unreadable."""
@@ -47,11 +99,18 @@ class Configuration:
             raw = os.environ.get(f"BACATLAS_ROOT_{key.upper()}")
             if raw:
                 roots[key] = Path(raw).expanduser()
+        cache_directory = os.environ.get("BACATLAS_ATB_CACHE_DIR")
         return cls(
             database_url=_require("BACATLAS_DATABASE_URL"),
             artifact_roots=roots,
             deployment_profile=os.environ.get("BACATLAS_PROFILE", "development"),
-            sql_echo=os.environ.get("BACATLAS_SQL_ECHO", "").lower() in {"1", "true", "yes"},
+            sql_echo=_flag("BACATLAS_SQL_ECHO"),
+            atb_streaming_enabled=_flag("BACATLAS_ATB_STREAMING"),
+            atb_cache_directory=Path(cache_directory).expanduser() if cache_directory else None,
+            atb_base_url=os.environ.get("BACATLAS_ATB_BASE_URL") or None,
+            atb_timeout_seconds=_optional_float("BACATLAS_ATB_TIMEOUT_SECONDS"),
+            atb_max_concurrent_fetches=_optional_int("BACATLAS_ATB_MAX_CONCURRENT_FETCHES"),
+            atb_cache_budget_bytes=_optional_int("BACATLAS_ATB_CACHE_BUDGET_BYTES"),
         )
 
     def resolve_artifact(self, root_key: str, relative_path: str) -> Path:

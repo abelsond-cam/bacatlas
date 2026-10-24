@@ -16,6 +16,7 @@ import type {
   CataloguesResponse,
   FunctionResponse,
   GenomeListResponse,
+  GenomeSourceGroup,
   GeneSequenceResponse,
   LocusDetailResponse,
   ProjectedGenomesResponse,
@@ -182,10 +183,13 @@ export function searchLoci(
 export function fetchGenomes(
   catalogueKey: CatalogueKey,
   query: string,
-  options: { limit?: number; signal?: AbortSignal } = {},
+  options: { limit?: number; sourceGroup?: GenomeSourceGroup | null; signal?: AbortSignal } = {},
 ): Promise<Result<GenomeListResponse>> {
   return requestJson<GenomeListResponse>(`catalogues/${encodeURIComponent(catalogueKey)}/genomes`, {
-    query: { q: query, limit: options.limit },
+    // ⚠ `source_group` is omitted when null rather than sent empty: the server reads an absent
+    // parameter as "every group", and an unknown VALUE as a named 400. Sending `undefined` here
+    // keeps those two cases apart instead of relying on the empty-string carve-out.
+    query: { q: query, limit: options.limit, source_group: options.sourceGroup ?? undefined },
     ...(options.signal ? { signal: options.signal } : {}),
   });
 }

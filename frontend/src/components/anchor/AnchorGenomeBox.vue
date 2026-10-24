@@ -20,14 +20,32 @@
  * ⚠ **The genomes are filtered on the server now.** The published page held all of them in
  * `meta.genomes`; at 80,000 genomes that is an array nobody should ship, so a list that was cut says
  * so and says how much it left out.
+ *
+ * ⭐ **TWO LISTS, because the cohort is two populations.** ~4,000 complete long-read NCBI genomes,
+ * short enough to browse, and ~75,000 AllTheBacteria short-read assemblies, which need the search.
+ * One combobox over both serves neither: the complete genomes are the ones a reader anchors
+ * deliberately and would never find by typing, and they are 5 % of the list. So the dropdown opens
+ * with a row of group tabs and the search narrows WITHIN the chosen group.
+ *
+ * ⛔ **A group with no members is not offered as a tab, and its absence is SAID rather than shown
+ * as an empty list** — the same rule this control already applies to itself. On every catalogue
+ * loaded today the complete-genome group is empty (all 280 probe genomes are BioSample-keyed ATB
+ * assemblies, measured), so this is the ordinary case and not an edge one: the reader is told the
+ * catalogue holds none, which is a different sentence from "none match what you typed" and is the
+ * one that stops them typing.
  */
 import { storeToRefs } from "pinia";
 import { computed, ref, watch } from "vue";
 
 import { fetchGenomes } from "@/api/client";
 import type { Failure } from "@/api/result";
-import type { CatalogueKey, GenomeListResponse } from "@/api/types";
-import { useAnchorGenomeStore } from "@/stores/anchorGenomeStore";
+import type { CatalogueKey, GenomeListResponse, GenomeSourceGroup } from "@/api/types";
+import {
+  SOURCE_GROUP_DESCRIPTIONS,
+  SOURCE_GROUP_EMPTY_SENTENCES,
+  SOURCE_GROUP_LABELS,
+  useAnchorGenomeStore,
+} from "@/stores/anchorGenomeStore";
 
 const props = defineProps<{
   catalogueKey: CatalogueKey | null;
@@ -40,7 +58,15 @@ const LIST_LIMIT = 200;
 const CLOSE_AFTER_BLUR_MS = 120;
 
 const anchor = useAnchorGenomeStore();
-const { sampleId: anchoredSampleId, isAvailable, kind } = storeToRefs(anchor);
+const {
+  sampleId: anchoredSampleId,
+  isAvailable,
+  kind,
+  sourceGroup,
+  sourceGroupCounts,
+  offeredSourceGroups,
+  hasSourceGroupChoice,
+} = storeToRefs(anchor);
 
 /**
  * ⛔ **This box shows only a CATALOGUE anchor.** There is one anchor and both boxes read it, but a
@@ -75,7 +101,13 @@ async function search(query: string): Promise<void> {
   const species = props.catalogueKey;
   if (species === null) return;
   const token = ++issued;
-  const result = await fetchGenomes(species, query.trim(), { limit: LIST_LIMIT });
+  // ⚠ The group is read at ISSUE time and sent with the request, so a late answer is matched
+  // against the filter it was asked for — not against whichever tab is open when it lands.
+  const asked = sourceGroup.value;
+  const result = await fetchGenomes(species, query.trim(), {
+    limit: LIST_LIMIT,
+    sourceGroup: asked,
+  });
   if (token !== issued) return;
   if (result.ok) {
     answer.value = result.value;
@@ -85,6 +117,45 @@ async function search(query: string): Promise<void> {
     failed.value = result;
   }
 }
+
+/**
+ * ⛔ **Switching tab re-queries and resets the cursor, and keeps the typed text.** Keeping the
+ * query is the point of the tabs: a reader who typed `SAMEA22` and switches group is asking the
+ * same question of the other population. Resetting the cursor is not cosmetic — it indexes into
+ * `answer.genomes`, so a stale index can point past the end of the new list or, worse, at a
+ * different genome than the one highlighted.
+ */
+function chooseSourceGroup(group: GenomeSourceGroup): void {
+  if (group === sourceGroup.value) return;
+  anchor.setSourceGroup(group);
+  cursor.value = -1;
+  answer.value = null;
+  void search(text.value === sampleId.value ? "" : text.value);
+}
+
+/** ⚠ The count of what the catalogue HOLDS in this group, never of what matched — see the store. */
+function heldInGroup(group: GenomeSourceGroup): number {
+  return sourceGroupCounts.value[group] ?? 0;
+}
+
+/** The sentence shown when the chosen group has nothing to list, and WHY it has nothing. */
+const emptyGroupReason = computed(() => {
+  if (answer.value === null) return null;
+  if (answer.value.genomes.length > 0) return null;
+  const group = sourceGroup.value;
+  // ⚠ Unfiltered — the pre-census behaviour, and the original sentence unchanged.
+  if (group === null) return `No genome in this catalogue matches \u201c${answer.value.query}\u201d.`;
+  // ⛔ The two cases the whole census exists to separate: the catalogue holds none of these at all
+  // (true of the complete-genome list on every catalogue loaded today), against none matching what
+  // was typed. A reader shown the second would keep typing at a list that can never answer.
+  if (heldInGroup(group) === 0) return SOURCE_GROUP_EMPTY_SENTENCES[group];
+  return `No genome in ${SOURCE_GROUP_LABELS[group]} matches \u201c${answer.value.query}\u201d.`;
+});
+
+/** The group's name, or nothing where the list is unfiltered. */
+const sourceGroupLabel = computed(() =>
+  sourceGroup.value === null ? null : SOURCE_GROUP_LABELS[sourceGroup.value],
+);
 
 function open(): void {
   isOpen.value = true;
@@ -124,7 +195,11 @@ function onKeydown(event: KeyboardEvent): void {
   // CLEARED the reader's anchor — the one thing they were not asking for.
   const answeredQuery = answer.value?.query ?? null;
   const typed = text.value === sampleId.value ? "" : text.value.trim();
-  if (hits.length === 0 || answeredQuery !== typed) return;
+  // ⛔ The answer must match the query AND the group it is being navigated in. Guarding the query
+  // alone, Enter on a list still showing the previous group's genomes would anchor a genome from a
+  // list the reader had already left — and the accession would look perfectly plausible.
+  const answeredGroup = answer.value?.source_group ?? null;
+  if (hits.length === 0 || answeredQuery !== typed || answeredGroup !== sourceGroup.value) return;
   if (event.key === "ArrowDown") {
     cursor.value = cursor.value + 1 >= hits.length ? -1 : cursor.value + 1;
     event.preventDefault();
@@ -170,12 +245,46 @@ function onBlur(): void {
     </label>
     <!-- ⚠ Clicks stop HERE: the document-level closer dismisses the popover on any outside click,
          and would take this list with it before a click on a row could land. -->
-    <div :id="ids.results" class="results anchor-results" role="listbox" @click.stop>
+    <!-- ⛔ `role="listbox"` moved INWARD, onto the options alone. The group tabs are
+         `role="tab"` controls, and a listbox may contain only options — tabs inside one are
+         invalid ARIA, and a screen reader would announce two conflicting widgets as one. -->
+    <div :id="ids.results" class="results anchor-results" @click.stop>
       <template v-if="isOpen">
         <div v-if="failed !== null" class="hit-none pop-error" role="alert">
           The genome list did not load — {{ failed.detail }}.
         </div>
         <template v-else-if="answer !== null">
+          <!-- ⭐ The group tabs. ⚠ Rendered only where there is a CHOICE: one list needs no tabs,
+               and a single tab that cannot be switched is a control that does nothing. -->
+          <div v-if="hasSourceGroupChoice" class="anchor-groups" role="tablist">
+            <button
+              v-for="group in offeredSourceGroups"
+              :key="group"
+              type="button"
+              class="anchor-group"
+              :class="{ on: group === sourceGroup, empty: heldInGroup(group) === 0 }"
+              role="tab"
+              :aria-selected="group === sourceGroup ? 'true' : 'false'"
+              :title="SOURCE_GROUP_DESCRIPTIONS[group]"
+              @mousedown.prevent
+              @click="chooseSourceGroup(group)"
+            >
+              <!-- ⛔ The name is its OWN element so it can ellipsis alone; as a bare text node it
+                   took the whole button's `overflow: hidden` with it and clipped the count away. -->
+              <span class="anchor-group-name">{{ SOURCE_GROUP_LABELS[group] }}</span>
+              <!-- ⚠ What the catalogue HOLDS, not what matched: the number must not move as the
+                   reader types, or it stops being the thing that says a group is worth opening. -->
+              <span class="anchor-group-n">{{ heldInGroup(group).toLocaleString() }}</span>
+            </button>
+          </div>
+          <div
+            role="listbox"
+            :aria-label="
+              sourceGroupLabel === null
+                ? 'Genomes in this catalogue'
+                : `Genomes in ${sourceGroupLabel}`
+            "
+          >
           <button
             type="button"
             class="anchor-hit clear"
@@ -186,9 +295,10 @@ function onBlur(): void {
           >
             most common arrangement
           </button>
-          <div v-if="answer.genomes.length === 0" class="hit-none">
-            No genome in this catalogue matches “{{ answer.query }}”.
-          </div>
+          <!-- ⛔ "holds none" and "none matched" are DIFFERENT sentences — see `emptyGroupReason`.
+               The first is true of the complete-genome list on every catalogue loaded today, and a
+               reader shown the second would keep typing at a list that can never answer. -->
+          <div v-if="emptyGroupReason !== null" class="hit-none">{{ emptyGroupReason }}</div>
           <button
             v-for="(genome, index) in answer.genomes"
             :key="genome.sample_id"
@@ -205,8 +315,10 @@ function onBlur(): void {
                  which undercounts wherever a gene got no window. Per LOCUS either way. -->
             <span class="anchor-n">{{ genome.locus_count.toLocaleString() }} loci</span>
           </button>
+          </div>
           <div v-if="answer.truncated" class="hit-none alt-desc">
-            {{ answer.genomes.length }} of {{ answer.matched_genome_count.toLocaleString() }} matching genomes
+            {{ answer.genomes.length }} of {{ answer.matched_genome_count.toLocaleString() }} matching
+            genomes<template v-if="sourceGroupLabel !== null"> in {{ sourceGroupLabel }}</template>
             — type more of the accession to narrow it.
           </div>
         </template>

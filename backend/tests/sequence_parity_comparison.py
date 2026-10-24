@@ -603,7 +603,14 @@ def absent_labels(session, *, genome_id: int, pangenome_id: int, limit: int = AB
 
 
 def api_genes_at(session, *, pangenome_id: int, label: str, sample_id: str, gff_root: Path, flank_length: int):
-    """⭐ Exactly the endpoint's path, minus HTTP: the service, then the serialiser."""
+    """⭐ Exactly the endpoint's path, minus HTTP: the service, then the serialiser.
+
+    ⛔ **A HELD-ONLY provider, deliberately.** This is the parity oracle against the frozen page,
+    whose bases came from the GFF tree — so it must read the GFF tree. Letting it fall through to
+    ATB would let a parity run pass on bytes the page never saw, which is the one thing a parity
+    oracle must not do.
+    """
+    from bacatlas_backend.sequence_source.contig_sequence_provider import ContigSequenceProvider
     from bacatlas_backend.serialisers.locus_serialiser import serialise_gene_sequence
     from bacatlas_backend.services.gene_sequence_service import load_gene_sequences
 
@@ -614,7 +621,7 @@ def api_genes_at(session, *, pangenome_id: int, label: str, sample_id: str, gff_
             pangenome_id=pangenome_id,
             node_label=label,
             sample_id=sample_id,
-            gff_root=gff_root,
+            sequence_provider=ContigSequenceProvider(gff_root=gff_root, atb_store=None),
             flank_length=flank_length,
         )
     ]

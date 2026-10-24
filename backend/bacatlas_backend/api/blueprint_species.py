@@ -35,7 +35,13 @@ from bacatlas_backend.services.gene_sequence_service import (
     SequenceUnavailable,
     load_gene_sequences,
 )
-from bacatlas_backend.services.genome_listing_service import clamp_genome_limit, list_genomes
+from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
+from bacatlas_backend.services.genome_listing_service import (
+    GenomeSourceGroup,
+    clamp_genome_limit,
+    count_genome_source_groups,
+    list_genomes,
+)
 from bacatlas_backend.services.locus_detail_service import (
     LocusNotFound,
     load_arrangement_page,
@@ -210,6 +216,17 @@ def get_species_catalogue(species_key: str):
                     # ⚠ An absent section is NAMED. The page prints these rather than showing an
                     # empty panel, so an omission is never mistaken for a measured zero.
                     "omitted_sections": pangenome.omitted_sections or {},
+                    # ⭐ **How many genomes sit in each anchor source group.** Here and not on the
+                    # picker's own route because it needs a GROUP BY, and the picker is budgeted at
+                    # one statement and asserted to contain none — it fires on every keystroke. The
+                    # shell is the one route permitted to aggregate over the catalogue, is fetched
+                    # once and is cacheable. ⛔ Zeros are PRESENT: an absent key cannot be told from
+                    # one the server forgot to compute, and "this catalogue holds no complete NCBI
+                    # genomes" is the true answer on every catalogue loaded today.
+                    "genome_source_groups": {
+                        group.value: count
+                        for group, count in count_genome_source_groups(session, pangenome).items()
+                    },
                 },
                 "model": (
                     {
@@ -584,22 +601,11 @@ def get_gene_sequence(species_key: str, sample_id: str, locus_label: str):
         if locus_id is None:
             return _not_found(f"no locus {locus_label!r} in {species_key}")
 
-        configuration = current_app.config["BACATLAS"]
-        try:
-            gff_root = configuration.artifact_roots["gff"]
-        except KeyError:
-            # ⚠ A configuration failure, named as one. "Not configured" and "the file is missing"
-            # are indistinguishable in a 404, and only one of them is ours to fix.
-            return (
-                jsonify(
-                    {
-                        "error": "sequence_unavailable",
-                        "detail": "this server has no annotation store configured, so no sequence "
-                        "can be read (set BACATLAS_ROOT_GFF)",
-                    }
-                ),
-                503,
-            )
+        # ⭐ One provider per application (`build_sequence_provider`), because it holds the
+        # parsed-genome cache. ⚠ "No store configured" is now the provider's own named failure
+        # rather than a branch here: it reports WHICH of the three ways it happened, which a
+        # `KeyError` on one root key could not.
+        sequence_provider = current_app.extensions[SEQUENCE_PROVIDER_KEY]
 
         try:
             rows = load_gene_sequences(
@@ -607,11 +613,14 @@ def get_gene_sequence(species_key: str, sample_id: str, locus_label: str):
                 pangenome_id=pangenome.pangenome_id,
                 node_label=locus_label,
                 sample_id=sample_id,
-                gff_root=gff_root,
+                sequence_provider=sequence_provider,
             )
         except SequenceUnavailable as error:
             # ⛔ 503, not 404 and not an empty list: the gene is there and we could not read it.
-            return jsonify({"error": "sequence_unavailable", "detail": str(error)}), 503
+            # ⚠ `Retry-After` ONLY when the failure is transient. Sending it for a genome ATB does
+            # not have invites a client to poll forever for something that will never arrive.
+            headers = {"Retry-After": "5"} if error.is_retryable else {}
+            return jsonify({"error": "sequence_unavailable", "detail": str(error)}), 503, headers
 
         return _immutable(
             {
@@ -687,11 +696,28 @@ def get_genomes(species_key: str):
             pangenome = _resolve_pangenome(session, species_key)
         except SpeciesNotPublished as error:
             return _not_found(str(error))
+        requested_group = request.args.get("source_group", type=str)
+        try:
+            source_group = GenomeSourceGroup(requested_group) if requested_group else None
+        except ValueError:
+            # ⚠ A named 400, not a silent "all genomes". A typo'd filter that quietly widens the
+            # list would show a reader complete-genome rows under an "AllTheBacteria" heading.
+            return (
+                jsonify(
+                    {
+                        "error": "unknown_source_group",
+                        "detail": f"{requested_group!r} is not a genome source group (have: "
+                        f"{', '.join(group.value for group in GenomeSourceGroup)})",
+                    }
+                ),
+                400,
+            )
         listing = list_genomes(
             session,
             pangenome,
             query=request.args.get("q", default="", type=str),
             limit=clamp_genome_limit(request.args.get("limit", type=int)),
+            source_group=source_group,
         )
         return _immutable(
             {
@@ -701,6 +727,9 @@ def get_genomes(species_key: str):
                 # ⛔ Before the limit. A list cut at the limit must not read as the whole answer.
                 "matched_genome_count": listing.matched_genome_count,
                 "truncated": listing.truncated,
+                # ⚠ Echoed back so a late answer to a superseded filter can be discarded, exactly
+                # as `query` already is — the picker switches group and keystrokes race.
+                "source_group": source_group.value if source_group else None,
                 "genomes": [
                     {
                         "sample_id": genome.sample_id,
@@ -710,6 +739,9 @@ def get_genomes(species_key: str):
                         # published dropdown printed. They differ for every probe genome.
                         "locus_count": genome.locus_count,
                         "arrangement_locus_count": genome.arrangement_locus_count,
+                        # ⭐ Derived, never stored — see `GenomeSourceGroup`. Sent per row so the
+                        # list can label a genome even when no filter is applied.
+                        "source_group": genome.source_group.value,
                     }
                     for genome in listing.genomes
                 ],

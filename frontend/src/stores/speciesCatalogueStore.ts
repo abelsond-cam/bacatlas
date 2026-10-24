@@ -117,6 +117,10 @@ export const useSpeciesCatalogueStore = defineStore("speciesCatalogue", () => {
     // A published pangenome always carries gene membership in the database, so an anchor can always
     // be answered — the published page withheld the box only on payloads that shipped no `arr.gid`.
     anchor.setAvailability(result.value.pangenome.genome_count > 0);
+    // ⭐ The per-group census, so the picker knows which lists this catalogue can offer BEFORE the
+    // reader opens it. ⚠ Read from the shell rather than counted from a listing: a count derived
+    // from a filtered list could only ever say "nothing matched your query".
+    anchor.setSourceGroupCounts(result.value.pangenome.genome_source_groups);
   }
 
   return {

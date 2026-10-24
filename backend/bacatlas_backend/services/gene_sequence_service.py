@@ -12,30 +12,35 @@ MB and parses in tens of milliseconds — against a tab the reader has to click.
 contig sequences only, not the CDS features: the features are already in the database, and keeping
 them would double the footprint of the one thing here that is measured in megabytes.
 
-⛔ **The GFF is opened by a path built from `bakrep_dataset_id`**, which no parquet carries and which
-is captured from the directory at ingest. A genome missing it cannot be read at all, and this says
-so rather than constructing a path that does not exist.
+⭐ **Where the bases come from is no longer this module's business** — it asks
+`sequence_source.ContigSequenceProvider`, which tries the held Bakta GFF, then a disk cache, then
+AllTheBacteria. The held copy still wins, so a genome whose GFF is on this server behaves exactly as
+before and enabling streaming can only change the answer for genomes that previously failed.
+
+⚠ **A genome with no `bakrep_dataset_id` used to be unreadable by definition** — that value names the
+directory the GFF sits in, no parquet carries it, and it is captured from the path at ingest. Under
+streaming its absence means only "we hold no copy of this one", which is the ordinary case for a
+streamed genome rather than a fault. The old hard failure is therefore gone from here and the
+provider decides; what must NOT come back is a message that calls a streamed genome's missing
+directory an error.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
-from pathlib import Path
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.gff.gene_sequence_reader import GeneSequenceView, read_gene_sequence
-from bacatlas_backend.gff.gff_cds_parser import parse_genome_annotation
 from bacatlas_backend.models.gene import Gene, GeneLocusMembership
 from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.locus import Locus
-
-#: How many genomes' contig sequences to keep parsed. ⚠ A bacterial genome is ~5 MB as a Python
-#: string, so this is a memory bound in the tens of MB per worker process — deliberately small,
-#: because the tab is a click and not a hot path, and a reader walking a track hits ONE genome.
-PARSED_GENOME_CACHE_SIZE = 4
+from bacatlas_backend.sequence_source.contig_sequence_provider import (
+    ContigSequenceProvider,
+    GenomeSequenceRequest,
+    SequenceSourceUnavailable,
+)
 
 #: Bases either side of the gene. The published page's own window.
 FLANK_LENGTH = 100
@@ -47,7 +52,16 @@ class SequenceUnavailable(LookupError):
     ⛔ Never conflated with "this genome has no gene here", which is an ANSWER. `app.js:4604`: *"a
     sequence panel that fails silently is one a reader will read as 'this genome has nothing here',
     which is a different claim and a false one."*
+
+    ⚠ **`is_retryable` is new with assembly streaming, and it is not cosmetic.** A genome ATB does
+    not have will never arrive; a fetch that timed out probably will. Both were a bare 503 while
+    every genome was held locally and the only cause was a missing file. The endpoint turns this
+    into `Retry-After`, so the distinction has to survive the raise.
     """
+
+    def __init__(self, message: str, *, is_retryable: bool = False) -> None:
+        super().__init__(message)
+        self.is_retryable = is_retryable
 
 
 @dataclass(frozen=True)
@@ -79,32 +93,13 @@ class GeneSequenceRow:
     sequence: GeneSequenceView
 
 
-@lru_cache(maxsize=PARSED_GENOME_CACHE_SIZE)
-def _contig_sequences(path_text: str) -> dict[str, str]:
-    """Every contig's bases, by seqid. Cached on the PATH, which is immutable for a build."""
-    path = Path(path_text)
-    if not path.exists():
-        raise SequenceUnavailable(f"the annotation file for this genome is not on this server ({path.name})")
-    parsed = parse_genome_annotation(path, want_sequence=True)
-    if not parsed.carries_sequence:
-        # ⚠ Checked rather than assumed. All 280 probe GFFs carry a `##FASTA` block (measured
-        # 2026-09-04), and one that does not must fail with a sentence rather than a KeyError.
-        raise SequenceUnavailable(f"{path.name} carries no ##FASTA block, so it holds no bases")
-    return parsed.contig_sequences
-
-
-def clear_parsed_genome_cache() -> None:
-    """Drop the parsed genomes. For tests, and for a process that wants its memory back."""
-    _contig_sequences.cache_clear()
-
-
 def load_gene_sequences(
     session: Session,
     *,
     pangenome_id: int,
     node_label: str,
     sample_id: str,
-    gff_root: Path,
+    sequence_provider: ContigSequenceProvider,
     flank_length: int = FLANK_LENGTH,
 ) -> list[GeneSequenceRow]:
     """Every copy this genome has at this locus, in genome order.
@@ -113,10 +108,15 @@ def load_gene_sequences(
     renders it as one. It RAISES `SequenceUnavailable` only where a gene exists and its bases could
     not be read, which is a different thing and must read differently on the page.
 
-    ⚠ **One statement**, then one file. The join reaches `genome_contig` for the seqid rather than
-    deriving it, because two GFF seqids can map to one `contig_index` — a short-read assembler emits
-    byte-identical duplicate contigs and the extractor keeps only one — so the map is stored as
+    ⚠ **One statement**, then one assembly. The join reaches `genome_contig` for the seqid rather
+    than deriving it, because two GFF seqids can map to one `contig_index` — a short-read assembler
+    emits byte-identical duplicate contigs and the extractor keeps only one — so the map is stored as
     measured at ingest and never re-derived per request.
+
+    ⭐ **Where the bases come from is `sequence_provider`'s business, not this function's**, and the
+    seqid is why that works: the ATB assembly's defline carries the same first token our GFF writes
+    (`SAMN04393397.contig00001` on both, verified on all 280 probe genomes), so the stored
+    `genome_contig.seqid` joins against either source unchanged.
     """
     rows = session.execute(
         select(
@@ -159,21 +159,26 @@ def load_gene_sequences(
     if not rows:
         return []
 
-    dataset_id = rows[0].bakrep_dataset_id
-    if not dataset_id:
-        raise SequenceUnavailable(
-            f"{sample_id} has no recorded annotation directory, so its GFF cannot be located"
+    # ⚠ `bakrep_dataset_id` being absent is no longer fatal — it means only that this genome has no
+    # HELD copy, which a streamed one never does. The provider decides whether that is readable.
+    try:
+        sequences = sequence_provider.contig_sequences(
+            GenomeSequenceRequest(sample_id=sample_id, bakrep_dataset_id=rows[0].bakrep_dataset_id)
         )
-    path = gff_root / dataset_id / sample_id / f"{sample_id}.bakta.gff3.gz"
-    sequences = _contig_sequences(str(path))
+    except SequenceSourceUnavailable as error:
+        raise SequenceUnavailable(str(error), is_retryable=error.is_retryable) from error
 
     out: list[GeneSequenceRow] = []
     for ordinal, row in enumerate(rows, start=1):
         contig = sequences.get(row.seqid)
         if contig is None:
             # ⚠ Named, not skipped. A silently dropped copy turns "2 of 2" into "1 of 1".
+            # ⛔ "assembly", not "annotation file": under streaming the bases and the coordinates
+            # come from different places, so a seqid the assembly lacks is a mismatch between the
+            # two — which is a far more interesting failure than a missing file and must not be
+            # described as one.
             raise SequenceUnavailable(
-                f"contig {row.seqid} is not in {sample_id}'s annotation file, so this gene's bases "
+                f"contig {row.seqid} is not in {sample_id}'s assembly, so this gene's bases "
                 "cannot be read"
             )
         out.append(
