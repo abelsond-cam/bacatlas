@@ -8,6 +8,7 @@ what lets a test build an app against a throwaway database in two lines.
 from __future__ import annotations
 
 import logging
+import os
 
 from flask import Flask, jsonify, request
 from werkzeug.exceptions import HTTPException, InternalServerError
@@ -34,6 +35,7 @@ API_PREFIX = "/api/v1"
 def create_application(configuration: Configuration | None = None) -> Flask:
     """Build the app. Pass a `Configuration` in tests; omit it to read the environment."""
     configuration = configuration or Configuration.from_environment()
+    _configure_logging()
     application = Flask(__name__)
     application.config["BACATLAS"] = configuration
     application.extensions["bacatlas_database"] = Database(configuration)
@@ -47,6 +49,26 @@ def create_application(configuration: Configuration | None = None) -> Flask:
     application.json.sort_keys = True
     _register_json_errors(application)
     return application
+
+
+def _configure_logging() -> None:
+    """Make this package's own `logger.info` lines reach the container log.
+
+    ⛔ **gunicorn configures ITS loggers, not the root one.** Without this a module logger inherits
+    the root's default WARNING, so every `logger.info` here is silently dropped in production while
+    looking fine under a dev server that something else configured. The line saying an assembly was
+    fetched from AllTheBacteria was invisible for exactly that reason — and it is the only log
+    evidence that the remote path ran at all.
+
+    ⚠ Only installs a handler when nothing else has: under pytest, or behind an operator's own
+    logging config, adding a second one duplicates every record.
+    """
+    root = logging.getLogger()
+    level = os.environ.get("BACATLAS_LOG_LEVEL", "INFO").upper()
+    if root.handlers:
+        root.setLevel(level)
+    else:
+        logging.basicConfig(level=level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
 def _register_json_errors(application: Flask) -> None:

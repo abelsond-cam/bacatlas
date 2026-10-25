@@ -12,6 +12,8 @@ from flask import Blueprint, current_app, jsonify
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
+
 health_blueprint = Blueprint("health", __name__)
 
 #: Present once the first migration has run. Until then the API is up and has nothing to serve,
@@ -39,6 +41,39 @@ def report_health():
         report["database_error"] = f"{type(error).__name__}: {error}"
         return jsonify(report), 503
 
+    report["sequence_source"] = _sequence_source_report()
+
     if not report["schema_present"]:
         report["note"] = "database reachable but not migrated — run `alembic upgrade head`"
     return jsonify(report), 200
+
+
+def _sequence_source_report() -> dict[str, object]:
+    """⭐ **Where the Sequence tab's bases come from, answerable from a browser.**
+
+    ⛔ Added because the only other evidence was a `logger.info`, and gunicorn configures its own
+    loggers rather than the root one — so a module logger sits at WARNING and that line is
+    swallowed. Someone asked to confirm they were testing the ATB pull and, as shipped, could not:
+    a page that reads correctly looks identical whether the bytes came off the local tree or the
+    wire. This states which, and `cached_assemblies` moves when a fetch really happens.
+
+    ⚠ Deliberately NOT gated differently from the rest of `/health`: it names no path a reader
+    could not already infer from the deployment, carries no credential, and the whole origin sits
+    behind basic auth anyway.
+    """
+    configuration = current_app.config["BACATLAS"]
+    provider = current_app.extensions.get(SEQUENCE_PROVIDER_KEY)
+    gff_root = configuration.artifact_roots.get("gff")
+    cached: object = "no cache directory configured"
+    if configuration.atb_cache_directory is not None:
+        try:
+            cached = sum(1 for _ in configuration.atb_cache_directory.glob("*.fa.gz"))
+        except OSError as error:
+            cached = f"unreadable: {type(error).__name__}"
+    return {
+        # ⚠ "held tree present" is about CONFIGURATION, not about any one genome: a genome absent
+        # from a configured tree still streams. It answers "could a local file have served this?"
+        "held_annotation_tree": str(gff_root) if gff_root else None,
+        "assembly_streaming": bool(provider is not None and provider.can_stream),
+        "cached_assemblies": cached,
+    }
