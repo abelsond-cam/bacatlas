@@ -44,6 +44,12 @@ RUN --mount=from=ghcr.io/astral-sh/uv:0.11.8,source=/uv,target=/bin/uv \
 # read-only bind mount. ⚠ On a Linux host that tree must therefore be readable by uid 10001 (or
 # world-readable); a permission error surfaces as the sequence endpoint's named 503, not at start-up.
 RUN useradd --system --uid 10001 --no-create-home bacatlas
+# ⛔ The assembly cache directory is created HERE, owned by the app user, and that is not tidiness.
+# Docker seeds a fresh named volume from whatever the image has at the mount path, ownership
+# included — so if the path does not exist in the image the volume is created root-owned and uid
+# 10001 cannot write to it. The store degrades to "no cache" on an unwritable directory rather than
+# failing, so the symptom would be a silent re-fetch on every single request, not an error.
+RUN install -d -o bacatlas -g bacatlas -m 0755 /srv/bacatlas/seqcache
 USER bacatlas
 
 EXPOSE 8000

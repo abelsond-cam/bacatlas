@@ -73,10 +73,28 @@ services:
       # Set only when a GFF tree was given. Left empty, the sequence endpoint answers with its named
       # 503 ("no annotation store configured") and every other endpoint is unaffected.
       BACATLAS_ROOT_GFF: ${BACATLAS_HOST_GFF_DIR:+/srv/bacatlas/gff}
+      # ⭐ Fetch a genome's assembly from AllTheBacteria when its GFF is not in the tree above.
+      # ⚠ The held copy always wins, so this is additive: it can only change the answer for a
+      # genome that previously got the "no annotation store" 503. Unset = off, and off is the
+      # default. Clearing BACATLAS_HOST_GFF_DIR with this ON makes ATB the ONLY source, which is
+      # how you prove the fetch is live rather than reading the tree.
+      BACATLAS_ATB_STREAMING: ${BACATLAS_ATB_STREAMING:-}
+      # ⛔ The cache path is tied to the FLAG, not set unconditionally: with streaming off there is
+      # nothing to cache, and a configured-but-unused directory invites someone to conclude the
+      # feature is on because the setting is present.
+      BACATLAS_ATB_CACHE_DIR: ${BACATLAS_ATB_STREAMING:+/srv/bacatlas/seqcache}
+      BACATLAS_ATB_CACHE_BUDGET_BYTES: ${BACATLAS_ATB_CACHE_BUDGET_BYTES:-}
+      BACATLAS_ATB_MAX_CONCURRENT_FETCHES: ${BACATLAS_ATB_MAX_CONCURRENT_FETCHES:-}
+      BACATLAS_ATB_TIMEOUT_SECONDS: ${BACATLAS_ATB_TIMEOUT_SECONDS:-}
       WEB_CONCURRENCY: ${BACATLAS_API_WORKERS:-4}
     volumes:
       # Read-only: the service never writes, and a bind mount is the one way it could write to the host.
       - ${BACATLAS_HOST_GFF_DIR:-./deploy/no_annotation_store}:/srv/bacatlas/gff:ro
+      # ⚠ A NAMED volume, not a bind: the cache is the one thing this service writes, it is
+      # disposable (every entry is re-fetchable in ~0.24 s), and a named volume keeps it off the
+      # host tree where nothing should be surprised by it. Seeded from the image, so it carries
+      # uid 10001 — see the Dockerfile.
+      - atb_cache:/srv/bacatlas/seqcache
     healthcheck:
       # `/health` answers 503 when the database is unreachable, which `urlopen` raises on.
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=4)"]
@@ -115,3 +133,6 @@ services:
 
 volumes:
   pgdata:
+  #: Fetched AllTheBacteria assemblies. ⚠ Disposable — `docker volume rm` costs a re-fetch and
+  #: nothing else, which is also how you force the next request to go to ATB for real.
+  atb_cache:
