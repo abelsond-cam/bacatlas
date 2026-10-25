@@ -171,10 +171,19 @@ for key in $species; do
   genome=$(get "$api/species/$key/genomes?limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
   [ -n "$genome" ] && pass "$key: genome list answers ($genome first)" || fail "$key: genome list"
 
-  if [ -n "${BACATLAS_HOST_GFF_DIR:-}" ] && [ -n "$genome" ]; then
+  # ⛔ **Gated on EITHER source, and it says which.** This was gated on the GFF tree alone, so the
+  # moment the tree was cleared to serve sequence from AllTheBacteria the check vanished — the drill
+  # went on returning 0 while the one test that proves sequence works stopped running, precisely
+  # when sequence had moved to a remote source and needed testing most. A check that silently skips
+  # reports nothing, which is the same defect the removed sprite checks had in the other direction.
+  if { [ -n "${BACATLAS_HOST_GFF_DIR:-}" ] || [ -n "${BACATLAS_ATB_STREAMING:-}" ]; } && [ -n "$genome" ]; then
+    if [ -n "${BACATLAS_HOST_GFF_DIR:-}" ]; then source_name="the GFF tree"; else source_name="AllTheBacteria"; fi
     code=$(status "$api/species/$key/genomes/$genome/loci/$landing/sequence")
-    [ "$code" = "200" ] && pass "$key: sequence read from the GFF tree" \
-      || fail "$key: sequence endpoint $code — is the GFF tree readable by uid 10001?"
+    [ "$code" = "200" ] && pass "$key: sequence read from $source_name" \
+      || fail "$key: sequence endpoint $code from $source_name — GFF readable by uid 10001, or ATB reachable?"
+  else
+    # ⚠ Not silence: a stack serving no sequence at all is a legitimate configuration and must say so.
+    pass "$key: sequence not configured (no GFF tree, no streaming) — endpoint not exercised"
   fi
 done
 
