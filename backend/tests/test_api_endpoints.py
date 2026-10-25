@@ -114,10 +114,21 @@ def test_an_unpublished_species_is_a_NAMED_404_and_never_an_empty_200(client):
     assert "tuberculosis" in response.get_json()["detail"]
 
 
-def test_every_catalogue_response_is_cacheable_and_tagged_by_its_pangenome(client):
+def test_every_catalogue_response_is_cacheable_and_tagged_by_its_pangenome_AND_its_shape(client):
+    """⛔ The tag carries BOTH, and the second half was added after it cost a deploy.
+
+    It used to be the pangenome id alone, justified as *"a response cannot go stale without a
+    deploy that changes the ETag"* — which nothing enforced. The 2026-10-25 release added a field
+    to this very response without the pangenome moving, so a browser holding a day-old copy under
+    `max-age=86400` never saw it, and the new bundle rendered a page one deploy behind.
+    """
+    from bacatlas_backend.api.blueprint_species import RESPONSE_SHAPE_VERSION
+
     response = client.get("/api/v1/species/ecoli")
     assert response.headers["Cache-Control"] == "public, max-age=86400"
-    assert response.headers["ETag"].strip('"').isdigit()
+    pangenome_id, _, shape = response.headers["ETag"].strip('"').partition("-")
+    assert pangenome_id.isdigit()
+    assert shape == f"v{RESPONSE_SHAPE_VERSION}"
 
 
 # ── the hot path ───────────────────────────────────────────────────────────────────────────────

@@ -66,8 +66,34 @@ from bacatlas_backend.services.species_catalogue_service import (
 
 species_blueprint = Blueprint("species", __name__)
 
-#: One day. Long, because a response cannot go stale without a deploy that changes the ETag.
+#: One day.
+#:
+#: ⛔ **The justification that used to sit here — "a response cannot go stale without a deploy that
+#: changes the ETag" — WAS FALSE, and it cost a deploy.** Nothing made a deploy change the ETag:
+#: the tag is the pangenome id, and the 2026-10-25 release added `genome_source_groups` to the
+#: shell without the pangenome moving. Every browser that had loaded the site within the previous
+#: 24 h replayed the old body, and `max-age` meant it never asked. The new bundle then read a
+#: day-old response, found no census, and correctly rendered no anchor tabs — a page silently one
+#: deploy behind, with nothing wrong in any log.
+#:
+#: Two things make the sentence true now. `RESPONSE_SHAPE_VERSION` below puts a deploy into the
+#: validator, and the frontend appends its build stamp to every request
+#: (`frontend/src/api/request.ts`), which changes the URI itself — that is the half that helps a
+#: browser whose cache entry is already warm, because a validator only matters once something
+#: revalidates.
 CACHE_CONTROL = "public, max-age=86400"
+
+#: ⛔ **BUMP THIS WHENEVER A CACHED RESPONSE'S SHAPE CHANGES** — a field added, removed or
+#: renamed in anything `_immutable` returns. It is in the ETag, so bumping it invalidates every
+#: cached catalogue response at once.
+#:
+#: ⚠ It is hand-maintained and therefore forgettable, and this comment is not a substitute for
+#: remembering. It is the *second* line of defence, not the first: the frontend's per-deploy build
+#: stamp already makes each release's requests a distinct URI, which is what actually protects a
+#: reader. This protects everything else — a script, a curl, a proxy — that does not send one.
+#:
+#: 2 — `genome_source_groups` added to the species/catalogue shell (2026-10-25).
+RESPONSE_SHAPE_VERSION = 2
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
@@ -78,7 +104,9 @@ def _immutable(payload, pangenome_id: int | None):
     response = jsonify(payload)
     response.headers["Cache-Control"] = CACHE_CONTROL
     if pangenome_id is not None:
-        response.headers["ETag"] = f'"{pangenome_id}"'
+        # ⛔ The shape version is IN the tag: the body changes when the pangenome changes OR when a
+        # release changes what the response carries, and only the first of those used to be here.
+        response.headers["ETag"] = f'"{pangenome_id}-v{RESPONSE_SHAPE_VERSION}"'
     return response
 
 

@@ -35,6 +35,34 @@ export function apiUrl(path: string): string {
 }
 
 /**
+ * ⛔⛔ **The deploy stamp every API request carries, and why a cached page is otherwise a LIE.**
+ *
+ * Catalogue responses are served `Cache-Control: public, max-age=86400` with
+ * `ETag: "{pangenome_id}"`, on the stated reasoning that *for one URI the body changes only when
+ * the pangenome does*. That premise holds for the DATA and fails for the SHAPE: the 2026-10-25
+ * deploy added `genome_source_groups` to the shell without the pangenome changing, so every
+ * browser that had loaded the site in the previous 24 h kept replaying the old body — no new
+ * field, therefore no anchor tabs — and `max-age` meant it never even asked. New code reading a
+ * day-old response is the worst version of this: both halves are individually correct and the page
+ * is silently a deploy behind, with nothing to see in any log.
+ *
+ * Appending the build stamp makes each deploy's requests a **different URI**, so a stale entry is
+ * bypassed rather than revalidated — no hard reload, no reduced caching, and the existing ETag
+ * reasoning is untouched because the query string is already part of the target URI (RFC 9110
+ * §8.8.3), which is exactly how `?q=` is already treated.
+ *
+ * ⚠ It must be on EVERY request, not just the shell: any response whose shape a future deploy
+ * changes has the same problem, and remembering which is the failure mode this replaces.
+ */
+/*
+ * ⚠ Digits only. `__BUILD_STAMP__` is an ISO timestamp, and its colons percent-encode into
+ * `%3A` on every request — correct but unreadable in a log and longer than it needs to be. The
+ * digits change on every build just as well, which is the whole requirement. The human-readable
+ * form stays in the footer, which uses `__BUILD_STAMP__` directly.
+ */
+export const BUILD_STAMP: string = __BUILD_STAMP__.replace(/\D/g, "");
+
+/**
  * One GET, parsed, as a {@link Result}.
  *
  * ⚠ Every failure mode is *named* rather than collapsed into a boolean: a 404 is the server
@@ -48,6 +76,8 @@ export async function requestJson<T>(
   for (const [key, value] of Object.entries(options.query ?? {})) {
     if (value !== undefined) url.searchParams.set(key, String(value));
   }
+  // ⛔ See BUILD_STAMP: this is what stops a browser replaying the previous deploy's response shape.
+  url.searchParams.set("v", BUILD_STAMP);
   // Relative when it can be — the URL object above exists to build the query string safely, not to
   // pin an origin into the request.
   const target = url.origin === (globalThis.location?.origin ?? "http://localhost")

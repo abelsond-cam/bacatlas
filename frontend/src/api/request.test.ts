@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { API_BASE_URL, RequestLane, apiUrl, requestJson } from "./request";
+import { API_BASE_URL, BUILD_STAMP, RequestLane, apiUrl, requestJson } from "./request";
 import { failure, mapResult, success } from "./result";
 import * as resultModule from "./result";
 
@@ -113,7 +113,22 @@ describe("requestJson names every failure mode rather than collapsing them", () 
     globalThis.fetch = stub;
     await requestJson("thing", { query: { offset: 50, limit: undefined } });
     const [url] = (stub as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
-    expect(url).toBe("/api/v1/thing?offset=50");
+    expect(url).toBe(`/api/v1/thing?offset=50&v=${BUILD_STAMP}`);
+  });
+
+  it("⛔ carries the BUILD STAMP on every request, even with no query at all", async () => {
+    // ⛔⛔ The regression this exists for is a page that is silently one deploy behind. Catalogue
+    // responses are cached `max-age=86400` with an ETag that was the pangenome id alone, so a
+    // release that changed a response's SHAPE left every warm browser replaying the old body and
+    // never revalidating. New bundle, day-old JSON, no error anywhere — the 2026-10-25 anchor tabs
+    // simply did not appear. The stamp makes each deploy's requests a different URI, so the stale
+    // entry is bypassed rather than trusted.
+    const stub = respondWith(200, {});
+    globalThis.fetch = stub;
+    await requestJson("species");
+    const [url] = (stub as unknown as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(url).toBe(`/api/v1/species?v=${BUILD_STAMP}`);
+    expect(BUILD_STAMP).toBeTruthy();
   });
 });
 
