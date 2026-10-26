@@ -374,6 +374,14 @@ def test_the_incomplete_loci_are_the_share_the_published_page_measured(client, a
 
     Reproducing a number the reference computed a different way is the strongest check available
     that the union means what the page meant by it — not a threshold this rebuild invented.
+
+    ⛔ **Scoped to ONE catalogue per species, because the figure is a catalogue's and not a
+    species'.** This grouped on `species_key` alone, which pools every catalogue a species has: with
+    both nuna4 and nuna5 loaded that is 35,831 ecoli loci rather than 17,531, and the pooled share
+    is **6.14 %** against nuna4's 6.26 % and nuna5's 6.03 % (kp: 3.63 % pooled, 3.69 % / 3.57 %).
+    Measured on `bacatlas_ingest` 2026-10-26. The published figure is `app.js`'s, and `app.js` served
+    one catalogue — so the comparison has to name which one, and `pathogen_species.default_pangenome_id`
+    is the column that says so.
     """
     engine = create_engine(application.config["BACATLAS"].database_url, future=True)
     with Session(engine) as session:
@@ -386,6 +394,7 @@ def test_the_incomplete_loci_are_the_share_the_published_page_measured(client, a
                              WHERE l.arrangement_member_genome_count < l.member_genome_count)
                              / count(*), 2)
                       FROM locus l JOIN pathogen_species s USING (pathogen_species_id)
+                     WHERE l.pangenome_id = s.default_pangenome_id
                      GROUP BY 1
                     """
                 )
