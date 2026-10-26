@@ -921,7 +921,6 @@ export interface GeneSequence {
   readonly downstream_flank_span: readonly [number, number] | null;
   readonly gc_percent: number;
   /** What ingest wrote from the same coordinates — sent so the two can be seen to agree. */
-  readonly stored_gc_percent: number | null;
 }
 
 export interface GeneSequenceResponse {

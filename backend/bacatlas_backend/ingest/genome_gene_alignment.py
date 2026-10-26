@@ -32,7 +32,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from bacatlas_backend.gff.gene_sequence_reader import (
-    gc_percent,
     reverse_complement,
     translate_coding_sequence,
 )
@@ -57,7 +56,6 @@ class AlignedGene:
     is_five_prime_partial: bool
     locus_tag: str | None
     protein_sequence: str
-    gc_percent: float | None
 
     @property
     def length_nt(self) -> int:
@@ -87,14 +85,12 @@ class GenomeAlignment:
         return sum(self.contig_lengths_by_seqid.values())
 
 
-def flatten_to_extractor_order(
-    annotation: ParsedGenomeAnnotation, *, compute_gc: bool = True
-) -> GenomeAlignment:
+def flatten_to_extractor_order(annotation: ParsedGenomeAnnotation) -> GenomeAlignment:
     """The CDS the extractor kept, numbered as it numbered them.
 
-    ⚠ `compute_gc=False` skips the GC pass. The bases are already in hand for the translation, so
-    the saving is small — it exists because a caller re-running only the alignment gate does not
-    need it, not as a mode to load in.
+    ⚠ A `compute_gc` flag used to let a caller skip the GC pass. GC is no longer computed here at
+    all — its column was dropped 2026-10-26 — so the flag went with it rather than surviving as a
+    parameter that selects between two identical behaviours.
     """
     if not annotation.carries_sequence:
         raise GeneAlignmentError(
@@ -123,7 +119,7 @@ def flatten_to_extractor_order(
             order.append(feature.seqid)
             per_contig[feature.seqid] = []
         per_contig[feature.seqid].append(
-            _aligned(feature, len(order) - 1, protein, coding if compute_gc else None)
+            _aligned(feature, len(order) - 1, protein)
         )
 
     genes: list[AlignedGene] = []
@@ -138,12 +134,11 @@ def flatten_to_extractor_order(
     )
 
 
-def _aligned(feature: CodingFeature, contig_index: int, protein: str, coding: str | None) -> AlignedGene:
-    # ⚠ NULL, not 0.0, for a span with no unambiguous base: `gc_percent` returns 0.0 there, and
-    # under this schema's rule 0.0 is a MEASURED zero. An all-N gene has no measured GC.
-    percent = None
-    if coding is not None and any(base in "ACGT" for base in coding):
-        percent = gc_percent(coding)
+def _aligned(feature: CodingFeature, contig_index: int, protein: str) -> AlignedGene:
+    # ⚠ GC is no longer computed here. The column it fed was dropped 2026-10-26, and the rule it
+    # protected — NULL rather than 0.0 for a span with no unambiguous base, because under this
+    # schema 0.0 is a MEASURED zero — now lives only where GC still is: `gene_sequence_reader`
+    # returns 0.0 for such a span, and the serving path reports it as computed rather than stored.
     return AlignedGene(
         flat_index=-1,  # assigned in the concatenation pass, which is where the number is decided
         contig_index=contig_index,
@@ -155,7 +150,6 @@ def _aligned(feature: CodingFeature, contig_index: int, protein: str, coding: st
         is_five_prime_partial=feature.is_five_prime_partial,
         locus_tag=feature.locus_tag,
         protein_sequence=protein,
-        gc_percent=percent,
     )
 
 

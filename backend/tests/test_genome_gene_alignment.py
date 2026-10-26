@@ -96,7 +96,7 @@ def test_the_gff_carries_more_cds_lines_than_the_parquet_has_genes(alignment_rep
     surpluses = []
     for gff in _genomes()[:10]:
         annotation = parse_genome_annotation(gff)
-        aligned = flatten_to_extractor_order(annotation, compute_gc=False)
+        aligned = flatten_to_extractor_order(annotation)
         surpluses.append(len(annotation.coding_features) - len(aligned.genes))
 
     assert all(surplus >= 0 for surplus in surpluses)

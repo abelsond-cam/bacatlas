@@ -93,7 +93,11 @@ CACHE_CONTROL = "public, max-age=86400"
 #: reader. This protects everything else — a script, a curl, a proxy — that does not send one.
 #:
 #: 2 — `genome_source_groups` added to the species/catalogue shell (2026-10-25).
-RESPONSE_SHAPE_VERSION = 2
+#: 3 — `stored_gc_percent` REMOVED from the gene-sequence response with its column (2026-10-26).
+#:     ⚠ A removal needs this as much as an addition does: `get_gene_sequence` returns `_immutable`,
+#:     so a warm client would otherwise replay a day-old body carrying a field the server no longer
+#:     has, and nothing anywhere would error.
+RESPONSE_SHAPE_VERSION = 3
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50

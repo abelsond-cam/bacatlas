@@ -85,8 +85,9 @@ class GeneSequenceRow:
     length_nt: int
     #: What the database stored at ingest, so the page can show it without opening a file — and so a
     #: divergence from the freshly-sliced sequence is visible rather than assumed away.
+    #: ⚠ `stored_gc_percent` was here until 2026-10-26 and is gone with the column; GC is computed
+    #: from the sliced bases in `sequence.gc_percent`, which is the only GC any client ever read.
     stored_protein_length_aa: int | None
-    stored_gc_percent: float | None
     bakta_gene_symbol: str | None
     bakta_product: str | None
     locus_tag: str | None
@@ -129,7 +130,6 @@ def load_gene_sequences(
             Gene.is_five_prime_partial,
             Gene.length_nt,
             Gene.protein_length_aa,
-            Gene.gc_percent,
             Gene.bakta_gene_symbol,
             Gene.bakta_product,
             Gene.locus_tag,
@@ -196,7 +196,6 @@ def load_gene_sequences(
                 is_five_prime_partial=row.is_five_prime_partial,
                 length_nt=row.length_nt,
                 stored_protein_length_aa=row.protein_length_aa,
-                stored_gc_percent=row.gc_percent,
                 bakta_gene_symbol=row.bakta_gene_symbol,
                 bakta_product=row.bakta_product,
                 locus_tag=row.locus_tag,

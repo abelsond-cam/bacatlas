@@ -15,7 +15,6 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     CheckConstraint,
-    Float,
     ForeignKey,
     Index,
     Integer,
@@ -28,7 +27,6 @@ from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from bacatlas_backend.database import Base
-from bacatlas_backend.models.column_types import nan_guards
 
 
 class Gene(Base):
@@ -49,7 +47,6 @@ class Gene(Base):
         Index("ix_gene__genome_id__contig_index__start_position", "genome_id", "contig_index", "start_position"),
         CheckConstraint("start_position >= 1 AND end_position >= start_position", name="span_is_forward"),
         CheckConstraint("strand IN ('+', '-')", name="strand_is_plus_or_minus"),
-        *nan_guards("gc_percent"),
     )
 
     genome_id: Mapped[int] = mapped_column(ForeignKey("genome.genome_id", ondelete="CASCADE"), primary_key=True)
@@ -77,8 +74,14 @@ class Gene(Base):
     #: Measured on `nhaA`: GTG is stored as `M`, and the plain table gives `V`.
     is_five_prime_partial: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
-    #: Stored so `WHERE gc_percent > 60` never has to open a file.
-    gc_percent: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # ⛔ **`gc_percent` was DROPPED 2026-10-26** (David: *"I don't think we are using this anywhere
+    # in BacAtlas right now. We don't need to hold it in the database ingest at all."*). It was
+    # justified here by *"stored so `WHERE gc_percent > 60` never has to open a file"* — and that
+    # query was never written. Measured across the repository: the only page that prints GC computes
+    # it from the sliced bases (`GeneSequenceCard.vue`), the T6 parity suite compares that computed
+    # value on both sides, no `locus` rollup holds GC, and nothing in `queries/`, `api/` or
+    # `instruments/` referred to it. GC is a property of the bases, so it is derived where the bases
+    # are. ⚠ This table now has no measurement column and therefore no `nan_guards`.
     protein_length_aa: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     bakta_gene_symbol: Mapped[str | None] = mapped_column(String(128), nullable=True)

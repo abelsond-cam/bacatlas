@@ -465,10 +465,14 @@ def serialise_locus_detail(detail: LocusDetail, names: ReferenceNames | None = N
 def serialise_gene_sequence(row) -> dict:
     """One gene copy for the Sequence tab — where it is, what it reads, and what is missing.
 
-    ⭐ **The stored values travel beside the sliced ones.** `gc_percent` and `protein_length_aa` are
-    columns, written at ingest from the same coordinates; sending both lets a reader (and a test)
-    see them agree rather than taking one on trust. They are separate fields for that reason and
-    must not be collapsed into one.
+    ⭐ **The stored protein length travels beside the sliced one.** `protein_length_aa` is a column
+    written at ingest from the same coordinates; sending both lets a reader (and a test) see them
+    agree rather than taking one on trust. They are separate fields for that reason and must not be
+    collapsed into one.
+
+    ⚠ `stored_gc_percent` travelled the same way until 2026-10-26 and went with its column — no
+    client ever read it. `gc_percent` here is computed from the sliced bases, which is what the page
+    has always shown.
 
     ⛔ **Truncation is reported per flank, not implied by a short string.** These are draft
     assemblies — mean contig 14.4 kb, about 14 genes — so a gene within 100 bp of a contig end is
@@ -517,5 +521,4 @@ def serialise_gene_sequence(row) -> dict:
             list(sequence.downstream_flank_span) if sequence.downstream_flank_span else None
         ),
         "gc_percent": sequence.gc_percent,
-        "stored_gc_percent": row.stored_gc_percent,
     }

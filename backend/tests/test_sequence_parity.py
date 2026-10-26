@@ -22,8 +22,13 @@ the API's into sentences.
   genes, most contigs whose name is not their index, the fewest contigs — three distinct on both
   species today), plus a stratified ~50 loci of every other genome with minus-strand, contig-edge
   and exact-truncation-boundary genes over-represented, and two near-core loci it LACKS.
-- ``BACATLAS_SEQUENCE_PARITY_EVERY_GENE=1`` (~3.5 min, 8 workers): the rendered tab for EVERY gene of
-  both catalogues, ~1.02 M.
+- ``BACATLAS_SEQUENCE_PARITY_EVERY_GENE=1``: the rendered tab for EVERY gene of both catalogues,
+  **1,021,997**. ⛔ **Measured 2026-10-26 on 8 workers: 3,335 s for ecoli and 4,367 s for kp —
+  7,713 s, 2 h 09 m**, and ~3 h 28 m of wall clock including setup. This docstring claimed "~3.5
+  min" until that was timed; budget the real number, because it is the gate the gene-layer redesign
+  runs at its stages 3 and 4 and planning two of them as a coffee break is how a stage stalls. The
+  cost is ~500 k ``api_genes_at`` calls per species, one per (genome, locus) pair — node is spawned
+  only twice per genome, so the subprocesses are not the bottleneck.
 
 ⛔ **Coverage is asserted BEFORE any difference is reported**, by every test, through one helper —
 genes compared of the database's own count, minus-strand genes, ρ > 1 copies, truncated flanks,

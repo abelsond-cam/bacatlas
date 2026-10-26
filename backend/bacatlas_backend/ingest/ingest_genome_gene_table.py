@@ -39,7 +39,7 @@ from bacatlas_backend.models.genome import Genome, GenomeAssembly, GenomeContig
 GENE_COLUMNS = (
     "genome_id", "flat_index", "pathogen_species_id", "contig_index",
     "start_position", "end_position", "length_nt", "strand", "strand_is_observed",
-    "gff_phase", "is_five_prime_partial", "gc_percent", "protein_length_aa",
+    "gff_phase", "is_five_prime_partial", "protein_length_aa",
     "bakta_gene_symbol", "bakta_product", "locus_tag",
 )
 
@@ -314,7 +314,6 @@ def _gene_rows(genome_id: int, species_id: int, alignment: GenomeAlignment, meta
             genome_id, gene.flat_index, species_id, gene.contig_index,
             gene.start_position, gene.end_position, gene.length_nt,
             gene.strand, True, gene.phase, gene.is_five_prime_partial,
-            gene.gc_percent,
             # ⚠ From the parquet's own protein string, not from `(end-start+1)/3 - 1`. That
             # arithmetic is a coordinate-convention CHECK and holds here only because `phase` is 0
             # on every CDS in this cohort; a non-zero phase breaks it and not the measurement.

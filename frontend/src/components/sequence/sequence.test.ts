@@ -38,7 +38,6 @@ function gene(overrides: Partial<GeneSequence> = {}): GeneSequence {
     upstream_flank_span: [1388, 1487],
     downstream_flank_span: [1977, 2076],
     gc_percent: 46.4,
-    stored_gc_percent: 46.4,
     ...overrides,
   };
 }

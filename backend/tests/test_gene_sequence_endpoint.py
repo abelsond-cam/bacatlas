@@ -147,9 +147,15 @@ def _dataset_id(engine, sample_id: str) -> str:
 def test_the_sliced_sequence_REPRODUCES_the_columns_ingest_wrote(engine, provider):
     """⭐ Two independent computations of the same thing, from the same coordinates.
 
-    `gc_percent` and `protein_length_aa` are columns written at ingest; the sequence here is sliced
-    live. They are computed by different code at different times, so agreeing is evidence — and a
-    disagreement would mean the coordinate convention moved under one of them.
+    `protein_length_aa` is a column written at ingest; the sequence here is sliced live. They are
+    computed by different code at different times, so agreeing is evidence — and a disagreement
+    would mean the coordinate convention moved under one of them.
+
+    ⚠ **This test used to compare GC the same way and no longer can.** `stored_gc_percent` was
+    dropped 2026-10-26 with its column, and that comparison is what confirmed AllTheBacteria
+    streaming was byte-correct (44.968553 from streamed bases, 44.968553 stored). What survives is
+    stronger and needs no column: T6 compares the page's own `gcPct` over the page's own decoded
+    bases against this path's computed value, so neither side reads the database.
     """
     checked = 0
     with Session(engine) as session:
@@ -175,7 +181,6 @@ def test_the_sliced_sequence_REPRODUCES_the_columns_ingest_wrote(engine, provide
                 sample_id=sample_id,
                 sequence_provider=provider,
             ):
-                assert gene.sequence.gc_percent == pytest.approx(gene.stored_gc_percent, abs=1e-9)
                 assert len(gene.sequence.protein_sequence) == gene.stored_protein_length_aa
                 # ⚠ The span INCLUDES the stop codon, so the protein is `length/3 - 1` residues.
                 assert len(gene.sequence.coding_sequence) == gene.length_nt

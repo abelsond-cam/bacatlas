@@ -17,11 +17,12 @@ from bacatlas_backend.models.enumerations import PrevalenceBand, SampleIdentifie
 from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
+from tests.conftest import TEN_ZEROS
 
 GENE_COLUMNS = (
     "genome_id", "flat_index", "pathogen_species_id", "contig_index",
     "start_position", "end_position", "length_nt", "strand", "strand_is_observed",
-    "gff_phase", "is_five_prime_partial", "gc_percent",
+    "gff_phase", "is_five_prime_partial",
 )
 
 
@@ -30,7 +31,6 @@ def _gene_row(genome_id, species_id, flat_index, **overrides):
         genome_id=genome_id, flat_index=flat_index, pathogen_species_id=species_id,
         contig_index=0, start_position=1, end_position=300, length_nt=300,
         strand="+", strand_is_observed=True, gff_phase=0, is_five_prime_partial=False,
-        gc_percent=51.5,
     )
     row.update(overrides)
     return tuple(row[name] for name in GENE_COLUMNS)
@@ -56,16 +56,31 @@ def test_it_copies_rows_and_reports_what_it_wrote(session, _seed_ids, clean_gene
     assert session.execute(select(func.count()).select_from(Gene)).scalar_one() == 1_000
 
 
-def test_a_nan_measurement_becomes_null_and_never_reaches_the_check(session, _seed_ids, clean_genes):
-    """⚠ Postgres defines `NaN = NaN` as TRUE, so a NaN that got in is indistinguishable from data."""
+def test_a_nan_measurement_becomes_null_and_never_reaches_the_check(session, _seed_ids):
+    """⚠ Postgres defines `NaN = NaN` as TRUE, so a NaN that got in is indistinguishable from data.
+
+    ⚠ **This test moved from `gene.gc_percent` to `locus.interest_score` on 2026-10-26**, because
+    dropping that column left `gene` with no `measurement()` column and therefore no `nan_guards`.
+    The subject is the coercion, not the table — but it has to run against a column that really
+    carries the CHECK, or it proves nothing about either.
+    """
+    session.execute(Locus.__table__.delete())
     copy_rows(
-        session, Gene.__table__, GENE_COLUMNS,
-        [_gene_row(_seed_ids["genome"], _seed_ids["species"], 0, gc_percent=math.nan)],
+        session, Locus.__table__,
+        ("pangenome_id", "pathogen_species_id", "node_label", "catalogue_ordinal",
+         "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
+         "display_name_source", "named_member_count", "context_observed_member_counts",
+         "total_arrangement_count", "arrangement_member_gene_count",
+         "arrangement_member_genome_count", "interest_score"),
+        [(_seed_ids["pangenome"], _seed_ids["species"], "0", 0, 99, 97,
+          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97, math.nan)],
     )
     session.commit()
 
-    stored = session.execute(select(Gene.gc_percent)).scalar_one()
+    stored = session.execute(select(Locus.interest_score)).scalar_one()
     assert stored is None
+    session.execute(Locus.__table__.delete())
+    session.commit()
 
 
 def test_an_enum_is_written_by_name_not_by_value(session, _seed_ids):
@@ -115,12 +130,34 @@ def test_a_numpy_scalar_is_adapted(session, _seed_ids, clean_genes):
     copy_rows(
         session, Gene.__table__, GENE_COLUMNS,
         [_gene_row(_seed_ids["genome"], _seed_ids["species"], numpy.int64(7),
-                   start_position=numpy.int32(11), gc_percent=numpy.float32(48.25))],
+                   start_position=numpy.int32(11))],
     )
     session.commit()
 
     row = session.execute(select(Gene.flat_index, Gene.start_position)).one()
     assert row == (7, 11)
+
+
+def test_a_numpy_float_is_adapted_on_a_measurement_column(session, _seed_ids):
+    """⚠ The float half of the numpy coercion, which left `gene` with `gc_percent`."""
+    numpy = pytest.importorskip("numpy")
+    session.execute(Locus.__table__.delete())
+    copy_rows(
+        session, Locus.__table__,
+        ("pangenome_id", "pathogen_species_id", "node_label", "catalogue_ordinal",
+         "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
+         "display_name_source", "named_member_count", "context_observed_member_counts",
+         "total_arrangement_count", "arrangement_member_gene_count",
+         "arrangement_member_genome_count", "interest_score"),
+        [(_seed_ids["pangenome"], _seed_ids["species"], "0", 0, 99, 97,
+          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97,
+          numpy.float32(48.25))],
+    )
+    session.commit()
+
+    assert session.execute(select(Locus.interest_score)).scalar_one() == pytest.approx(48.25)
+    session.execute(Locus.__table__.delete())
+    session.commit()
 
 
 def test_a_mis_named_column_is_refused_before_a_row_is_sent(session, _seed_ids):
