@@ -26,7 +26,7 @@ import math
 from collections.abc import Iterable, Iterator, Sequence
 from typing import Any
 
-from sqlalchemy import Table, delete
+from sqlalchemy import LargeBinary, Table, delete
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.sql_cost_oracle import record_driver_statement
@@ -66,6 +66,32 @@ def coerce_value(value: Any) -> Any:
     if value is not value:  # pandas NaT / NA compare unequal to themselves
         return None
     return value
+
+
+def _refuse_text_in_a_binary_column(
+    table: Table, columns: Sequence[str], binary_positions: Sequence[int], row: Sequence[Any]
+) -> None:
+    r"""⛔ A `str` handed to a `bytea` column is reinterpreted, not stored. Measured 2026-10-26.
+
+    `coerce_value` passes a `str` straight through, psycopg dumps it as text, and bytea's input
+    function then reads it as an escaped literal: 34 characters of ``\x4141…`` become **16 bytes**,
+    a legal block length, so the column's own CHECK is satisfied and nothing raises. That is the
+    exact failure mode `copy_rows`' docstring rejects the binary path for — *"fails silently by
+    writing a plausible wrong value"* — reached through the text path instead.
+
+    ⚠ **Checked on the FIRST row only, deliberately.** This is a programming error, uniform across
+    rows by construction, and the gene layer will push 380 M rows through here at 72,801 genomes;
+    a per-row `isinstance` on that is a cost with no new information after the first row.
+    """
+    for position in binary_positions:
+        value = row[position]
+        if isinstance(value, str):
+            raise TypeError(
+                f"{table.name}.{columns[position]} is a bytea column and was given a str "
+                f"({value[:24]!r}…). Pass `bytes`: a str is reinterpreted by bytea's input "
+                "function, so it is stored as DIFFERENT bytes at a plausible length and no "
+                "constraint can see it."
+            )
 
 
 def _batched(rows: Iterable[Sequence[Any]], size: int) -> Iterator[list[Sequence[Any]]]:
@@ -111,11 +137,20 @@ def copy_rows(
     # which means SQLAlchemy's `after_cursor_execute` never fires for it. The cost oracle would
     # therefore score a 5,000-row load as zero statements, so this path REPORTS ITSELF. See
     # `instruments/sql_cost_oracle.py` — the blind spot is named there, not left to be found.
+    # Which of `columns` are bytea, resolved once so the first-row check costs one tuple walk.
+    binary_positions = tuple(
+        index for index, name in enumerate(columns) if isinstance(table.c[name].type, LargeBinary)
+    )
+
     driver_connection = session.connection().connection.driver_connection
     written = 0
+    first_row_checked = False
     with driver_connection.cursor() as cursor, cursor.copy(statement) as copy:
         for batch in _batched(rows, batch_rows):
             for row in batch:
+                if binary_positions and not first_row_checked:
+                    _refuse_text_in_a_binary_column(table, columns, binary_positions, row)
+                    first_row_checked = True
                 copy.write_row(tuple(coerce_value(value) for value in row))
             written += len(batch)
     record_driver_statement("copy", statement, written)
