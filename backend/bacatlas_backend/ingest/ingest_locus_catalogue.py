@@ -471,9 +471,7 @@ def ingest_locus_catalogue(
     report.offset_occupants = _load_offset_occupants(
         session, frames, pangenome_id, locus_id_by_label, locus_id_by_ordinal
     )
-    memberships, without_window = _load_gene_memberships(
-        session, frames, pangenome_id, locus_id_by_label, arrangement_ids
-    )
+    memberships, without_window = _load_gene_memberships(session, frames, pangenome_id, locus_id_by_label)
     report.gene_memberships, report.genes_without_a_window = memberships, without_window
     # ⭐ AFTER both the arrangements and the memberships: it counts the rows just written, so the
     # picker's "N loci" and the locus view cannot describe two different catalogues.
@@ -627,7 +625,11 @@ def _load_uniref_crosstab(session, frames, locus_id_by_label) -> int:
 def _load_arrangements(
     session, frames, pangenome_id, locus_id_by_label, genome_id_by_ordinal
 ) -> dict:
-    """The joint view. Returns `{(node, rank): locus_arrangement_id}` for the per-gene link.
+    """The joint view. Returns `{(node, rank): locus_arrangement_id}`, now only for its count.
+
+    ⚠ The mapping's per-gene consumer is gone — `gene_locus_membership.locus_arrangement_id` was
+    dropped 2026-10-26 — so the only caller uses `len()` of this to report how many arrangements
+    were written.
 
     ⛔ `member_genome_ids` is resolved from the collection ORDINAL to `genome_id` here, so nothing
     downstream ever holds a positional index that a re-export would renumber.
@@ -708,14 +710,14 @@ def _load_offset_occupants(
     return copy_rows(session, LocusOffsetOccupant.__table__, columns, rows())
 
 
-def _load_gene_memberships(
-    session, frames, pangenome_id, locus_id_by_label, arrangement_ids
-) -> tuple[int, int]:
-    """One row per gene, with the arrangement it realises — `(written, without a window)`.
+def _load_gene_memberships(session, frames, pangenome_id, locus_id_by_label) -> tuple[int, int]:
+    """One row per gene — `(written, without a window)`.
 
-    ⚠ **A gene with no window gets a row with a NULL arrangement, not no row.** *"This genome has no
-    gene at this locus"* and *"this genome has a gene here with no recorded neighbourhood"* are
-    different sentences on the page, and only a row can carry the second.
+    ⚠ **A gene with no window still gets a row.** *"This genome has no gene at this locus"* and
+    *"this genome has a gene here with no recorded neighbourhood"* are different sentences on the
+    page, and only a row can carry the second. ⭐ The second is counted here from the frame's own
+    `arrangement_rank`, which is why dropping `locus_arrangement_id` did not cost the distinction:
+    the column was never what carried it to anybody.
     """
     memberships = frames.gene_memberships
     if memberships is None or not len(memberships):
@@ -729,7 +731,7 @@ def _load_gene_memberships(
             "silently drop that genome's genes from every locus it is in."
         )
 
-    columns = ("pangenome_id", "genome_id", "flat_index", "locus_id", "locus_arrangement_id")
+    columns = ("pangenome_id", "genome_id", "flat_index", "locus_id")
     without_window = 0
 
     def rows():
@@ -744,7 +746,6 @@ def _load_gene_memberships(
                 genome_id_by_sample[str(row.sample_id)],
                 int(row.flat_index),
                 locus_id_by_label[str(row.node)],
-                None if missing else arrangement_ids.get((str(row.node), int(rank))),
             )
 
     written = copy_rows(session, GeneLocusMembership.__table__, columns, rows())

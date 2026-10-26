@@ -4,7 +4,14 @@
 ten-slot vector carried together. The marginal view reduces each offset independently, and where a
 locus occurs in more than one arrangement *"the marginal describes none of them, and read
 left-to-right it is a gene order nothing has."* The page draws the TRACK from here and the BAR under
-each block from there. The per-gene link is `gene_locus_membership.locus_arrangement_id`.
+each block from there.
+
+⚠ **There is no per-gene link any more.** `gene_locus_membership.locus_arrangement_id` carried one
+and was dropped 2026-10-26, measured unread by every query, serialiser and test. Which genomes an
+arrangement holds is `member_genome_ids` here; which genes had no recorded neighbourhood is counted
+at ingest from the frame's own `arrangement_rank`. The per-gene rank returns as
+`genome_locus_assignment.gene_arrangement_ranks` — see
+`nuna/docs/design/storing_the_gene_layer.md`.
 """
 
 from __future__ import annotations

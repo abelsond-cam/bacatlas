@@ -149,14 +149,17 @@ class GeneLocusMembership(Base):
     __tablename__ = "gene_locus_membership"
     __table_args__ = (
         Index("ix_gene_locus_membership__locus_id", "locus_id"),
-        # ⛔⛔ **AN UNINDEXED FOREIGN KEY ON THIS TABLE IS NOT A TUNING QUESTION.** Both of the two
-        # below were missing, and the first turned a routine re-ingest into an unbounded stall:
-        # deleting the pangenome's 70,519 arrangements made Postgres run one sequential scan of
-        # 486,794 membership rows PER ARRANGEMENT to satisfy `ON DELETE SET NULL`. Measured: the
-        # first load took 49 s into empty tables; the second sat in
-        # `DELETE FROM locus_arrangement` for over 8 minutes and had to be killed. At 80,000
-        # genomes this table is ~412 M rows and 49 M arrangements.
-        Index("ix_gene_locus_membership__locus_arrangement_id", "locus_arrangement_id"),
+        # ⛔⛔ **AN UNINDEXED FOREIGN KEY ON THIS TABLE IS NOT A TUNING QUESTION**, and the history is
+        # kept here because the lesson outlives the column that taught it. A `locus_arrangement_id`
+        # FK once sat on this table with no index, and deleting the pangenome's 70,519 arrangements
+        # made Postgres run one sequential scan of 486,794 membership rows PER ARRANGEMENT to satisfy
+        # `ON DELETE SET NULL`: the first load took 49 s into empty tables, the second sat in
+        # `DELETE FROM locus_arrangement` for over 8 minutes and had to be killed. At 80,000 genomes
+        # this table is ~412 M rows and 49 M arrangements.
+        # ⭐ **That column and its FK are now GONE** (2026-10-26), so the stall is structurally
+        # impossible rather than index-mitigated — and the index that mitigated it, which carried
+        # 1,040,201 scans of pure FK maintenance and 45 MB, went with it. Any new FK added here needs
+        # its own index in the same commit.
         # ⚠ `genome_id` FIRST, deliberately. The FK to `genome` is `ON DELETE CASCADE`, and a
         # composite index can only serve it from the LEADING column — `(pangenome_id, genome_id)`
         # could not, so deleting one genome scanned the whole table. Nothing is lost by the swap:
@@ -176,17 +179,19 @@ class GeneLocusMembership(Base):
 
     locus_id: Mapped[int] = mapped_column(ForeignKey("locus.locus_id", ondelete="CASCADE"), nullable=False)
 
-    #: ⭐ Which ±5 arrangement this individual gene realises. This is the per-gene link the joint
-    #: view does not have, and it is what keeps the `member_genome_ids` array honest: both are
-    #: written in the same pass, so the array and the rows cannot disagree.
-    #: ⚠ NULL where the gene's neighbourhood was not recorded at all — which is a different fact
-    #: from "the genome has no gene here", and the page says so in different words.
-    locus_arrangement_id: Mapped[int | None] = mapped_column(
-        ForeignKey("locus_arrangement.locus_arrangement_id", ondelete="SET NULL"), nullable=True
-    )
-
-    #: Nullable by contract — §7.5 allows it.
-    is_representative: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    # ⛔ **`locus_arrangement_id` and `is_representative` were DROPPED 2026-10-26**, and neither is
+    # coming back here. Measured before removing them: neither column was SELECTed by any query, any
+    # serialiser or any test — `locus_arrangement_id` was written by `_load_gene_memberships` and
+    # read by nothing, and `is_representative` existed only as this declaration. The docstring that
+    # justified the first claimed it "keeps the `member_genome_ids` array honest", but nothing
+    # enforced that: no test compared the two, so the honesty was an intention rather than a check.
+    #
+    # ⚠ The fact the first column carried — *"this genome has a gene here with no recorded
+    # neighbourhood"*, which is a different sentence from *"this genome has no gene here"* — is
+    # still available: `genes_without_a_window` is counted at ingest from the frame's own
+    # `arrangement_rank`, not from this column, and `gene_arrangement_ranks` in
+    # `genome_locus_assignment` carries it per gene once that table lands.
+    # Design of record: `nuna/docs/design/storing_the_gene_layer.md`.
 
 
 class GenomeNoncodingFeature(Base):

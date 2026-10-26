@@ -305,15 +305,18 @@ def small_catalogue(session, seeded):
     ]
     session.add_all(arrangements)
     session.flush()
+    # ⚠ No arrangement is paired with a gene here. `arrangement_locus_count` is counted from
+    # `locus_arrangement.member_genome_ids` above, never from a per-gene link — which is why
+    # dropping `gene_locus_membership.locus_arrangement_id` left this fixture's subject intact.
     genes = [
-        # (genome, flat_index, locus, arrangement)
-        (a, 0, loci[0], arrangements[0]),
-        (a, 1, loci[0], arrangements[1]),
-        (a, 2, loci[1], arrangements[2]),
-        (b, 0, loci[0], arrangements[0]),
-        (b, 1, loci[1], None),
+        # (genome, flat_index, locus)
+        (a, 0, loci[0]),
+        (a, 1, loci[0]),
+        (a, 2, loci[1]),
+        (b, 0, loci[0]),
+        (b, 1, loci[1]),
     ]
-    for genome_id, flat_index, _locus, _arrangement in genes:
+    for genome_id, flat_index, _locus in genes:
         session.add(
             Gene(
                 genome_id=genome_id, flat_index=flat_index, pathogen_species_id=species_id,
@@ -322,12 +325,11 @@ def small_catalogue(session, seeded):
             )
         )
     session.flush()
-    for genome_id, flat_index, locus, arrangement in genes:
+    for genome_id, flat_index, locus in genes:
         session.add(
             GeneLocusMembership(
                 pangenome_id=pangenome.pangenome_id, genome_id=genome_id, flat_index=flat_index,
                 locus_id=locus.locus_id,
-                locus_arrangement_id=arrangement.locus_arrangement_id if arrangement else None,
             )
         )
     session.flush()
