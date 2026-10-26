@@ -40,6 +40,9 @@ from bacatlas_backend.models.pangenome import (  # noqa: F401
 from bacatlas_backend.models.pangenome_genome_locus_count import (  # noqa: F401
     PangenomeGenomeLocusCount,
 )
+from bacatlas_backend.models.pangenome_propagation_rate import (  # noqa: F401
+    PangenomePropagationRate,
+)
 from bacatlas_backend.models.pathogen_species import PathogenSpecies  # noqa: F401
 from bacatlas_backend.models.projected_genome import (  # noqa: F401
     ProjectedGenePlacement,

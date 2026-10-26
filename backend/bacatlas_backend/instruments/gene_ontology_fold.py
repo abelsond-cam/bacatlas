@@ -32,6 +32,7 @@ has an empty claim set. A caller must drop it from the comparison, never score i
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
@@ -64,6 +65,32 @@ class GeneOntologyFold:
     #: GO id → its name. ⚠ For DISPLAY only. `GO:0005886` is not a suggestion a reader can act on;
     #: *plasma membrane* is. Empty where no reference is loaded, and the caller then shows the id.
     name_of: dict[str, str] = field(default_factory=dict)
+
+    def version(self) -> str:
+        """A digest naming **this** fold, so a stored verdict can be refused when the slim moves.
+
+        ⛔ **Three maps go in and the fourth does not.** `slim_of`, `ancestors` and `namespace_of`
+        are what `claims` reads, so a change to any of them moves a verdict. `name_of` is display
+        only — folding it in would make a corrected GO *label* invalidate every stored verdict in the
+        database and force a re-ingest that changes no number.
+
+        ⚠ **An empty fold gets its own version, not a NULL and not the same string.** A deployment
+        that never ran `ingest --stage reference` genuinely compares differently — `go_rung` pools
+        all three facets into the first — so *"no reference loaded"* must be as detectable as a
+        different reference, which it is not if both read as absent.
+
+        The sizes are in the clear so the string is legible to a human reading a row:
+        `go:38092:111:<16 hex>`.
+        """
+        digest = hashlib.sha256()
+        for label, mapping in (("slim_of", self.slim_of), ("ancestors", self.ancestors)):
+            digest.update(f"{label}\n".encode())
+            for key in sorted(mapping):
+                digest.update(f"{key}={','.join(sorted(mapping[key]))}\n".encode())
+        digest.update(b"namespace_of\n")
+        for key in sorted(self.namespace_of):
+            digest.update(f"{key}={self.namespace_of[key]}\n".encode())
+        return f"go:{len(self.slim_of)}:{len(self.ancestors)}:{digest.hexdigest()[:16]}"
 
     def claims(self, terms: Iterable[str]) -> frozenset[str]:
         """Raw or slim GO terms → the closed, root-free set of slim classes they claim.

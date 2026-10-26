@@ -27,11 +27,13 @@ from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.catalogue_frames import (
     OFFSETS,
     SIMILARITY_COLUMNS,
+    CatalogueFrameError,
     CatalogueFrames,
     build_catalogue_frames,
     load_pfam_name_table,
 )
 from bacatlas_backend.ingest.derive_locus_display import best_product, display_name, search_text
+from bacatlas_backend.ingest.derive_locus_propagation import PROPAGATION_VOCABULARIES
 from bacatlas_backend.ingest.derive_locus_ranking import (
     build_interest_inputs,
     interest_score,
@@ -41,12 +43,15 @@ from bacatlas_backend.ingest.derive_locus_ranking import (
     similarity_index,
 )
 from bacatlas_backend.ingest.ingest_genome_locus_counts import write_genome_locus_counts
+from bacatlas_backend.ingest.ingest_propagation_rates import write_propagation_rates
 from bacatlas_backend.ingest.staging_table_loader import copy_rows
 from bacatlas_backend.models.enumerations import (
+    GENE_ONTOLOGY_NAMESPACE_NAMES,
     AnnotationKind,
     EmbeddingRepresentation,
     GeneOntologyAgreementVerdict,
     PrevalenceBand,
+    PropagationVerdict,
 )
 from bacatlas_backend.models.gene import GeneLocusMembership
 from bacatlas_backend.models.intergenic_gap import IntergenicGap, IntergenicGapFeature
@@ -61,7 +66,9 @@ from bacatlas_backend.models.locus_similarity import (
 )
 from bacatlas_backend.models.pangenome import Pangenome
 from bacatlas_backend.models.pangenome_genome_locus_count import PangenomeGenomeLocusCount
+from bacatlas_backend.models.pangenome_propagation_rate import PangenomePropagationRate
 from bacatlas_backend.models.projected_genome import ProjectedGenome
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
 #: `catalogue_map._COS` — the factor the 15 upper-triangle cosines are stored at.
 COSINE_SCALE_FACTOR = 10_000
@@ -84,6 +91,7 @@ class CatalogueLoadReport:
     gene_memberships: int = 0
     genes_without_a_window: int = 0
     genome_locus_counts: int = 0
+    propagation_rates: int = 0
     intergenic_gaps: int = 0
     intergenic_gap_features: int = 0
     similarity_baselines: int = 0
@@ -108,6 +116,10 @@ class CatalogueLoadReport:
             f"  gene memberships        {self.gene_memberships:,}"
             + (f"  ({self.genes_without_a_window:,} with no window)" if self.genes_without_a_window else ""),
             f"  genome locus counts     {self.genome_locus_counts:,} genomes",
+            # ⚠ The denominator is printed with it: a vocabulary that was never measured writes no
+            # rows at all, and a bare count gives a reader nothing to notice that against.
+            f"  propagation rates       {self.propagation_rates:,} rows of "
+            f"{len(PROPAGATION_VOCABULARIES) * len(PREVALENCE_BAND_ORDER)} (4 vocabularies x 5 bands)",
             f"  intergenic gaps         {self.intergenic_gaps:,} "
             f"({self.intergenic_gap_features:,} named features)",
             f"  similarity baselines    {self.similarity_baselines} "
@@ -279,6 +291,14 @@ LOCUS_COLUMNS = (
     "go_verdict_molecular_function",
     "go_verdict_biological_process",
     "go_verdict_cellular_component",
+    "go_annotated_member_count_any",
+    "go_claiming_member_count_molecular_function",
+    "go_claiming_member_count_biological_process",
+    "go_claiming_member_count_cellular_component",
+    "propagation_verdict_cog",
+    "propagation_verdict_ec",
+    "propagation_verdict_kegg",
+    "propagation_verdict_go",
     "median_gene_length_nt",
     "gene_length_interquartile_range_nt",
     "context_observed_member_counts",
@@ -304,57 +324,82 @@ def _locus_rows(
     spelling of a key the schema already has.
     """
     loci = frames.loci
+    # ⛔ **Built BY NAME and projected through `LOCUS_COLUMNS`, never as a positional tuple.**
+    # `copy_rows` validates that every name exists on the table (`staging_table_loader.py:125`) and
+    # nothing validates arity or order, so a value inserted at the wrong index shifts every later
+    # column one place left. Half of these are nullable integers, so the shift loads cleanly and
+    # produces rollups that are plausible and wrong — `go_claiming_member_count_molecular_function`
+    # and `_biological_process` would simply swap. The dict below cannot express that error, and the
+    # key-set assertion is checked ONCE rather than per locus.
     for index in range(len(loci)):
         row = loci.iloc[index]
-        yield (
-            pangenome_id,
-            species_id,
-            str(row["node"]),
-            int(row["catalogue_ordinal"]),
-            int(row["member_gene_count"]),
-            int(row["member_genome_count"]),
-            PrevalenceBand(str(row["prevalence_band"])),
-            derived["display_name"][index],
-            derived["display_name_source"][index],
-            derived["display_name_source_accession"][index],
-            derived["best_product"][index],
-            _clean(row["bakta_gene_symbol"]),
-            int(row["named_member_count"]),
-            _int_or_none(row["uniref50_family_count"]),
-            _int_or_none(row["uniref50_major_family_count"]),
-            _int_or_none(row["uniref50_labelled_member_count"]),
-            _int_or_none(row["pfam_annotated_member_count"]),
-            _int_or_none(row["pfam_architecture_count"]),
-            _clean(row["pfam_concordance_class"]),
-            _clean(row["syntenic_a5"]),
-            _clean(row["collapse_tier"]),
-            _clean(row["collapse_bucket"]),
-            _clean(row["resolved_threshold"]),
-            _clean(row["seqid_coverage"]),
-            _clean(row["uniref50_impurity"]),
-            _clean(row["uniref50_coverage"]),
-            genome_id_by_sample.get(str(_clean(row["medoid_sample_id"]) or "")),
-            _int_or_none(row["medoid_flat_index"]),
-            _int_or_none(row["cog_annotated_member_count"]),
-            _int_or_none(row["cog_distinct_id_count"]),
-            _cog_categories(row["modal_cog_category"]),
-            _int_or_none(row["ec_annotated_member_count"]),
-            _int_or_none(row["kegg_annotated_member_count"]),
-            _int_or_none(row["go_annotated_member_count_molecular_function"]),
-            _int_or_none(row["go_annotated_member_count_biological_process"]),
-            _int_or_none(row["go_annotated_member_count_cellular_component"]),
-            _verdict(row["go_verdict_molecular_function"]),
-            _verdict(row["go_verdict_biological_process"]),
-            _verdict(row["go_verdict_cellular_component"]),
-            _int_or_none(row["median_gene_length_nt"]),
-            _int_or_none(row["gene_length_interquartile_range_nt"]),
-            list(row["context_observed_member_counts"]),
-            int(row["total_arrangement_count"]),
-            int(row["arrangement_member_gene_count"]),
-            int(row["arrangement_member_genome_count"]),
-            derived["interest_score"][index],
-            derived["search_text"][index],
-        )
+        values = {
+            "pangenome_id": pangenome_id,
+            "pathogen_species_id": species_id,
+            "node_label": str(row["node"]),
+            "catalogue_ordinal": int(row["catalogue_ordinal"]),
+            "member_gene_count": int(row["member_gene_count"]),
+            "member_genome_count": int(row["member_genome_count"]),
+            "prevalence_band": PrevalenceBand(str(row["prevalence_band"])),
+            "display_name": derived["display_name"][index],
+            "display_name_source": derived["display_name_source"][index],
+            "display_name_source_accession": derived["display_name_source_accession"][index],
+            "best_product": derived["best_product"][index],
+            "bakta_gene_symbol": _clean(row["bakta_gene_symbol"]),
+            "named_member_count": int(row["named_member_count"]),
+            "uniref50_family_count": _int_or_none(row["uniref50_family_count"]),
+            "uniref50_major_family_count": _int_or_none(row["uniref50_major_family_count"]),
+            "uniref50_labelled_member_count": _int_or_none(row["uniref50_labelled_member_count"]),
+            "pfam_annotated_member_count": _int_or_none(row["pfam_annotated_member_count"]),
+            "pfam_architecture_count": _int_or_none(row["pfam_architecture_count"]),
+            "pfam_concordance_class": _clean(row["pfam_concordance_class"]),
+            "syntenic_a5": _clean(row["syntenic_a5"]),
+            "collapse_tier": _clean(row["collapse_tier"]),
+            "collapse_bucket": _clean(row["collapse_bucket"]),
+            "resolved_threshold": _clean(row["resolved_threshold"]),
+            "seqid_coverage": _clean(row["seqid_coverage"]),
+            "uniref50_impurity": _clean(row["uniref50_impurity"]),
+            "uniref50_coverage": _clean(row["uniref50_coverage"]),
+            "medoid_genome_id": genome_id_by_sample.get(str(_clean(row["medoid_sample_id"]) or "")),
+            "medoid_flat_index": _int_or_none(row["medoid_flat_index"]),
+            "cog_annotated_member_count": _int_or_none(row["cog_annotated_member_count"]),
+            "cog_distinct_id_count": _int_or_none(row["cog_distinct_id_count"]),
+            "modal_cog_categories": _cog_categories(row["modal_cog_category"]),
+            "ec_annotated_member_count": _int_or_none(row["ec_annotated_member_count"]),
+            "kegg_annotated_member_count": _int_or_none(row["kegg_annotated_member_count"]),
+            "go_annotated_member_count_any": _int_or_none(row["go_annotated_member_count_any"]),
+            "propagation_verdict_cog": _propagation(row["propagation_verdict_cog"]),
+            "propagation_verdict_ec": _propagation(row["propagation_verdict_ec"]),
+            "propagation_verdict_kegg": _propagation(row["propagation_verdict_kegg"]),
+            "propagation_verdict_go": _propagation(row["propagation_verdict_go"]),
+            "median_gene_length_nt": _int_or_none(row["median_gene_length_nt"]),
+            "gene_length_interquartile_range_nt": _int_or_none(row["gene_length_interquartile_range_nt"]),
+            "context_observed_member_counts": list(row["context_observed_member_counts"]),
+            "total_arrangement_count": int(row["total_arrangement_count"]),
+            "arrangement_member_gene_count": int(row["arrangement_member_gene_count"]),
+            "arrangement_member_genome_count": int(row["arrangement_member_genome_count"]),
+            "interest_score": derived["interest_score"][index],
+            "search_text": derived["search_text"][index],
+        }
+        # ⚠ Nine columns are `<prefix>_{molecular_function,biological_process,cellular_component}`
+        # and they are written by LOOP rather than by hand. Three near-identical lines per prefix is
+        # where a copy-paste files a biological process under cellular component — both nullable
+        # integers, so Postgres accepts it and the rollup is plausible and wrong.
+        for namespace in GENE_ONTOLOGY_NAMESPACE_NAMES:
+            values[f"go_annotated_member_count_{namespace}"] = _int_or_none(
+                row[f"go_annotated_member_count_{namespace}"]
+            )
+            values[f"go_claiming_member_count_{namespace}"] = _int_or_none(
+                row[f"go_claiming_member_count_{namespace}"]
+            )
+            values[f"go_verdict_{namespace}"] = _verdict(row[f"go_verdict_{namespace}"])
+        if index == 0 and set(values) != set(LOCUS_COLUMNS):
+            raise CatalogueFrameError(
+                "the locus row builder and LOCUS_COLUMNS disagree: "
+                f"only in the row {sorted(set(values) - set(LOCUS_COLUMNS))}, "
+                f"only in the column list {sorted(set(LOCUS_COLUMNS) - set(values))}"
+            )
+        yield tuple(values[name] for name in LOCUS_COLUMNS)
 
 
 def _cog_categories(value) -> list[str] | None:
@@ -372,6 +417,26 @@ def _cog_categories(value) -> list[str] | None:
     return letters or None
 
 
+def _propagation(value) -> PropagationVerdict | None:
+    """A propagation verdict, or None where the vocabulary was never measured.
+
+    ⛔ **It REFUSES anything else rather than returning None.** `_verdict` one function down coerces
+    with `GeneOntologyAgreementVerdict(str(value))`, which raises on an unknown string — the right
+    behaviour, and the reason a near-copy here that swallowed the unknown case would be dangerous:
+    `locus.propagation_verdict_*` is nullable, so a coercer that returned None on everything it did
+    not recognise would write NULL for all 17,531 loci and no test would fail. NULL has a meaning
+    here (*this ingest never computed it*) and it must be reachable only on purpose.
+    """
+    if value is None or value != value:  # NaN compares unequal to itself
+        return None
+    if isinstance(value, PropagationVerdict):
+        return value
+    raise CatalogueFrameError(
+        f"a propagation verdict reached the loader as {type(value).__name__} {value!r}; "
+        "`derive_locus_propagation` yields PropagationVerdict or None and nothing else"
+    )
+
+
 def _verdict(value) -> GeneOntologyAgreementVerdict | None:
     """A GO agreement verdict, or None.
 
@@ -387,6 +452,7 @@ def _delete_pangenome_layer(session: Session, pangenome_id: int) -> None:
     """Every table scoped to this pangenome, in FK order. The blast radius is one catalogue."""
     for model, column in (
         (PangenomeGenomeLocusCount, PangenomeGenomeLocusCount.pangenome_id),
+        (PangenomePropagationRate, PangenomePropagationRate.pangenome_id),
         (GeneLocusMembership, GeneLocusMembership.pangenome_id),
         (IntergenicGapFeature, None),
         (IntergenicGap, IntergenicGap.pangenome_id),
@@ -434,7 +500,14 @@ def ingest_locus_catalogue(
     frames: CatalogueFrames | None = None,
 ) -> CatalogueLoadReport:
     """Load the whole pangenome layer for one catalogue. One transaction, one blast radius."""
-    frames = frames if frames is not None else build_catalogue_frames(artifacts)
+    # ⛔ The fold comes from `gene_ontology_term`, which is what `function_inference_service` reads,
+    # and NOT from nuna's `slim_of(go_reference())` that `catalogue_frames` already loads for
+    # `go_verdicts` — that mapping does no upward closure and strips no root. Two folds for one
+    # question is how a stored verdict and a served one disagree with nothing to say so.
+    annotation_fold = gene_ontology_fold(session)
+    frames = frames if frames is not None else build_catalogue_frames(
+        artifacts, annotation_fold=annotation_fold
+    )
     policy = _policy()
     derived = _derive_locus_columns(frames, load_pfam_name_table(), policy)
 
@@ -476,6 +549,15 @@ def ingest_locus_catalogue(
     # ⭐ AFTER both the arrangements and the memberships: it counts the rows just written, so the
     # picker's "N loci" and the locus view cannot describe two different catalogues.
     report.genome_locus_counts = write_genome_locus_counts(session, pangenome_id)
+    report.propagation_rates = write_propagation_rates(
+        session,
+        pangenome_id=pangenome_id,
+        bands=[str(band) for band in frames.loci["prevalence_band"]],
+        verdicts={
+            suffix: list(frames.loci[f"propagation_verdict_{suffix}"])
+            for suffix in PROPAGATION_VOCABULARIES
+        },
+    )
     report.intergenic_gaps, report.intergenic_gap_features = _load_intergenic_gaps(
         session, frames, pangenome_id, locus_id_by_label
     )
@@ -498,6 +580,11 @@ def ingest_locus_catalogue(
             example_locus_ids=[locus_id_by_ordinal[index] for index in examples],
             locus_count=report.loci,
             omitted_sections=frames.omitted or None,
+            # ⚠ Names the fold the GO-folded columns were computed under, and ONLY those: the three
+            # `go_annotated_member_count_*` beside them come from nuna's own vendored table read at
+            # frame-build time, so this string cannot certify their vintage. It governs
+            # `propagation_verdict_go` and `go_claiming_member_count_*`.
+            annotation_fold_version=annotation_fold.version(),
         )
     )
     session.flush()

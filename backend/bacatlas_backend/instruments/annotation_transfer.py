@@ -236,6 +236,23 @@ ANNOTATED_COUNT_PREDICATE: dict[AnnotationKind, str] = {
     kind: f"f.{column} is not null" for kind, column in GENE_VALUE_COLUMN.items()
 }
 
+#: ⭐ **The `locus` column holding the same count, so a request need not read a gene row for it.**
+#: The predicate above is now for the ORACLE — `tests/test_locus_annotation_rollups.py` recounts
+#: these columns against it, locus by locus, on every catalogue — and this is what the service reads.
+#:
+#: ⛔ **GO points at `_any` and not at the three namespace columns, which is the whole reason this
+#: mapping could not exist before.** Measured on `bacatlas_ingest` 2026-10-26: 351,559 ecoli genes
+#: carry a GO term while the three namespace columns sum to 808,043, so the sum over-counts by
+#: **2.30x** (kp 220,638 against 481,685, 2.18x). The other three columns were already exact —
+#: re-verified against the gene-grain recount on all four catalogues, **0 mismatching loci** of
+#: 17,531 / 15,670 / 18,300 / 16,314 — so GO was the only thing keeping the per-request join alive.
+LOCUS_ANNOTATED_COUNT_COLUMN: dict[AnnotationKind, str] = {
+    AnnotationKind.COG_ORTHOGROUP: "cog_annotated_member_count",
+    AnnotationKind.GENE_ONTOLOGY_SLIM: "go_annotated_member_count_any",
+    AnnotationKind.EC_NUMBER: "ec_annotated_member_count",
+    AnnotationKind.KEGG_ORTHOLOGY: "kegg_annotated_member_count",
+}
+
 
 def tier_for(cosine: float | None) -> str:
     """Which tier a neighbour's cosine falls in, or `NOT_CALLED`."""

@@ -29,8 +29,8 @@ from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.annotation_transfer import (
-    ANNOTATED_COUNT_PREDICATE,
     GENE_ONTOLOGY_FACETS,
+    LOCUS_ANNOTATED_COUNT_COLUMN,
     NOT_CALLED,
     SUPPORTED_KINDS,
     Calibration,
@@ -44,14 +44,12 @@ from bacatlas_backend.instruments.annotation_transfer import (
     tier_for,
 )
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
-from bacatlas_backend.instruments.within_node_propagation import (
-    PropagationRate,
-    compute_propagation,
-)
+from bacatlas_backend.instruments.within_node_propagation import PropagationRate
 from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation, PrevalenceBand
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
 from bacatlas_backend.models.locus_similarity import LocusNearestLocus
+from bacatlas_backend.models.pangenome_propagation_rate import PangenomePropagationRate
 from bacatlas_backend.services.reference_name_service import gene_ontology_fold, reference_names
 
 #: ⚠ A process-lifetime cache, legitimate only because this service is READ-ONLY and a catalogue
@@ -75,30 +73,38 @@ _PROPAGATION: dict[tuple[int, AnnotationKind], dict[str, PropagationRate]] = {}
 def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
     """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`.
 
-    One bounded statement over at most six loci (the focal node and its five neighbours) gives all
-    four axes on the same definition. ⚠ `ANNOTATED_COUNT_PREDICATE` lives in
-    `instruments/annotation_transfer.py` (moved 2026-10-04) because `within_node_propagation` needs
-    the same mapping and an instrument cannot import a service; it is derived there from
-    `GENE_VALUE_COLUMN`, so the column and the predicate are one fact in one place.
+    ⭐ **Four stored columns, read from the locus row.** This was a `GROUP BY` over
+    `gene_locus_membership` joined to `gene_functional_annotation` — bounded to six loci, so never a
+    catalogue scan, but still one row per member gene of six loci on every Function tab request. The
+    counts are identical: `LOCUS_ANNOTATED_COUNT_COLUMN` records the measurement, 0 mismatching loci
+    across all four catalogues, and GO's `_any` column is what made the fourth axis expressible.
+
+    ⚠ `ANNOTATED_COUNT_PREDICATE` has not gone and is not dead: it is what
+    `tests/test_locus_annotation_rollups.py` recounts these columns AGAINST, and what
+    `within_node_propagation` selects on. The predicate is now the oracle's and the column the
+    service's, which is the point — they are derived from one `GENE_VALUE_COLUMN` entry each, so they
+    cannot describe different populations.
     """
     if not locus_ids:
         return {}
     columns = ", ".join(
-        f"count(*) filter (where {predicate}) as {kind.name.lower()}"
-        for kind, predicate in ANNOTATED_COUNT_PREDICATE.items()
+        f"{column} as {kind.name.lower()}" for kind, column in LOCUS_ANNOTATED_COUNT_COLUMN.items()
     )
     rows = session.execute(
-        text(f"""
-            select m.locus_id, {columns}
-              from gene_locus_membership m
-              left join gene_functional_annotation f
-                     on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where m.locus_id = any(:locus_ids)
-             group by m.locus_id
-        """),
+        text(f"select locus_id, {columns} from locus where locus_id = any(:locus_ids)"),
         {"locus_ids": list(locus_ids)},
     ).all()
-    return {row.locus_id: {kind: getattr(row, kind.name.lower()) for kind in ANNOTATED_COUNT_PREDICATE} for row in rows}
+    # ⚠ `0` where the column is NULL — a catalogue ingested before `go_annotated_member_count_any`
+    # existed holds NULL, and `checkable` is a comparison against it. ⛔ That is a MEASURED-ZERO
+    # substitution and it is the one place in this file where NULL and 0 are deliberately conflated:
+    # the alternative is a `None` reaching `annotated >= 2` on the page. The gate that makes it safe
+    # is `test_locus_annotation_rollups`, which refuses a catalogue holding any NULL here.
+    return {
+        row.locus_id: {
+            kind: getattr(row, kind.name.lower()) or 0 for kind in LOCUS_ANNOTATED_COUNT_COLUMN
+        }
+        for row in rows
+    }
 
 
 def clear_calibration_cache() -> None:
@@ -109,6 +115,54 @@ def clear_calibration_cache() -> None:
 def clear_propagation_cache() -> None:
     """Drop every cached base rate. ⛔ Call between catalogues in tests, like its twin above."""
     _PROPAGATION.clear()
+
+
+def _stored_propagation(
+    session: Session, *, pangenome_id: int, annotation_kind: AnnotationKind
+) -> dict[str, PropagationRate]:
+    """One catalogue's band tally for one vocabulary, read from `pangenome_propagation_rate`.
+
+    ⭐⭐ **This is what the stage bought.** It used to be `within_node_propagation`'s
+    `compute_propagation`, a scan over **every annotated gene row of the catalogue** — measured at
+    0.22-1.94 s per (catalogue, vocabulary), so a cold *E. coli* Function tab paid ~5.8 s across the
+    four, and at the 80,000-genome design target the same scan is over ~412 M rows. It is now a
+    primary-key range read of at most five rows, and it is the LAST catalogue-wide read of
+    `gene_functional_annotation` in the serving path.
+
+    ⛔ **It still returns `PropagationRate` objects and not the stored numbers.** The table has no
+    `rate` column, by design: `PropagationRate.rate` returns `None` below `MIN_NODES = 30`, and
+    anything computing `unanimous / checkable` off these rows re-introduces the 0.0 that property
+    refuses — on RARE, which has zero checkable nodes in every catalogue measured. The floor, the
+    Wilson interval and the band's NAME→VALUE conversion all live on that dataclass, so the read
+    goes through it.
+
+    ⚠ The cache above keeps the same shape and the same justification it always had, but now holds
+    twenty rows rather than a measurement: the catalogue cannot change without a re-ingest and a
+    restart, which is the ground the `ETag: "{pangenome_id}"` already stands on.
+    """
+    rows = session.execute(
+        select(
+            PangenomePropagationRate.prevalence_band,
+            PangenomePropagationRate.checkable,
+            PangenomePropagationRate.unanimous,
+            PangenomePropagationRate.one_gene,
+        ).where(
+            PangenomePropagationRate.pangenome_id == pangenome_id,
+            PangenomePropagationRate.annotation_kind == annotation_kind,
+        )
+    ).all()
+    return {
+        band.name: PropagationRate(
+            annotation_kind=annotation_kind,
+            # ⚠ The enum's NAME, because that is the key `propagation_for` looks up and what
+            # `compute_propagation` used to return. `as_json` emits the VALUE; see there.
+            prevalence_band=band.name,
+            checkable=checkable,
+            unanimous=unanimous,
+            one_gene=one_gene,
+        )
+        for band, checkable, unanimous, one_gene in rows
+    }
 
 
 def propagation_for(
@@ -127,9 +181,7 @@ def propagation_for(
     """
     key = (pangenome_id, annotation_kind)
     if key not in _PROPAGATION:
-        _PROPAGATION[key] = compute_propagation(
-            session, pangenome_id=pangenome_id, annotation_kind=annotation_kind, fold=gene_ontology_fold(session)
-        )
+        _PROPAGATION[key] = _stored_propagation(session, pangenome_id=pangenome_id, annotation_kind=annotation_kind)
     measured = _PROPAGATION[key].get(prevalence_band.name)
     if measured is not None:
         return measured

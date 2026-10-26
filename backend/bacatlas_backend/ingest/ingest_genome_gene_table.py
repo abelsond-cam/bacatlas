@@ -95,7 +95,7 @@ def _sample_identifier_kind(sample_id: str) -> SampleIdentifierKind:
     )
 
 
-def _split_set_value(value) -> list[str] | None:
+def split_set_value(value) -> list[str] | None:
     """A comma-joined sorted-unique set → a list. ⛔ NULL stays NULL; `[]` is never manufactured.
 
     *Not annotated* and *annotated with nothing* are different claims, and the parquets contain no
@@ -119,8 +119,16 @@ def _split_cog_categories(value) -> list[str] | None:
     return list(text) if text else None
 
 
-def _scalar(value):
-    """A pandas cell → a Python scalar or None, without importing pandas into this signature."""
+def scalar_or_none(value):
+    """A pandas cell → a Python scalar or None, without importing pandas into this signature.
+
+    ⭐ **Public, with `split_set_value` above it, because these two DEFINE the stored shape of a
+    functional annotation value** — what `gene_functional_annotation` holds for one gene, from the
+    one parquet column it holds it from. `ingest/catalogue_frames.py` reads the same parquet through
+    nuna's annotation frame and must reach the same values, or a rollup computed there and a rate
+    measured over the gene rows differ by a parse rather than by a fact. One definition, two
+    callers.
+    """
     if value is None or value != value:
         return None
     return value
@@ -293,7 +301,7 @@ def _read_products(pandas, artifacts: CatalogueArtifacts, sample_id: str, meta):
     fallback = {
         int(row.flat_index): value
         for row in meta.itertuples(index=False)
-        if (value := _scalar(getattr(row, "gene_name", None))) and not LOCUS_TAG_SHAPE.fullmatch(str(value))
+        if (value := scalar_or_none(getattr(row, "gene_name", None))) and not LOCUS_TAG_SHAPE.fullmatch(str(value))
     }
     if not path.is_file():
         return {index: (symbol, None) for index, symbol in fallback.items()}
@@ -301,8 +309,8 @@ def _read_products(pandas, artifacts: CatalogueArtifacts, sample_id: str, meta):
     out = {}
     for row in frame.itertuples(index=False):
         index = int(row.flat_index)
-        symbol = _scalar(row.gene)
-        out[index] = (symbol if symbol is not None else fallback.get(index), _scalar(row.product))
+        symbol = scalar_or_none(row.gene)
+        out[index] = (symbol if symbol is not None else fallback.get(index), scalar_or_none(row.product))
     return out
 
 
@@ -355,9 +363,9 @@ def _functional_rows(genome_id: int, frame):
     for row in frame.itertuples(index=False):
         yield (
             genome_id, int(row.flat_index),
-            _scalar(row.uniref50), _scalar(row.kegg_ko),
-            _scalar(row.cog_id), _split_cog_categories(row.cog_cat),
-            _split_set_value(row.ec), _split_set_value(row.go),
+            scalar_or_none(row.uniref50), scalar_or_none(row.kegg_ko),
+            scalar_or_none(row.cog_id), _split_cog_categories(row.cog_cat),
+            split_set_value(row.ec), split_set_value(row.go),
         )
 
 
@@ -374,7 +382,7 @@ def _noncoding_rows(pandas, artifacts: CatalogueArtifacts, sample_id: str, genom
     for row in frame.itertuples(index=False):
         yield (
             genome_id, int(row.contig_idx), int(row.nc_index),
-            int(row.start), int(row.end), _scalar(row.strand),
-            str(row.ftype), _scalar(row.gene), _scalar(row.product),
-            bool(row.overlaps_cds) if _scalar(row.overlaps_cds) is not None else None,
+            int(row.start), int(row.end), scalar_or_none(row.strand),
+            str(row.ftype), scalar_or_none(row.gene), scalar_or_none(row.product),
+            bool(row.overlaps_cds) if scalar_or_none(row.overlaps_cds) is not None else None,
         )

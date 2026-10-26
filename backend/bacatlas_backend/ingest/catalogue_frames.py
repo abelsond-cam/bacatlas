@@ -29,6 +29,13 @@ from dataclasses import dataclass, field
 
 from bacatlas_backend.ingest.allele_variant_symbols import fold_symbol_column
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+from bacatlas_backend.ingest.derive_locus_propagation import (
+    PROPAGATION_VOCABULARIES,
+    go_claiming_counts,
+    propagation_verdicts,
+)
+from bacatlas_backend.ingest.ingest_genome_gene_table import scalar_or_none, split_set_value
+from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 
 #: The signed offsets, in display order. ⛔ `0` is absent — it is the focal gene.
 #: Asserted against `export_payload.OFFSETS` at load, because `locus_offset_occupant` has a CHECK
@@ -253,9 +260,62 @@ def _family_named_symbol_counts(annotation, pandas):
     )
 
 
+def _values_by_node(annotation, column, convert, node_keys):
+    """Node → one value per gene that CARRIES `column`, in the shape the database stores it.
+
+    ⛔ **Genes that do not carry it are DROPPED, not carried as `None`.**
+    `within_node_propagation.propagation_verdict` counts this list's length, and that length is the
+    `one_gene` population the whole propagation claim is about — a `None` per unannotated gene would
+    turn every node into a many-gene node and empty the `one_gene` column.
+
+    ⛔⛔ **It asserts its own coverage, because the failure is silent and total.** Node labels look
+    numeric and are not: read back through numpy a label can arrive as `2811` or `2811.0` while
+    `_locus_rows` writes `str(row["node"])`, and a key that does not match makes every locus
+    `no_coverage` — a full column of plausible measured zeros, no error anywhere. So the grouped gene
+    count is compared against the column's own non-null count and every key against the node set.
+    """
+    grouped: dict[str, list] = {}
+    grouped_genes = 0
+    for node, value in zip(annotation["node"].to_numpy(), annotation[column].to_numpy(), strict=True):
+        converted = convert(value)
+        if converted is None:
+            continue
+        grouped.setdefault(str(node), []).append(converted)
+        grouped_genes += 1
+    carried = int(annotation[column].notna().sum())
+    if grouped_genes != carried:
+        raise CatalogueFrameError(
+            f"`{column}` grouped {grouped_genes:,} genes but {carried:,} rows are non-null — the "
+            "parser and the frame disagree about what counts as carried"
+        )
+    unknown = set(grouped) - set(node_keys)
+    if unknown:
+        raise CatalogueFrameError(
+            f"`{column}` grouped {len(unknown):,} node keys that are in no locus row, e.g. "
+            f"{sorted(unknown)[:3]} — the node label was coerced on one side and not the other"
+        )
+    return grouped
+
+
 # ── the catalogue ──────────────────────────────────────────────────────────────────────────────
-def build_catalogue_frames(artifacts: CatalogueArtifacts) -> CatalogueFrames:
-    """Assemble every table of one catalogue. The only entry point; everything else is a helper."""
+def build_catalogue_frames(
+    artifacts: CatalogueArtifacts, *, annotation_fold: GeneOntologyFold | None = None
+) -> CatalogueFrames:
+    """Assemble every table of one catalogue. The only entry point; everything else is a helper.
+
+    ⭐ **`annotation_fold` arrives as plain dicts and not as a session**, so this stays testable without a
+    database while the GO-folded rollups are computed from the SAME reference the request path reads
+    — `reference_name_service.gene_ontology_fold`, over the `gene_ontology_term` rows.
+
+    ⛔⛔ **It is NOT nuna's `go_fold`, and the name says so after that cost a real defect.** This
+    function also builds `go_fold = slim_of(go_reference())` for `go_verdicts`, a plain dict that
+    does no upward closure and strips no namespace root. Written as a parameter called `go_fold` it
+    was SHADOWED by that local assignment, so the propagation verdict was computed with the unclosed
+    mapping — the `gumC` defect `instruments/gene_ontology_fold.py` exists to fix, under a column
+    whose name promises the opposite. Nothing but a type mismatch made it fail rather than compute a
+    plausible wrong answer. Two folds answer one question here; they must not share a name.
+    Absent a fold, the GO-folded columns are **NULL**.
+    """
     import numpy
     import pandas
     from nuna.eval.metrics.oversubscription import node_membership_profile
@@ -492,6 +552,47 @@ def build_catalogue_frames(artifacts: CatalogueArtifacts) -> CatalogueFrames:
         loci[f"go_annotated_member_count_{namespace}"] = (
             go_verdict_frame[f"n_go_{code}"].reindex(nodes).fillna(0).astype("int64").to_numpy()
         )
+
+    # ── propagation: does each node's own call agree with itself? ──────────────────────────────
+    # ⛔ Read from the SAME frame every rollup above reads, through the SAME two parsers the genome
+    # layer writes `gene_functional_annotation` with. Two readers of one parquet reaching one value
+    # is the requirement; `tests/test_locus_annotation_rollups.py` is what says whether they do.
+    annotation_measured = source["dbxrefs"] is not None
+    node_keys = [str(node) for node in nodes]
+    # ⚠ `ec` and `go` are comma-joined in the frame and ARRAYS in the database, so they are split to
+    # the stored shape; `cog_id` and `kegg_ko` are scalars in both. ⛔ `go` must be split and `ec`
+    # need not be — `ec_levels` re-joins its list with commas, so the round trip is a no-op there —
+    # but both go through the one splitter, because "this one happens not to need it" is how the
+    # other one ends up not getting it either.
+    carried_values = {
+        "cog": _values_by_node(annotation, "cog_id", scalar_or_none, node_keys),
+        "ec": _values_by_node(annotation, "ec", split_set_value, node_keys),
+        "kegg": _values_by_node(annotation, "kegg_ko", scalar_or_none, node_keys),
+        "go": _values_by_node(annotation, "go", split_set_value, node_keys),
+    }
+    for suffix, annotation_kind in PROPAGATION_VOCABULARIES.items():
+        loci[f"propagation_verdict_{suffix}"] = propagation_verdicts(
+            node_keys,
+            carried_values[suffix],
+            annotation_kind=annotation_kind,
+            fold=annotation_fold,
+            # ⚠ GO alone is withheld without a fold. The other three use none, so a deployment with
+            # no GO reference must not lose them.
+            measured=annotation_measured and (suffix != "go" or annotation_fold is not None),
+        )
+    # ⛔ Genes carrying ANY GO term — NOT the sum of the three namespace counts above, which
+    # double-counts every gene annotated in more than one. See `models/locus.py`, where the
+    # measured factor is recorded.
+    loci["go_annotated_member_count_any"] = (
+        annotation.groupby("node")["go"].count().reindex(nodes).fillna(0).astype("int64").to_numpy()
+        if annotation_measured
+        else None
+    )
+    claiming = go_claiming_counts(
+        node_keys, carried_values["go"], fold=annotation_fold if annotation_measured else None
+    )
+    for namespace, counts in claiming.items():
+        loci[f"go_claiming_member_count_{namespace}"] = counts
     loci["median_gene_length_nt"] = median_length.reindex(nodes).fillna(0).astype("int64").to_numpy()
     loci["gene_length_interquartile_range_nt"] = (
         length_iqr.reindex(nodes).fillna(0).astype("int64").to_numpy()

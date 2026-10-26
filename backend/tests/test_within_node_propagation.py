@@ -153,9 +153,19 @@ def test_every_vocabulary_is_measured_on_ITS_OWN_column(session, pangenome_id, k
 
     ⭐ **The tell is the POPULATION, not the rate.** A gene carrying a GO term and no COG folds to
     nothing, so its node states no rung at all, falls out of `checkable` AND `one_gene`, and the two
-    stop summing to the number of nodes carrying the vocabulary. That identity is exact on both
-    catalogues for all four vocabularies, and it is also this module's coverage statement: every
-    node the rate is quoted for is in exactly one of the two columns.
+    stop summing to the number of nodes carrying the vocabulary.
+
+    ⛔⛔ **The identity is exact only on the UNFOLDED path, which is the one this test runs and NOT
+    the one the service runs.** `compute_propagation` is called below with no `fold`, where
+    `go_rung` pools GO's three facets into the first — so a GO node can never abstain and the two
+    columns always account for every node carrying the vocabulary. With the fold the service passes
+    (`function_inference_service`), **81 ecoli and 33 kp loci** carry GO on two or more genes with no
+    facet every one of them states, and they are in neither column. So this assertion is a statement
+    about the population bookkeeping, not a guarantee about the served numbers, and reading it as the
+    latter is the mistake the paragraph above was one sentence away from inviting.
+    ⭐ The folded identity — `checkable + one_gene + not_comparable == nodes carrying` — is pinned in
+    `tests/test_locus_annotation_rollups.py`, where `locus.propagation_verdict_*` supplies the third
+    term that this file has no way to count.
     """
     rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind)
     carrying = session.execute(

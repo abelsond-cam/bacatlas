@@ -48,7 +48,7 @@ from bacatlas_backend.instruments.annotation_transfer import (
     single_rung,
 )
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
-from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
+from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand, PropagationVerdict
 
 #: Below this many checkable nodes a band reports its count and **no rate**. The same stance and the
 #: same number as `annotation_transfer.MIN_PAIRS`: a rate off a handful of nodes is not a rate.
@@ -184,6 +184,52 @@ def unanimous_at_deepest_shared_rung(
     return all(verdicts)
 
 
+#: ⛔ **How each verdict enters the tally — the mapping, in one place, because there are four
+#: columns and five states and the fit is not one-to-one.** `(checkable, unanimous, one_gene)`.
+#: ⚠ `NO_COVERAGE` and `NOT_COMPARABLE` both contribute nothing, which is deliberate and is not a
+#: reason to merge them: the tally cannot tell them apart, the stored column can, and only the
+#: column can answer *"is this node silent about COG, or does it speak COG incomparably?"*
+VERDICT_TALLY: dict[PropagationVerdict, tuple[int, int, int]] = {
+    PropagationVerdict.NO_COVERAGE: (0, 0, 0),
+    PropagationVerdict.NOT_COMPARABLE: (0, 0, 0),
+    PropagationVerdict.ONE_GENE: (0, 0, 1),
+    PropagationVerdict.UNANIMOUS: (1, 1, 0),
+    PropagationVerdict.DISCORDANT: (1, 0, 0),
+}
+
+
+def propagation_verdict(
+    annotation_kind: AnnotationKind, values: list, fold: GeneOntologyFold | None = None
+) -> PropagationVerdict:
+    """One node's state for one vocabulary — ⭐ **the single decision, shared by both writers.**
+
+    `values` is one entry per member gene that CARRIES this vocabulary, in the stored shape
+    (`GENE_VALUE_COLUMN`): a scalar for COG and KEGG, a list for EC and GO.
+
+    ⛔ **This function exists so that the column written at ingest and the rate measured at request
+    time cannot disagree about the DEFINITION.** They necessarily differ in their INPUT — ingest
+    reads nuna's annotation frame, the instrument reads `gene_functional_annotation` — and that
+    difference is precisely what `tests/test_locus_annotation_rollups.py` measures. Routing both
+    through one decision is what makes that measurement about the data rather than about two
+    reimplementations of the same rule, the same reason `ANNOTATED_COUNT_PREDICATE` was moved into
+    `annotation_transfer` rather than written twice.
+
+    ⚠ **An empty `values` is `NO_COVERAGE` and never `NOT_COMPARABLE`.** The two are easy to
+    conflate here because both end up in neither tally column, and the whole point of the five-state
+    vocabulary is that a reader of the stored row can still tell them apart.
+    """
+    if not values:
+        return PropagationVerdict.NO_COVERAGE
+    if len(values) == 1:
+        # ⚠ Unanimous by construction — routed here rather than asked, which is the claim the page
+        # must not be allowed to make. See `PropagationVerdict.ONE_GENE`.
+        return PropagationVerdict.ONE_GENE
+    agreed = unanimous_at_deepest_shared_rung(annotation_kind, values, fold)
+    if agreed is None:
+        return PropagationVerdict.NOT_COMPARABLE
+    return PropagationVerdict.UNANIMOUS if agreed else PropagationVerdict.DISCORDANT
+
+
 def compute_propagation(
     session: Session,
     *,
@@ -219,15 +265,11 @@ def compute_propagation(
     tally: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])  # checkable, unanimous, one_gene
     for locus_id, values in genes.items():
         counts = tally[band_of[locus_id]]
-        if len(values) == 1:
-            counts[2] += 1
-            continue
-        agreed = unanimous_at_deepest_shared_rung(annotation_kind, values, fold)
-        if agreed is None:
-            # ⛔ neither unanimous nor discordant — no rung all of them state, so nothing to compare
-            continue
-        counts[0] += 1
-        counts[1] += agreed
+        # ⚠ A locus with NO annotated gene never reaches here — the query filters them out — so the
+        # `NO_COVERAGE` leg of `VERDICT_TALLY` is unreachable from this side and is exercised only by
+        # the stored column, which does have a row for every locus.
+        for column, increment in enumerate(VERDICT_TALLY[propagation_verdict(annotation_kind, values, fold)]):
+            counts[column] += increment
 
     return {
         band: PropagationRate(

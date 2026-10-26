@@ -109,6 +109,21 @@ class Pangenome(Base):
     #: an empty panel, so an absent section is never mistaken for a measured zero.
     omitted_sections: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
 
+    #: ⛔⛔ **Which GO slim produced this catalogue's folded columns — so a change to it is
+    #: DETECTABLE rather than silent.** `locus.propagation_verdict_go` and the three
+    #: `locus.go_claiming_member_count_*` are computed by closing each gene's terms upward through
+    #: the slim (`instruments/annotation_transfer.go_rung`). Before they were stored, a vendored-table
+    #: update moved every one of those verdicts on the next cold process with no re-ingest; stored,
+    #: it does not, and nothing in the schema would say so.
+    #:
+    #: ⚠ **The fold changes the ANSWER, not merely its precision.** With no fold loaded `go_rung`
+    #: pools all three facets into the first one, which is a different comparison, not a coarser one:
+    #: the module's own example is `gumC`, where 16 genes saying *plasma membrane* and one saying
+    #: *membrane* read as *"classes differ"* until each side was closed through the slim. So a NULL
+    #: here means *the fold was never recorded*, and a stored verdict with no recorded fold cannot be
+    #: trusted to mean what a reader assumes.
+    annotation_fold_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
     #: ⭐ **The locus the page opens on, and the four chips beside it.** Stored, because neither is
     #: derivable from `locus.interest_score`: `render_page.landing` FILTERS the ranking for the
     #: first locus whose modal Bakta symbol is `fimA` (`LANDING_SYMBOL`) — *"a stranger arriving

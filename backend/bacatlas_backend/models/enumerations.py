@@ -172,3 +172,30 @@ class AnnotationKind(enum.Enum):
     GENE_ONTOLOGY_SLIM = "gene_ontology_slim"
     EC_NUMBER = "ec_number"
     KEGG_ORTHOLOGY = "kegg_orthology"
+
+
+class PropagationVerdict(enum.Enum):
+    """Whether a node's own annotated genes agree — the five states, one per locus per vocabulary.
+
+    ⭐ **This is `within_node_propagation`'s decision, named and stored.** It is not a new question:
+    `compute_propagation` has always sorted every node into exactly these five cases and then thrown
+    four of the labels away, keeping only the per-band tally. Storing the label per locus makes the
+    tally a `GROUP BY` over a column instead of a scan over 1.3 M gene rows.
+
+    ⛔ **Five values and not three, because two of them are different kinds of silence.**
+    ``no_coverage`` is *no member gene carries this vocabulary at all*; ``not_comparable`` is *two or
+    more do and no rung exists that every one of them states*. Both are counted in NEITHER the
+    `checkable` nor the `one_gene` column — and collapsing them would lose the only evidence that
+    distinguishes a vocabulary this node is silent about from one it speaks incomparably. That is the
+    same distinction `no_homology` was retired for having blurred.
+
+    ⚠ ``one_gene`` is not a defect and not a failure: it is the state the whole propagation argument
+    is *about* — one annotated gene covering the node's other members. It is unanimous by
+    construction, which is exactly why it is kept out of `unanimous`.
+    """
+
+    NO_COVERAGE = "no_coverage"
+    ONE_GENE = "one_gene"
+    NOT_COMPARABLE = "not_comparable"
+    UNANIMOUS = "unanimous"
+    DISCORDANT = "discordant"

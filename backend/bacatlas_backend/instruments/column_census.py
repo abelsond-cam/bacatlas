@@ -48,6 +48,10 @@ class ColumnObservation:
     row_count: int = 0
     null_count: int = 0
     distinct_count: int | None = None
+    #: ⚠ How many values the TYPE declares, for an enum only — the denominator `distinct_count` had
+    #: no meaning without. A count of distinct values says nothing on its own; against the size of
+    #: the declared vocabulary it says whether the column is using it.
+    declared_value_count: int | None = None
     minimum: object = None
     maximum: object = None
     maximum_text_length: int | None = None
@@ -113,6 +117,7 @@ def census_column(session: Session, table, column) -> ColumnObservation:
         observation.distinct_count = session.execute(
             select(func.count(func.distinct(column))).select_from(table)
         ).scalar_one()
+        observation.declared_value_count = len(column.type.enums or ())
         observation.declared_text_length = None
         return observation
     is_array = "[]" in kind or kind.startswith("ARRAY")
@@ -192,6 +197,23 @@ def ask_the_questions(observation: ColumnObservation) -> list[str]:
             f"SET: {observation.separator_bearing_count:,} of {filled:,} values ({share:.1%}) "
             "contain a separator. Is this column a scalar that holds a set?"
         )
+    # ⛔ **An enum column was unauditable by construction until this question existed.** The census
+    # measured `distinct_count` for an enum and nothing read it, so a column declaring five states
+    # and holding one — a whole vocabulary written as a constant, or never written at all — raised
+    # nothing from the instrument built to catch exactly that. It is the `uniref50_impurity` shape
+    # (100 % of one value, indistinguishable from the documented meaning) in a different type.
+    if observation.declared_value_count and filled:
+        if observation.distinct_count == 1:
+            questions.append(
+                f"ONE VALUE: declares {observation.declared_value_count} states and {filled:,} rows "
+                "hold exactly one of them. Is this a constant, or a column nothing writes?"
+            )
+        elif observation.distinct_count and observation.distinct_count < observation.declared_value_count:
+            questions.append(
+                f"UNUSED STATES: {observation.distinct_count} of "
+                f"{observation.declared_value_count} declared states occur. Which cases never arise, "
+                "and is that a fact about the data or about the writer?"
+            )
     if not observation.nullable and observation.null_count:
         questions.append("NULL: declared NOT NULL and holds NULLs — impossible; re-read the schema.")
     # ⚠ "Nullable and never NULL" alone fires on almost every optional column and says nothing. The

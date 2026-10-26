@@ -19,7 +19,11 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from bacatlas_backend.database import Base
 from bacatlas_backend.models.column_types import measurement, nan_guards
-from bacatlas_backend.models.enumerations import GeneOntologyAgreementVerdict, PrevalenceBand
+from bacatlas_backend.models.enumerations import (
+    GeneOntologyAgreementVerdict,
+    PrevalenceBand,
+    PropagationVerdict,
+)
 
 
 class Locus(Base):
@@ -175,6 +179,77 @@ class Locus(Base):
     go_verdict_molecular_function: Mapped[GeneOntologyAgreementVerdict | None] = mapped_column(nullable=True)
     go_verdict_biological_process: Mapped[GeneOntologyAgreementVerdict | None] = mapped_column(nullable=True)
     go_verdict_cellular_component: Mapped[GeneOntologyAgreementVerdict | None] = mapped_column(nullable=True)
+
+    #: ⛔⛔ **Genes carrying ANY GO term — and it is NOT the sum of the three columns above.**
+    #: `instruments/annotation_transfer.py:231-234` says those three cannot be summed; this is the
+    #: measurement behind that sentence, read off `bacatlas_ingest` on 2026-10-26: **351,559 ecoli
+    #: genes carry a GO term and the three namespace columns sum to 808,043** — 2.30× too many, an
+    #: overstatement of 456,484 genes. kp: **220,638 against 481,685**, 2.18×. A gene annotated in
+    #: two namespaces is counted twice and in all three, three times, and nothing about the inflated
+    #: number looks wrong.
+    #:
+    #: ⭐ This column is what lets `function_inference_service._annotated_counts` stop reading gene
+    #: rows. The other three vocabularies' counts were already exact — re-verified here against the
+    #: gene-grain recount on **all four** catalogues, 0 mismatching loci of 17,531 / 15,670 / 18,300
+    #: / 16,314 — so GO was the only reason that per-request join existed.
+    go_annotated_member_count_any: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    #: ⛔ **Genes with a non-empty folded CLAIM in this namespace — a different population from
+    #: `go_annotated_member_count_*` one block up, and always the SMALLER one.** That column counts a
+    #: gene carrying a *term* in the namespace; this one counts a gene whose terms survive the slim
+    #: fold and therefore state something comparable. A gene asserting only the namespace root — 452
+    #: *E. coli* loci state nothing but `cellular_component` — is counted there and says nothing here.
+    #:
+    #: Measured on `bacatlas_ingest`, 2026-10-26, stored-annotated → claiming:
+    #: ecoli **287,999 → 279,268** molecular function (−8,731), 276,052 → 268,562 biological process
+    #: (−7,490), 243,992 → 238,278 cellular component (−5,714); kp −6,896 / −3,394 / −2,162.
+    #: ⚠ `transfer/claims.py:102-107` says reading the annotated columns instead *"understated one
+    #: baseline by 25,751 genes"*. That figure is from a different defect — summing `genes_carrying`
+    #: over labelled nodes only (`scripts/measure_annotation_propagation_loop.py`) — and its sign is
+    #: the opposite of the mechanism named in the same sentence: a root-only gene makes the annotated
+    #: column the LARGER number. The three gaps above are this column's own, measured here.
+    #:
+    #: ⚠ Folded, so **meaningful only against `pangenome.annotation_fold_version`** — see there.
+    go_claiming_member_count_molecular_function: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    go_claiming_member_count_biological_process: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    go_claiming_member_count_cellular_component: Mapped[int | None] = mapped_column(Integer, nullable=True)
+
+    # ── propagation: does this node's own call agree with itself? ──────────────────────────────
+    #: ⭐⭐ **`within_node_propagation`'s five-state decision, stored per locus per vocabulary.**
+    #: One column each for COG, EC, KEGG and the GO slim — **four, not six**: the decision ANDs over
+    #: GO's three facets (`unanimous_at_deepest_shared_rung`, the `verdicts.append` loop), so a node
+    #: has ONE GO verdict and not one per namespace, and `compute_propagation` is keyed by
+    #: `annotation_kind` alone. Three facet columns could not be aggregated back into the rate the
+    #: page quotes without reassembling that AND, and nothing reads a per-facet propagation rate.
+    #:
+    #: ⛔ **NULL and `no_coverage` are different facts and the distinction is load-bearing.**
+    #: `no_coverage` means *the ingest looked and no member gene carries this vocabulary*;
+    #: NULL means *this ingest generation never computed it*. The catalogues loaded before this
+    #: column existed hold NULL, and a reader treating NULL as `no_coverage` would conclude that
+    #: 17,531 ecoli loci carry no COG when 4,993 of them do. This is the same shape of error as the
+    #: six all-NULL columns recorded at `ingest/catalogue_frames.py:441-448`, where NULL was
+    #: indistinguishable from a documented *"not measured"*.
+    #:
+    #: ⚠ The GO verdict is folded, so it is meaningful only against
+    #: `pangenome.annotation_fold_version`. The other three use no fold.
+    #:
+    #: ⚠ **No page component reads these four, and that is recorded rather than implied.** What the
+    #: Function tab reads per locus is the COUNTS — `frontend/src/lib/functionVocabulary.ts:205-213`
+    #: derives its own "carried by N of M genes" from `annotated_gene_count` and `member_gene_count`,
+    #: and even the `checkable` boolean the API already ships is read by nothing. These columns are
+    #: here for two other reasons: they make `pangenome_propagation_rate` a `GROUP BY` that can be
+    #: re-derived and re-checked in SQL after the gene rows are gone, and `discordant` is a
+    #: queryable statement about the model — **22 of 17,531 ecoli loci and 7 of 15,670 kp loci** have
+    #: COG calls that disagree with each other — which today costs a 1.3 M-row scan to find.
+    #:
+    #: ⭐ `not_comparable` is the state that was previously invisible: on the FOLDED path production
+    #: runs, **81 ecoli and 33 kp loci** carry GO on two or more genes with no facet every one of
+    #: them states. On the unfolded path it is 0 — which is why
+    #: `tests/test_within_node_propagation.py`'s coverage identity passes while omitting the fold.
+    propagation_verdict_cog: Mapped[PropagationVerdict | None] = mapped_column(nullable=True)
+    propagation_verdict_ec: Mapped[PropagationVerdict | None] = mapped_column(nullable=True)
+    propagation_verdict_kegg: Mapped[PropagationVerdict | None] = mapped_column(nullable=True)
+    propagation_verdict_go: Mapped[PropagationVerdict | None] = mapped_column(nullable=True)
 
     # ── extent ────────────────────────────────────────────────────────────────────────────────
     #: ⚠ 1-based inclusive, hence `end - start + 1`. The block on the track is drawn
