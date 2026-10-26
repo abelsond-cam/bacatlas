@@ -14,6 +14,7 @@ from bacatlas_backend.ingest.ingest_nuna_model_registry import (
     model_key_for_audit_label,
     model_key_for_label,
     rho_rule_is_effectively_off,
+    unrecordable_parameters,
 )
 from bacatlas_backend.models.enumerations import EmbeddingRepresentation, ExclusivityForm, RhoRule
 from bacatlas_backend.models.nuna_model import NunaModel, NunaModelStep
@@ -92,10 +93,31 @@ def test_a_split_step_4_gives_4b_no_rho_continue_because_it_gets_no_exclusivity(
 
 
 def test_every_model_in_the_registry_expands_without_raising():
-    """Coverage, stated: the registry is the vocabulary of the whole system, so all of it is loaded."""
+    """Coverage, stated: the registry is the vocabulary of the whole system, so all of it is loaded.
+
+    ⛔ **The step count is checked against each chain's OWN shape, not against a floor.** This used
+    to assert `len(steps) >= 4`, which was true of every model when it was written and is now false
+    of most of them: both models of record (`base`, `hypergeo`) have **no ESM step**, so they are two
+    and three steps. A floor like that does not fail when a chain gains a step it should not have —
+    it only fails when nuna adds a shorter shape, which is a fact about nuna and not a defect.
+    """
     expanded = {key: expand_model_steps(spec) for key, spec in MODELS.items()}
     assert len(expanded) == len(MODELS) >= 13
-    assert all(len(steps) >= 4 for steps in expanded.values())
+    for key, steps in expanded.items():
+        spec = MODELS[key]
+        # dedup + the optional ESM over-merge + the Bacformer context pass + optional 3c + the merge
+        merge_steps = 0 if spec.gamma4 is None and not spec.has_split_step4 else 1
+        if spec.has_split_step4:
+            merge_steps = 3 if spec.gamma4d is not None else 2
+        expected = 1 + int(spec.has_esm) + 1 + int(spec.has_3c) + merge_steps
+        assert len(steps) == expected, f"{key}: {[row.step_name for row in steps]} is not {expected} steps"
+        assert [row.step_ordinal for row in steps] == list(range(1, len(steps) + 1)), (
+            f"{key}: step ordinals are not 1..n — a gap would misorder the method record"
+        )
+    # ⭐ Non-vacuity: the registry really does hold a chain with no ESM step, which is what makes the
+    # `has_esm` branch above load-bearing rather than decorative.
+    assert any(not spec.has_esm for spec in MODELS.values())
+    assert any(spec.has_esm for spec in MODELS.values())
 
 
 # ── the OFF normalisation ──────────────────────────────────────────────────────────────────────
@@ -128,10 +150,25 @@ def test_a_label_without_its_set_token_is_refused():
 
 # ── against the real tables ────────────────────────────────────────────────────────────────────
 def test_the_whole_registry_loads_into_postgres_and_reloads_idempotently(session):
+    """⚠ Every model this schema CAN record, and the ones it cannot are named rather than counted in.
+
+    ⛔ `nuna_model_step` has no column for the ρ-free floor, so the three specs that set one are
+    refused by `ingest_nuna_model` and skipped here. That is checked both ways: the recorded set is
+    exactly the recordable one, and the refused set is non-empty — otherwise this test would keep
+    passing after the column lands and stop proving anything.
+    """
+    recordable = {key for key, spec in MODELS.items() if not unrecordable_parameters(spec)}
+    refused = set(MODELS) - recordable
+    assert refused, (
+        "no registry model sets a ρ-free floor any more — if the column landed, this test and "
+        "UNRECORDABLE_SPEC_FIELDS both need removing rather than relaxing"
+    )
+
     first = ingest_model_registry(session, models=MODELS)
     session.flush()
+    assert set(first) == recordable
     written = session.query(NunaModelStep).count()
-    assert written == sum(len(expand_model_steps(spec)) for spec in MODELS.values())
+    assert written == sum(len(expand_model_steps(MODELS[key])) for key in recordable)
 
     second = ingest_model_registry(session, models=MODELS)
     session.flush()

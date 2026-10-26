@@ -104,27 +104,44 @@ def resolve_exclusivity_form(
 ) -> tuple[ExclusivityForm, ExclusivityFormSource, str | None]:
     """`(form, how it was determined, the literal token)` for one run.
 
-    ⛔ `exclusivity.form_from_run_id` is the only permitted decoder of the id, and the token is found
-    by walking `EXCLUSIVITY_TOKENS` **longest first** — `-excl` is a PREFIX of `-exclLOGP`, and the
-    three ways to get that wrong (`in`, a half-`replace`, an `endswith` chain) were all live bugs on
-    one day. The manifest wins where it recorded a form, because a token is a guess about a default
-    and a manifest is a record.
+    ⛔ `hypergeometric.form_from_run_id` is the only permitted decoder of the id, and the token is
+    found by walking `HYPERGEOMETRIC_TOKENS` **longest first** — `-excl` is a PREFIX of `-exclLOGP`,
+    and the three ways to get that wrong (`in`, a half-`replace`, an `endswith` chain) were all live
+    bugs on one day. The manifest wins where it recorded a form, because a token is a guess about a
+    default and a manifest is a record.
+
+    ⛔⛔ **nuna renamed this whole vocabulary on 2026-10-23 and the names here did not follow.** The
+    module `nuna.tl.cluster.exclusivity` became `hypergeometric`, `EXCLUSIVITY_TOKENS` became
+    `HYPERGEOMETRIC_TOKENS`, and — the part that is not a rename — `canonical_form` and
+    `form_from_run_id` now return `hypergeometric` / `damped` where they returned `exclusion` /
+    `damped_exclusion`. Those two strings are what `ExclusivityForm` STORES, so the translation is
+    explicit and shared with the registry loader rather than repeated: see
+    `ingest_nuna_model_registry.EXCLUSIVITY_FORM_OF_HYPERGEOMETRIC`. ⚠ The run_id TOKENS are
+    unchanged and must stay readable — `-excl` and `-exclLOGP` name the two published catalogues.
 
     ⚠ Returns `ExclusivityForm.NONE` where nothing names a form. That is the step-2/step-3b parent
     case: those runs carry no exclusivity at all, their ids carry no token, and `form_from_run_id`
     returns `None` for them — which a NOT NULL column cannot store.
     """
-    from nuna.tl.cluster.exclusivity import EXCLUSIVITY_TOKENS, canonical_form, form_from_run_id
+    from nuna.tl.cluster.hypergeometric import (  # noqa: PLC0415 — nuna is an ingest-only dependency
+        HYPERGEOMETRIC_TOKENS,
+        canonical_form,
+        form_from_run_id,
+    )
 
-    token = next((tok for tok, _ in EXCLUSIVITY_TOKENS if tok in run_id), None)
+    from bacatlas_backend.ingest.ingest_nuna_model_registry import (  # noqa: PLC0415 — one mapping, no cycle
+        EXCLUSIVITY_FORM_OF_HYPERGEOMETRIC as STORED_FORM,
+    )
+
+    token = next((tok for tok, _ in HYPERGEOMETRIC_TOKENS if tok in run_id), None)
 
     manifest_form = (manifest or {}).get("exclusivity_form")
     if manifest_form:
-        return ExclusivityForm(canonical_form(str(manifest_form))), ExclusivityFormSource.RUN_MANIFEST, token
+        return STORED_FORM[canonical_form(str(manifest_form))], ExclusivityFormSource.RUN_MANIFEST, token
 
     decoded = form_from_run_id(run_id)
     if decoded is not None:
-        return ExclusivityForm(decoded), ExclusivityFormSource.RUN_ID_TOKEN, token
+        return STORED_FORM[decoded], ExclusivityFormSource.RUN_ID_TOKEN, token
     return ExclusivityForm.NONE, ExclusivityFormSource.RUN_ID_TOKEN, token
 
 
