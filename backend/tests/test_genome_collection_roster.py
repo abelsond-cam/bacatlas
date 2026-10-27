@@ -141,3 +141,83 @@ def test_the_real_ecoli_roster_reproduces_meta_genomes_and_reloads_without_dupli
     assert len(ordered) == 100, "membership must be REPLACED wholesale, never merged"
     assert ordered == published_ecoli_site_catalogue["meta"]["genomes"]
     assert len(genome_id_by_ordinal(session, first)) == 100
+
+
+# ── the cohort's LABEL — what the picker shows now the cohort is the axis ─────────────────────
+#
+# ⛔ These exist because the label is the first field of this table a reader ever sees, and the two
+# ways it can be wrong are both silent: it can be absent (and the picker shows a machine token), or
+# it can state a genome count that the roster it names contradicts.
+
+
+def _labelled(session, tmp_path, samples, **kwargs):
+    """A collection over a synthetic roster — the label is the subject, so keep the roster small."""
+    species_ids = ingest_pathogen_species(session)
+    session.flush()
+    _stage_genome_rows(session, species_ids["ecoli"], samples)
+    collection_id, _ = ingest_genome_collection(
+        session, _fake_universe(tmp_path, samples), pathogen_species_id=species_ids["ecoli"], **kwargs
+    )
+    session.flush()
+    return collection_id
+
+
+def test_an_unlabelled_cohort_takes_its_KEY_so_the_gap_is_visible_rather_than_blank(session, tmp_path):
+    collection = session.get(GenomeCollection, _labelled(session, tmp_path, ["SAM_A", "SAM_B"]))
+    assert collection.collection_label == collection.collection_key, (
+        "an unlabelled cohort must wear its key, not a blank and not a species name — a reader can "
+        "see that a key is unfinished, and `offer_catalogue` refuses to show one"
+    )
+
+
+def test_a_supplied_label_is_stored_VERBATIM_and_carries_no_count(session, tmp_path):
+    collection = session.get(
+        GenomeCollection,
+        _labelled(
+            session,
+            tmp_path,
+            ["SAM_A", "SAM_B", "SAM_C"],
+            collection_key="probe100",
+            collection_label="E. coli probe",
+        ),
+    )
+    assert (collection.collection_key, collection.collection_label) == ("probe100", "E. coli probe")
+    assert collection.genome_count == 3
+    # ⚠ The count is NOT in the label. The page renders `{label} — {count} genomes` from the two
+    # fields, so a label carrying its own number could contradict the roster it names.
+    assert str(collection.genome_count) not in collection.collection_label
+
+
+def test_a_re_ingest_can_CHANGE_the_label_without_renumbering_one_genome(session, tmp_path):
+    """Correcting a word on the page must not look like a roster change.
+
+    ⚠ The roster guard refuses a membership reorder while a pangenome depends on the ordinals, so
+    if the label rode on the membership write a typo would become unfixable on a live catalogue.
+    """
+    samples = ["SAM_A", "SAM_B", "SAM_C"]
+    species_ids = ingest_pathogen_species(session)
+    session.flush()
+    _stage_genome_rows(session, species_ids["ecoli"], samples)
+    # ⚠ Built ONCE: `_fake_universe` creates its own directory tree and cannot be called twice on
+    # one tmp_path. Reusing it is also the honest shape — the roster file did not change.
+    artifacts = _fake_universe(tmp_path, samples)
+    first, _ = ingest_genome_collection(
+        session, artifacts, pathogen_species_id=species_ids["ecoli"], collection_label="first"
+    )
+    session.flush()
+    members = lambda cid: session.execute(  # noqa: E731
+        select(GenomeCollectionMembership.genome_id, GenomeCollectionMembership.collection_genome_ordinal)
+        .where(GenomeCollectionMembership.genome_collection_id == cid)
+        .order_by(GenomeCollectionMembership.collection_genome_ordinal)
+    ).all()
+    before = members(first)
+
+    second, _ = ingest_genome_collection(
+        session, artifacts, pathogen_species_id=species_ids["ecoli"], collection_label="second"
+    )
+    session.flush()
+
+    assert second == first, "the same roster must stay the same collection"
+    assert session.get(GenomeCollection, second).collection_label == "second"
+    assert members(second) == before, "changing a word on the page must not renumber a genome"
+    assert len(before) == len(samples) > 0, "and that comparison is over a roster, not two empty lists"

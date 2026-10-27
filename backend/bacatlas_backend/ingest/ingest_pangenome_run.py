@@ -401,6 +401,10 @@ def ingest_pangenome_run(
         session.add(existing)
 
     existing.catalogue_key = catalogue_key
+    # ⭐ The model, as one free-text string the footer publishes. `artifacts.model_label` is nuna's
+    # own `--model-label` — the same string `guard_audit_describes_this_model` checks the accessory
+    # audit against below, so a row and the audit that graded it cannot name different models.
+    existing.model_label = artifacts.model_label
     existing.pathogen_species_id = pathogen_species_id
     existing.genome_collection_id = genome_collection_id
     existing.nuna_model_id = nuna_model_id

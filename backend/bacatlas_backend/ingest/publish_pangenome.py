@@ -26,7 +26,7 @@ from sqlalchemy import exists, func, select, update
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.models.enumerations import EmbeddingRepresentation
-from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
+from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_arrangement import LocusArrangement
 from bacatlas_backend.models.locus_offset_occupant import LocusOffsetOccupant
@@ -238,14 +238,32 @@ def offer_catalogue(session: Session, *, catalogue_key: str, offered: bool = Tru
     beside it.
 
     ⚠ It deliberately cannot make a catalogue the default. Promoting is `publish_pangenome`, which
-    verifies first; this writes one boolean and verifies nothing, because a catalogue that is already
-    loaded and addressable has already been verified by whatever put it there.
+    verifies the whole catalogue first; this writes one boolean and checks **one** thing, because a
+    catalogue that is already loaded and addressable has otherwise been verified by whatever put it
+    there.
+
+    ⛔ **The one check: a cohort may not reach the picker wearing its key.** The picker's options
+    are cohorts now, so `collection_label` is read by a person — and it defaults to
+    `collection_key`, which is a machine token with no space in it. Offering such a catalogue would
+    put `kp-71k` in a menu where "Kp" belongs, and nothing downstream could tell that from a label
+    somebody meant. Loading and addressing it by key stay allowed; only showing it is refused.
     """
     pangenome = session.execute(
         select(Pangenome).where(Pangenome.catalogue_key == catalogue_key)
     ).scalar_one_or_none()
     if pangenome is None:
         raise PublishRefused(f"no catalogue {catalogue_key!r} — nothing to offer.")
+    if offered:
+        collection = session.get(GenomeCollection, pangenome.genome_collection_id)
+        if collection is not None and collection.collection_label == collection.collection_key:
+            raise PublishRefused(
+                f"{catalogue_key!r} sits on cohort {collection.collection_key!r}, whose label is "
+                f"still its own key. The picker shows the LABEL, so this would offer a machine "
+                f"token where a cohort name belongs. Re-ingest with "
+                f"`--collection-label '<what a reader should see>'`, then offer it. "
+                f"⚠ Do not put the genome count in the label — the page renders that from the "
+                f"roster's own count ({collection.genome_count:,})."
+            )
     was = pangenome.is_published
     session.execute(
         update(Pangenome)

@@ -66,6 +66,7 @@ def _second_catalogue(session, seeded, *, key="probe-nuna5", run_id="probe_run_n
     pangenome = Pangenome(
         run_id=run_id,
         catalogue_key=key,
+        model_label="nuna5_g2_0.98_3b0.5rhoPAIRMAX_3c0.2rhoCEILexclLOGP_step4g0.5rhoCEIL",
         ingest_generation=1,
         pathogen_species_id=seeded["species"].pathogen_species_id,
         genome_collection_id=seeded["collection"].genome_collection_id,
@@ -327,3 +328,70 @@ def test_a_catalogue_can_be_taken_back_out_of_the_picker(session, seeded):
 
     assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
     assert resolve_catalogue(session, "probe-nuna5").pangenome_id == second.pangenome_id
+
+
+# ── the cohort label is what the picker SHOWS, so it is gated at the picker ───────────────────
+
+
+def test_a_cohort_still_wearing_its_KEY_is_REFUSED_from_the_picker(session, seeded):
+    """⛔ The picker's options are cohorts now, so a missing label is a reader-visible defect.
+
+    The label defaults to the collection key — a machine token with no space in it — so without
+    this guard `--offer` would put `kp-71k` in a menu where "Kp" belongs, and nothing downstream
+    could tell that from a label somebody meant. Loading and addressing by key stay allowed; only
+    showing it is refused.
+    """
+    from bacatlas_backend.ingest.publish_pangenome import PublishRefused, offer_catalogue
+
+    collection = seeded["collection"]
+    collection.collection_label = collection.collection_key
+    _second_catalogue(session, seeded).is_published = False
+    session.flush()
+
+    with pytest.raises(PublishRefused, match="still its own key"):
+        offer_catalogue(session, catalogue_key="probe-nuna5")
+
+    session.flush()
+    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}, (
+        "the refusal must leave the picker unchanged, not raise after writing the boolean"
+    )
+
+
+def test_the_SAME_catalogue_is_offered_once_its_cohort_has_a_label(session, seeded):
+    """The guard's other side — otherwise it could refuse everything and still pass above."""
+    from bacatlas_backend.ingest.publish_pangenome import offer_catalogue
+
+    collection = seeded["collection"]
+    collection.collection_label = collection.collection_key
+    second = _second_catalogue(session, seeded)
+    second.is_published = False
+    session.flush()
+
+    collection.collection_label = "E. coli probe"
+    session.flush()
+    offer_catalogue(session, catalogue_key="probe-nuna5")
+    session.flush()
+
+    assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+
+
+def test_HIDING_a_catalogue_is_never_refused_for_want_of_a_label(session, seeded):
+    """⚠ A guard on the way in must not become a trap on the way out.
+
+    Taking something out of the picker is the remedy for a bad label, so refusing it when the label
+    is bad would leave a catalogue stuck on display with no way back.
+    """
+    from bacatlas_backend.ingest.publish_pangenome import offer_catalogue
+
+    collection = seeded["collection"]
+    second = _second_catalogue(session, seeded)
+    session.flush()
+    assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+
+    collection.collection_label = collection.collection_key
+    session.flush()
+    offer_catalogue(session, catalogue_key="probe-nuna5", offered=False)
+    session.flush()
+
+    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert second.is_published is False

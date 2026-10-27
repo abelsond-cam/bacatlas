@@ -77,6 +77,7 @@ def ingest_genome_collection(
     *,
     pathogen_species_id: int,
     collection_key: str | None = None,
+    collection_label: str | None = None,
     roster_lineage: RosterLineage = RosterLineage.PROBE_BIOSAMPLE,
 ) -> tuple[int, RosterReport]:
     """Ensure the collection and its ordered membership exist; return `(id, report)`.
@@ -84,6 +85,12 @@ def ingest_genome_collection(
     Idempotent by `(species, collection_key)`, and the membership is **replaced wholesale** rather
     than merged: an ordinal is a position in a list, so a partial update could leave two genomes
     claiming one position while every individual row still looked valid.
+
+    ⚠ **`collection_label` defaults to the KEY, and that default is meant to be visible.** The label
+    is what the picker shows now that the cohort is the browser's axis, and a key in a picker reads
+    as obviously unfinished — where a blank or a species name would read as finished and wrong.
+    `publish_pangenome` refuses to offer a catalogue whose cohort is still wearing its key, so the
+    default can never reach a reader; it only survives on a catalogue that is loaded and not offered.
     """
     samples, n_genes = read_genome_vocabulary(artifacts)
     key = collection_key or artifacts.set_key
@@ -98,6 +105,7 @@ def ingest_genome_collection(
         collection = GenomeCollection(pathogen_species_id=pathogen_species_id, collection_key=key)
         session.add(collection)
     collection.roster_lineage = roster_lineage
+    collection.collection_label = collection_label or key
     collection.genome_count = len(samples)
     collection.roster_source_path = str(artifacts.gene_universe)
     collection.roster_source_sha256 = _file_sha256(artifacts.gene_universe)

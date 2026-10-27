@@ -90,6 +90,21 @@ class Pangenome(Base):
     #: re-parsing — and so the CHECK above has something to check against.
     run_id_exclusivity_token: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
+    #: ⭐ **The model, in full, as one free-text string** — `CPM_gamma0.5_hypergeo_gamma0.6`,
+    #: `nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL`. David, 2026-10-27: the footer publishes it
+    #: and *"not explained in any more detail than that. Just allows cross reference."*
+    #:
+    #: ⛔ **This replaces a whole axis, and that is the point.** The model was 32 rows in
+    #: `nuna_model` + 129 in `nuna_model_step`, an enum, a registry ingest and nine decoded
+    #: provenance rows — all to print a footer nobody picked a catalogue by. The cohort is the axis
+    #: now; the model is a label beside `run_id`, which is what actually addresses the artifacts.
+    #:
+    #: ⚠ It is nuna's own `export_payload --model-label`, already stored as the
+    #: `pangenome_evaluation` row with `metric_name='label'` — which is where `meta.model_label` has
+    #: always been served from, NOT from `nuna_model.label`. Promoted to a column here so the footer
+    #: does not reach through an evaluation row to find the name of its own model.
+    model_label: Mapped[str] = mapped_column(String(256), nullable=False)
+
     genome_count: Mapped[int] = mapped_column(Integer, nullable=False)
     gene_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
     locus_count: Mapped[int] = mapped_column(Integer, nullable=False)

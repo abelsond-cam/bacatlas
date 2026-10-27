@@ -183,6 +183,7 @@ def load_pangenome_layer(
     species_key: str,
     catalogue_key: str | None = None,
     collection_key: str | None = None,
+    collection_label: str | None = None,
 ) -> list[str]:
     """Model registry → roster → run → catalogue, in the one order the foreign keys allow.
 
@@ -206,7 +207,11 @@ def load_pangenome_layer(
     ).scalar_one()
 
     collection_id, roster = ingest_genome_collection(
-        session, artifacts, pathogen_species_id=species_id, collection_key=collection_key
+        session,
+        artifacts,
+        pathogen_species_id=species_id,
+        collection_key=collection_key,
+        collection_label=collection_label,
     )
     session.flush()
 
@@ -317,6 +322,13 @@ def build_parser() -> argparse.ArgumentParser:
                              "and the membership ordinal is what arr.gid indexes into — so a model "
                              "over a genuinely different roster needs its own key here, or the "
                              "roster guard will refuse the load")  # fmt: skip
+    parser.add_argument("--collection-label", default=None,
+                        help="what the PICKER SHOWS for this cohort (`E. coli probe`, `Kp`). "
+                             "\u26d4 Do NOT put the genome count in it — the page renders "
+                             "`{label} — {count} genomes` from this and the roster's own count, so a "
+                             "label that spelled its own number could contradict the roster it "
+                             "names. Defaults to the collection key, and `--offer` then refuses: an "
+                             "unlabelled cohort may be loaded but not shown")  # fmt: skip
     parser.add_argument("--catalogue-key", default=None,
                         help="how a reader addresses THIS catalogue (`ecoli-nuna5`). Defaults to "
                              "`{species}-{model}`, which is also what nuna's exporter writes as "
@@ -404,6 +416,7 @@ def main(argv: list[str] | None = None) -> int:
                 species_key=args.species_key or artifacts.species_key,
                 catalogue_key=args.catalogue_key,
                 collection_key=args.collection_key,
+                collection_label=args.collection_label,
             ):
                 print(line)
             session.commit()

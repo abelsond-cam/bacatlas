@@ -32,6 +32,18 @@ class GenomeCollection(Base):
         ForeignKey("pathogen_species.pathogen_species_id"), nullable=False
     )
     collection_key: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    #: ⭐ **What the picker SHOWS for this cohort** — "E. coli probe", "AMR panel", "Kp". The first
+    #: display text this table has ever carried, and the reason it now has a read path at all: the
+    #: browser's axis is the cohort, not the model (David, 2026-10-27).
+    #:
+    #: ⛔ **It must NOT contain the genome count.** The page renders `"{label} — {count:,} genomes"`
+    #: from this and :attr:`genome_count` beside it, which is *"passed, never inferred"*. A label
+    #: that spelled its own count could disagree with the roster it names, and nothing would say so
+    #: — the example labels David gave ("blood/faeces 12,150 genomes") are the rendered form, not
+    #: the stored one.
+    collection_label: Mapped[str] = mapped_column(String(128), nullable=False)
+
     roster_lineage: Mapped[RosterLineage] = mapped_column(nullable=False)
 
     #: ⭐ N — the prevalence denominator AND the exclusivity denominator. **Passed, never inferred**

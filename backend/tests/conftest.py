@@ -105,6 +105,9 @@ def _build_seed(session):
     collection = GenomeCollection(
         pathogen_species_id=species.pathogen_species_id,
         collection_key="probe_ecoli",
+        # ⚠ Deliberately NOT equal to the key: `offer_catalogue` refuses a cohort still wearing
+        # its key, and a fixture that tripped that guard would make every picker test test the guard.
+        collection_label="E. coli probe",
         roster_lineage=RosterLineage.PROBE_BIOSAMPLE,
         genome_count=100,
     )
@@ -121,6 +124,7 @@ def _build_seed(session):
         # The key a reader addresses this catalogue by — `{species}-{model}`, hyphenated so the keys
         # stay prefix-free. The seed species is `probe`.
         catalogue_key="probe-nuna4",
+        model_label="nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
         ingest_generation=1,
         pathogen_species_id=species.pathogen_species_id,
         genome_collection_id=collection.genome_collection_id,
