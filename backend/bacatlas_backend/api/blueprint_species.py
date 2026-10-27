@@ -16,6 +16,8 @@ pangenome or the locus was missing, and never returns an empty body with a 200.
 
 from __future__ import annotations
 
+from hashlib import blake2b
+
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import select
 
@@ -97,20 +99,48 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     ⚠ A removal needs this as much as an addition does: `get_gene_sequence` returns `_immutable`,
 #:     so a warm client would otherwise replay a day-old body carrying a field the server no longer
 #:     has, and nothing anywhere would error.
-RESPONSE_SHAPE_VERSION = 3
+#: 4 — THE COHORT BECOMES THE PICKER'S AXIS (2026-10-27). Six field moves in one release:
+#:     `/catalogues` loses `model` and gains `cohort` + `model_label`; the shell's `pangenome` loses
+#:     `exclusivity_form` and gains `model_label` + `cohort`; and the shell loses its top-level
+#:     `model`, `steps` and `provenance_rows`. Enumerated rather than summarised, because the two
+#:     entries above name their exact field and a reader diffing a cached body needs the list.
+RESPONSE_SHAPE_VERSION = 4
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
 
 
 def _immutable(payload, pangenome_id: int | None):
-    """Attach the caching headers every response of a built catalogue is entitled to."""
+    """Attach the caching headers every response of a built catalogue is entitled to.
+
+    ⛔ **The two LIST routes used to get no validator at all.** `/species` and `/catalogues` pass
+    `pangenome_id=None` — they are about every catalogue, so no single id identifies them — and the
+    old guard simply skipped the header. They were served `max-age=86400` with nothing to
+    revalidate against: strictly worse than the 2026-10-25 incident this mechanism was built for,
+    where the stale response at least had a tag.
+
+    ⭐ **They now carry a CONTENT DIGEST, and a shape version alone would have been wrong.** Their
+    bodies change when a catalogue is ingested, published or hidden, or when a cohort is relabelled
+    — all database edits, with no deploy and no shape change. A `"list-v4"` tag would not move for
+    any of them, and re-keying the cohorts is exactly what the next stage does. The digest moves
+    whenever any byte does, which is both shape-correct and data-correct, and it is what
+    `backend/README.md` already described.
+
+    ⚠ **This is defence in depth and changes no behaviour today.** Nothing in the stack answers
+    `304`: Flask does not call `make_conditional`, there is no `after_request`, and nginx does not
+    cache. Inside `max-age` a browser does not revalidate at all. The tag matters to an
+    intermediary, to `curl`, and to the day conditional handling is switched on — at which point a
+    shape-only tag on these two routes would have pinned a permanently stale picker.
+    """
     response = jsonify(payload)
     response.headers["Cache-Control"] = CACHE_CONTROL
     if pangenome_id is not None:
         # ⛔ The shape version is IN the tag: the body changes when the pangenome changes OR when a
         # release changes what the response carries, and only the first of those used to be here.
         response.headers["ETag"] = f'"{pangenome_id}-v{RESPONSE_SHAPE_VERSION}"'
+    else:
+        digest = blake2b(response.get_data(), digest_size=8).hexdigest()
+        response.headers["ETag"] = f'"{digest}-v{RESPONSE_SHAPE_VERSION}"'
     return response
 
 
@@ -158,15 +188,26 @@ def get_species():
 
 @species_blueprint.get("/catalogues")
 def get_catalogues():
-    """Every catalogue on offer — what the model picker is built from.
+    """Every catalogue on offer — what the COHORT picker is built from.
 
-    ⭐ A species appears once per catalogue it holds, so E. coli on nuna4 and nuna5 is two rows.
-    `is_default` marks the one a bare species request resolves to; `key` is what a URL should carry
-    to pin this clustering.
+    ⭐ A species appears once per catalogue it holds. `is_default` marks the one a bare species
+    request resolves to; `key` is what a URL should carry to pin this catalogue.
+
+    ⛔ **THE AXIS IS THE COHORT, NOT THE MODEL (David, 2026-10-27).** The option a reader picks names
+    the genomes — `Kp AMR — 100 genomes` — and the model is one free-text `model_label` the footer
+    prints, *"not explained in any more detail than that. Just allows cross reference."* The old
+    `model: {key, label, step_count, exclusivity_form}` block is gone; the only part of it anything
+    rendered was `step_count`, in the picker's own option text.
+
+    ⚠ **`cohort.genome_count` is the ROSTER's N, not `pangenome.genome_count`**, and they are
+    different facts: the roster is the prevalence denominator, *passed, never inferred*, while the
+    pangenome's is what that run modelled. The option text is composed from the cohort's, because
+    the cohort is what the option names. Both ship; `test_the_two_genome_counts_agree_on_every_
+    offered_catalogue` asserts they have not diverged rather than assuming they cannot.
 
     ⚠ Listed from `pangenome.is_published`, which means *offer this one*, NOT
     `default_pangenome_id`. A catalogue that is loaded but not offered is reachable by key and absent
-    from the menu — which is how a model is staged before anyone is shown it.
+    from the menu — which is how a catalogue is staged before anyone is shown it.
     """
     with _session() as session:
         rows = list_catalogues(session)
@@ -174,26 +215,25 @@ def get_catalogues():
             {
                 "catalogues": [
                     {
-                        "key": pangenome.catalogue_key,
+                        "key": row.pangenome.catalogue_key,
                         "species": {
-                            "key": species.species_key,
-                            "scientific_name": species.scientific_name,
+                            "key": row.species.species_key,
+                            "scientific_name": row.species.scientific_name,
                         },
-                        "model": None
-                        if model is None
-                        else {
-                            "key": model.model_key,
-                            "label": model.label,
-                            "step_count": model.step_count,
-                            "exclusivity_form": model.exclusivity_form.value,
+                        "cohort": {
+                            "key": row.cohort.collection_key,
+                            "label": row.cohort.collection_label,
+                            "genome_count": row.cohort.genome_count,
                         },
-                        "is_default": species.default_pangenome_id == pangenome.pangenome_id,
-                        "genome_count": pangenome.genome_count,
-                        "gene_count": pangenome.gene_count,
-                        "locus_count": pangenome.locus_count,
-                        "run_id": pangenome.run_id,
+                        "model_label": row.pangenome.model_label,
+                        "is_default": row.species.default_pangenome_id
+                        == row.pangenome.pangenome_id,
+                        "genome_count": row.pangenome.genome_count,
+                        "gene_count": row.pangenome.gene_count,
+                        "locus_count": row.pangenome.locus_count,
+                        "run_id": row.pangenome.run_id,
                     }
-                    for pangenome, species, model in rows
+                    for row in rows
                 ]
             },
             None,
@@ -244,7 +284,16 @@ def get_species_catalogue(species_key: str):
                         pangenome.ingested_at.isoformat() if pangenome.ingested_at else None
                     ),
                     "git_sha": pangenome.git_sha,
-                    "exclusivity_form": pangenome.exclusivity_form.value,
+                    # ⭐ **The model, as ONE string, and the COHORT it was run over** — the two
+                    # facts the footer and the picker now need. `exclusivity_form` was here and is
+                    # gone with the model axis; nothing ever rendered it (`types.ts` declared it,
+                    # no component read it), and the columns behind it go in the same stage.
+                    "model_label": pangenome.model_label,
+                    "cohort": {
+                        "key": catalogue.cohort.collection_key,
+                        "label": catalogue.cohort.collection_label,
+                        "genome_count": catalogue.cohort.genome_count,
+                    },
                     # ⚠ An absent section is NAMED. The page prints these rather than showing an
                     # empty panel, so an omission is never mistaken for a measured zero.
                     "omitted_sections": pangenome.omitted_sections or {},
@@ -260,34 +309,17 @@ def get_species_catalogue(species_key: str):
                         for group, count in count_genome_source_groups(session, pangenome).items()
                     },
                 },
-                "model": (
-                    {
-                        "key": catalogue.model.model_key,
-                        "label": catalogue.model.label,
-                        "exclusivity_form": catalogue.model.exclusivity_form.value,
-                        "knn_k": catalogue.model.knn_k,
-                        "step_count": catalogue.model.step_count,
-                    }
-                    if catalogue.model
-                    else None
-                ),
-                # ⭐ One row per pipeline stage, as the footer prints them — read from the run's own
-                # manifests, never decoded from the run_id.
-                "steps": [
-                    {
-                        "ordinal": step.step_ordinal,
-                        "name": step.step_name,
-                        "representation": step.representation.value if step.representation else None,
-                        "gamma": step.gamma,
-                        "rho_rule": step.rho_rule.value if step.rho_rule else None,
-                        "rho_ceiling": step.rho_ceiling,
-                        "uses_exclusivity": step.uses_exclusivity,
-                        "stage_name": step.stage_name,
-                        "stage_detail": step.stage_detail,
-                    }
-                    for step in catalogue.steps
-                ],
-                "provenance_rows": pangenome.provenance_rows or [],
+                # ⛔ **`model`, `steps` and `provenance_rows` ARE GONE FROM THE WIRE (2026-10-27).**
+                # `model` and `steps` were read by no component on either side — declared in
+                # `types.ts` and consumed nowhere, and the frozen pages render their provenance
+                # server-side from nuna's `render_page`, so they never saw these at all. The nine
+                # decoded `provenance_rows` were the footer's `<dl>`; the footer now prints the
+                # model label, the run id and the build stamps, which is what David asked for.
+                #
+                # ⭐ **`pangenome.provenance_rows` is still STORED, and that is deliberate.** The
+                # payload-rebuild oracle diffs `meta`, and `meta.provenance` is in it — so the
+                # column is what keeps the manifest chain checkable even though nothing renders it.
+                # Not serving a stored column and not storing it are different decisions.
                 "prevalence_census": catalogue.prevalence_census,
                 # ⭐ The same bands counted by GENE. Divided by `genome_count` this is the page's
                 # "per genome" line, and its three parts sum to the whole by construction.

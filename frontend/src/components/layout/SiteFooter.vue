@@ -35,10 +35,27 @@ const HEADLINE_ROWS: readonly (readonly [string, string, (value: number) => stri
   ["rescued by ESM homology", "n_clusters_esm_rescued", (value) => `${value.toLocaleString()} clusters`],
 ];
 
+/**
+ * ⛔ **The nine decoded step rows are GONE (David, 2026-10-27).** The footer used to open with
+ * `provenance_rows` — one line per pipeline stage, γ and ρ and the edge weight — because the model
+ * was the browser's axis and a reader choosing between two models needed to see the difference.
+ * The axis is the cohort now, and the model is *"one free-text label … not explained in any more
+ * detail than that. Just allows cross reference."* So the footer prints the label, the run id that
+ * actually addresses the artifacts, and the build stamps.
+ *
+ * ⚠ **`pangenome.provenance_rows` is still STORED** — it is what keeps the manifest chain
+ * checkable, and the payload-rebuild oracle diffs `meta.provenance`. It is simply no longer served
+ * or rendered. Not serving a stored column and not storing it are different decisions.
+ *
+ * ⚠ **The row that said "model" meant the RUN ID**, here and on the frozen pages. Reusing that
+ * label for the new `model_label` would silently change what the row means against the rollback
+ * page, so the two rows are named apart: `model` is the label, `run` is the id.
+ */
 const provenance = computed(() => {
   const pangenome = props.catalogue.pangenome;
-  const rows: [string, string][] = props.catalogue.provenance_rows.map(([label, value]) => [label, value]);
-  rows.push(["model", pangenome.run_id]);
+  const rows: [string, string][] = [];
+  rows.push(["model", pangenome.model_label]);
+  rows.push(["run", pangenome.run_id]);
   // ⛔ `built_at` is NULL on every catalogue loaded so far — nothing in `ingest` writes it — so this
   // row read "built —" and the footer could not answer the one question it exists to answer. The
   // catalogue's `ingested_at` IS populated and is the honest version of it: when this stack loaded

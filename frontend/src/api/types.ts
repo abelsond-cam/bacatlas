@@ -658,18 +658,6 @@ export interface FunctionResponse {
   };
 }
 
-export interface ModelStep {
-  readonly ordinal: number;
-  readonly name: string;
-  readonly representation: Representation | null;
-  readonly gamma: number | null;
-  readonly rho_rule: string | null;
-  readonly rho_ceiling: number | null;
-  readonly uses_exclusivity: boolean;
-  readonly stage_name: string | null;
-  readonly stage_detail: string | null;
-}
-
 /**
  * What makes a cosine on the similarity card mean anything: the **random GENE-pair floor** for one
  * representation, and its spread.
@@ -738,14 +726,32 @@ export function asCatalogueKey(key: string): CatalogueKey {
 export interface CatalogueEntry {
   readonly key: CatalogueKey;
   readonly species: { readonly key: string; readonly scientific_name: string };
-  /** ⚠ Nullable: a pangenome need not be tied to a registry model. */
-  readonly model: {
+  /**
+   * ⭐ **THE COHORT — what this option NAMES, and the picker's axis since 2026-10-27.** It replaced
+   * a `model` block of which only `step_count` was ever rendered.
+   *
+   * ⛔ **NOT nullable, and the `?.` that guarded its predecessor must not survive.**
+   * `pangenome.genome_collection_id` is NOT NULL with a foreign key, so a catalogue without a
+   * cohort cannot exist. An optional chain here would turn a missing block — a warm cache, a
+   * half-landed backend, a stale fixture — into the catalogue KEY rendered as the option text,
+   * which looks deliberate. A missing cohort should throw where a human can see it.
+   *
+   * ⚠ `genome_count` is the ROSTER's N, which is what the option text states. It is a different
+   * fact from the sibling `genome_count` below, which is what that run modelled.
+   */
+  readonly cohort: {
     readonly key: string;
-    readonly label: string | null;
-    readonly step_count: number | null;
-    readonly exclusivity_form: string;
-  } | null;
+    readonly label: string;
+    readonly genome_count: number;
+  };
+  /**
+   * The model as ONE free-text string — `nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL`. David,
+   * 2026-10-27: the footer publishes it and *"not explained in any more detail than that. Just
+   * allows cross reference."* ⚠ Not for the picker: two cohorts are told apart by their names.
+   */
+  readonly model_label: string;
   readonly is_default: boolean;
+  /** ⚠ What the RUN modelled. The option text uses `cohort.genome_count`, the roster's own N. */
   readonly genome_count: number;
   readonly gene_count: number;
   readonly locus_count: number;
@@ -780,7 +786,18 @@ export interface SpeciesCatalogueResponse {
      */
     readonly ingested_at: string | null;
     readonly git_sha: string | null;
-    readonly exclusivity_form: string;
+    /**
+     * ⭐ The model as one free-text string, which is the whole of what the footer says about it
+     * (David, 2026-10-27). It replaced `exclusivity_form` — a decoded model property that this
+     * file declared and no component ever read.
+     */
+    readonly model_label: string;
+    /** The cohort this catalogue is over, carrying the same three keys the picker's rows do. */
+    readonly cohort: {
+      readonly key: string;
+      readonly label: string;
+      readonly genome_count: number;
+    };
     /** ⚠ An absent section is NAMED, so an omission is never mistaken for a measured zero. */
     readonly omitted_sections: Readonly<Record<string, string>>;
     /**
@@ -795,16 +812,6 @@ export interface SpeciesCatalogueResponse {
      */
     readonly genome_source_groups: Readonly<Record<GenomeSourceGroup, number>>;
   };
-  readonly model: {
-    readonly key: string;
-    readonly label: string | null;
-    readonly exclusivity_form: string;
-    readonly knn_k: number | null;
-    readonly step_count: number | null;
-  } | null;
-  readonly steps: readonly ModelStep[];
-  /** The footer's `<dl>`, one `[label, value]` pair per row, printed verbatim (`render_page._provenance`). */
-  readonly provenance_rows: readonly (readonly [string, string])[];
   /** Loci per band. ⛔ Every band is present — a band with no loci is a measured `0`, never absent. */
   readonly prevalence_census: Readonly<Record<PrevalenceBand, number>>;
   /**

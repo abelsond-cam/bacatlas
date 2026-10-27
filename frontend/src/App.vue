@@ -192,6 +192,25 @@ onMounted(async () => {
 
   if (chosen === undefined) return;
   await species.selectCatalogue(chosen);
+
+  // ⛔ **RE-PIN TO WHAT THE SERVER ACTUALLY SERVED, whichever branch above chose it.** The
+  // `?species=` branch already pins; the `?catalogue=` branch did not, and that gap has a visible
+  // consequence now the picker names the cohort. `_resolve_pangenome` tells a catalogue key from a
+  // species key BY THE HYPHEN, so `?catalogue=kp` is served the species DEFAULT with a 200 — no
+  // 404, nothing wrong in any log — while `catalogueKey` stays the literal `"kp"`. That matches no
+  // `<option value>`, so the browser displays option ZERO: the picker would read `Kp — 71,435
+  // genomes` while the page served `kp-probe100` and the census printed 100 two inches away. Every
+  // number on the page real, every test green. It is masked today only because the first option
+  // happens to be the default.
+  const served = current.value?.pangenome.catalogue_key ?? null;
+  if (served !== null && served !== chosen) {
+    const url = new URL(window.location.href);
+    url.searchParams.set(CATALOGUE_PARAMETER, served);
+    url.searchParams.delete(SPECIES_PARAMETER);
+    window.history.replaceState(window.history.state, "", url);
+    catalogueKey.value = served;
+  }
+
   if (current.value !== null) await openFromAddress();
 });
 

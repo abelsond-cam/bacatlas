@@ -29,10 +29,10 @@ from bacatlas_backend.models.enumerations import (
     EvaluationKind,
     PrevalenceBand,
 )
+from bacatlas_backend.models.genome_collection import GenomeCollection
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_similarity import PangenomeSimilarityBaseline
-from bacatlas_backend.models.nuna_model import NunaModel
-from bacatlas_backend.models.pangenome import Pangenome, PangenomeEvaluation, PangenomeStep
+from bacatlas_backend.models.pangenome import Pangenome, PangenomeEvaluation
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
 
 #: The audit headline keys the footer prints, in `export_payload.AUDIT_HEADLINE_KEYS` order.
@@ -70,8 +70,16 @@ class SpeciesCatalogue:
 
     species: PathogenSpecies
     pangenome: Pangenome
-    model: NunaModel | None = None
-    steps: list = field(default_factory=list)
+    #: ⭐ **THE COHORT — the browser's axis since 2026-10-27, replacing `model`.** The picker offers
+    #: cohorts and the model is one free-text label in the footer (David: *"not explained in any
+    #: more detail than that. Just allows cross reference."*).
+    #:
+    #: ⛔ **Required, not Optional**, even though the old `model` was nullable. `pangenome.
+    #: genome_collection_id` is NOT NULL with a foreign key, so a catalogue without a cohort cannot
+    #: exist — and an `| None` here would invite an `if catalogue.cohort:` branch whose false arm is
+    #: unreachable and therefore untestable, which is the shape `a-fixture-can-collapse-the-
+    #: distinction-it-tests` warns about. The nullability belonged to `nuna_model_id`, not here.
+    cohort: GenomeCollection
     prevalence_census: dict = field(default_factory=dict)
     #: ⭐ The SAME catalogue partitioned by GENE — member genes summed per band. The page prints both
     #: (`app.js::renderPangenome`) because they answer different questions: a third of the loci are
@@ -148,22 +156,51 @@ def resolve_catalogue(session: Session, catalogue_key: str) -> Pangenome:
     return pangenome
 
 
-def list_catalogues(session: Session) -> list[tuple[Pangenome, PathogenSpecies, NunaModel | None]]:
-    """Every catalogue offered in the picker, with the species and model that identify it.
+@dataclass(frozen=True)
+class OfferedCatalogue:
+    """One row of the picker: the catalogue, the species it belongs to, and the COHORT it is over.
+
+    ⛔ **A dataclass and not a tuple, deliberately, because the change it carries is silent
+    otherwise.** `list_catalogues` used to return `(Pangenome, PathogenSpecies, NunaModel | None)`,
+    and every one of its eleven call sites destructured it as `for p, _s, _m in …` while reading
+    only the first two. Swapping the third element's TYPE would therefore have changed the picker's
+    axis from the model to the cohort with every test still green — the same shape as a diff loop
+    that `continue`s past a renamed column and reports "0 differ". A dataclass is not iterable, so
+    each of those sites had to be read.
+    """
+
+    pangenome: Pangenome
+    species: PathogenSpecies
+    cohort: GenomeCollection
+
+
+def list_catalogues(session: Session) -> list[OfferedCatalogue]:
+    """Every catalogue offered in the picker, with the species and the COHORT that identify it.
 
     ⚠ Filtered on `pangenome.is_published`, which means *offer this one* — NOT
     `default_pangenome_id`, which is one per species. A catalogue that is loaded but not offered is
-    reachable by its key and simply absent from the menu, which is how a model is staged before it is
-    shown to anyone.
+    reachable by its key and simply absent from the menu, which is how a catalogue is staged before
+    it is shown to anyone.
+
+    ⛔ **The collection join is INNER, where the model join was OUTER, and that is a statement not
+    an oversight.** `pangenome.genome_collection_id` is NOT NULL with a foreign key, so the two are
+    provably equivalent on any row that can exist; OUTER would copy a nullability that belonged to
+    `nuna_model_id` and would quietly serve a picker option with no cohort name. ⚠ INNER's own
+    failure mode is a catalogue silently missing from the menu, which is why
+    `test_the_picker_offers_EVERY_published_catalogue` counts the rows against `is_published`
+    directly rather than trusting the join.
     """
     rows = session.execute(
-        select(Pangenome, PathogenSpecies, NunaModel)
+        select(Pangenome, PathogenSpecies, GenomeCollection)
         .join(PathogenSpecies, PathogenSpecies.pathogen_species_id == Pangenome.pathogen_species_id)
-        .outerjoin(NunaModel, NunaModel.nuna_model_id == Pangenome.nuna_model_id)
+        .join(
+            GenomeCollection,
+            GenomeCollection.genome_collection_id == Pangenome.genome_collection_id,
+        )
         .where(Pangenome.is_published.is_(True))
         .order_by(PathogenSpecies.species_key, Pangenome.catalogue_key)
     ).all()
-    return [(pangenome, species, model) for pangenome, species, model in rows]
+    return [OfferedCatalogue(pangenome, species, cohort) for pangenome, species, cohort in rows]
 
 
 def load_catalogue(session: Session, catalogue_key: str) -> SpeciesCatalogue:
@@ -196,17 +233,12 @@ def _load_catalogue_shell(
     session: Session, species: PathogenSpecies, pangenome: Pangenome
 ) -> SpeciesCatalogue:
     """The shell itself, once the catalogue is decided. Both entry points share it exactly."""
-    catalogue = SpeciesCatalogue(species=species, pangenome=pangenome)
-
-    if pangenome.nuna_model_id is not None:
-        catalogue.model = session.get(NunaModel, pangenome.nuna_model_id)
-    catalogue.steps = list(
-        session.execute(
-            select(PangenomeStep)
-            .where(PangenomeStep.pangenome_id == pangenome.pangenome_id)
-            .order_by(PangenomeStep.step_ordinal)
-        ).scalars()
-    )
+    # ⭐ One `session.get` on the primary key, replacing TWO statements: the `nuna_model` fetch and
+    # the `pangenome_step` ordering. The shell is a statement cheaper than it was, not dearer.
+    # ⚠ `pangenome_step` is still WRITTEN — it is what the run actually did, with wall time and peak
+    # RSS — it is simply no longer served, because no component ever read `catalogue.steps`.
+    cohort = session.get(GenomeCollection, pangenome.genome_collection_id)
+    catalogue = SpeciesCatalogue(species=species, pangenome=pangenome, cohort=cohort)
 
     # ⚠ The census IS counted, because it is a distribution rather than a total and no column holds
     # it. One grouped statement over an index, not one per band.

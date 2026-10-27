@@ -229,7 +229,50 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
     # ⛔ The cohort is what the picker SHOWS, and `--publish` is one of the two doors into it.
     refusal = cohort_label_refusal(session, pangenome)
     check("the cohort carries a label a reader can read", refusal is None, refusal or "")
+
+    clash = cohort_already_offered_refusal(session, pangenome)
+    check("no other offered catalogue wears this cohort's name", clash is None, clash or "")
     return passed, failed
+
+
+def cohort_already_offered_refusal(session: Session, pangenome: Pangenome) -> str | None:
+    """Is another OFFERED catalogue of this species already over this cohort? Then this one cannot.
+
+    ⛔ **The gate on the consequence of the axis change.** Once the picker's options are cohorts,
+    two offered catalogues over one cohort are two options with identical text — the reader is
+    choosing between things the control no longer names. It is not a degraded menu, it is one that
+    lies, and nothing downstream can detect it because every option is a real catalogue.
+
+    ⚠ **The rule is OFFERED, not loaded.** Staging a second clustering of the same cohort for
+    review stays legal and is the point of `is_published` existing apart from
+    `default_pangenome_id`; what is refused is showing both at once. The remedy is one call —
+    `offer_catalogue(…, offered=False)` on the one being replaced — and the message says so.
+
+    ⚠ It is a NAMED check rather than a hard refusal, so `--force` can carry a deliberate overlap
+    (a migration window, a side-by-side read) when somebody means it. A rule decided and never
+    implemented is what `a-decided-rule-needs-a-gate-on-its-consequence` is about; a rule
+    implemented with no way round it is the opposite mistake.
+    """
+    clashing = session.execute(
+        select(Pangenome.catalogue_key)
+        .where(
+            Pangenome.genome_collection_id == pangenome.genome_collection_id,
+            Pangenome.pangenome_id != pangenome.pangenome_id,
+            Pangenome.is_published.is_(True),
+        )
+        .order_by(Pangenome.catalogue_key)
+    ).scalars().all()
+    if not clashing:
+        return None
+    collection = session.get(GenomeCollection, pangenome.genome_collection_id)
+    name = collection.collection_label if collection is not None else "?"
+    return (
+        f"cohort {name!r} is already offered as {', '.join(repr(k) for k in clashing)}. The picker "
+        f"names COHORTS, so showing {pangenome.catalogue_key!r} beside it would put two options "
+        f"with the same text in one menu and a reader could not tell them apart. Hide the other "
+        f"first — `offer_catalogue(session, catalogue_key=..., offered=False)` — or give this one "
+        f"its own cohort."
+    )
 
 
 def cohort_label_refusal(session: Session, pangenome: Pangenome) -> str | None:
@@ -288,9 +331,15 @@ def offer_catalogue(session: Session, *, catalogue_key: str, offered: bool = Tru
     if pangenome is None:
         raise PublishRefused(f"no catalogue {catalogue_key!r} — nothing to offer.")
     if offered:
-        refusal = cohort_label_refusal(session, pangenome)
-        if refusal is not None:
-            raise PublishRefused(refusal)
+        # ⛔ Both cohort rules, at both doors. `verify_pangenome_is_servable` runs the same two as
+        # named checks for `--publish`; here they are refusals, because `offer_catalogue` writes the
+        # boolean directly and has no report to carry a failure in.
+        for refusal in (
+            cohort_label_refusal(session, pangenome),
+            cohort_already_offered_refusal(session, pangenome),
+        ):
+            if refusal is not None:
+                raise PublishRefused(refusal)
     was = pangenome.is_published
     session.execute(
         update(Pangenome)

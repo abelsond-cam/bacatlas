@@ -283,6 +283,19 @@ a {
     min-width: 260px;
 }
 
+/* The cohort when a species has only one -- the same type as the select it stands in for, minus the
+   control's chrome. The picker is now the only place the cohort is named, so it is shown even when
+   there is nothing to choose; a one-option dropdown would still say "there is a choice here". */
+.cohort-sole {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 700;
+    font-style: italic;
+    color: var(--ink);
+    padding: 6px 0;
+    min-width: 260px;
+}
+
 .pangenome {
     display: flex;
     flex-direction: column;

@@ -128,7 +128,7 @@ def test_the_picker_lists_by_is_published_not_by_the_default_pointer(session, se
     hidden.is_published = False
     session.flush()
 
-    keys = [pangenome.catalogue_key for pangenome, _species, _model in list_catalogues(session)]
+    keys = [row.pangenome.catalogue_key for row in list_catalogues(session)]
     assert "probe-nuna4" in keys
     assert "probe-hidden" not in keys, "unpublished is staged, not shown"
     assert resolve_catalogue(session, "probe-hidden").pangenome_id == hidden.pangenome_id, (
@@ -239,13 +239,13 @@ def test_publishing_one_catalogue_does_NOT_hide_the_other(session, seeded):
     seeded["species"].default_pangenome_id = seeded["pangenome"].pangenome_id
     second = _second_catalogue(session, seeded)
     session.flush()
-    assert {p.catalogue_key for p, _s, _m in list_catalogues(session)} == {"probe-nuna4", "probe-nuna5"}
+    assert {row.pangenome.catalogue_key for row in list_catalogues(session)} == {"probe-nuna4", "probe-nuna5"}
 
     publish_pangenome(session, run_id=second.run_id, force=True)
     session.flush()
     session.refresh(seeded["species"])
 
-    offered = {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    offered = {row.pangenome.catalogue_key for row in list_catalogues(session)}
     assert "probe-nuna5" in offered, "the newly published catalogue is offered"
     assert "probe-nuna4" in offered, "and the comparator the picker exists to show is STILL offered"
     assert seeded["species"].default_pangenome_id == second.pangenome_id, "the pointer still moved"
@@ -305,13 +305,13 @@ def test_offering_a_catalogue_does_not_make_it_the_default(session, seeded):
     second = _second_catalogue(session, seeded)
     second.is_published = False
     session.flush()
-    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" not in {row.pangenome.catalogue_key for row in list_catalogues(session)}
 
     offer_catalogue(session, catalogue_key="probe-nuna5")
     session.flush()
     session.refresh(seeded["species"])
 
-    assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" in {row.pangenome.catalogue_key for row in list_catalogues(session)}
     assert seeded["species"].default_pangenome_id == seeded["pangenome"].pangenome_id, (
         "offering must not promote — the default is a separate decision"
     )
@@ -326,7 +326,7 @@ def test_a_catalogue_can_be_taken_back_out_of_the_picker(session, seeded):
     offer_catalogue(session, catalogue_key="probe-nuna5", offered=False)
     session.flush()
 
-    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" not in {row.pangenome.catalogue_key for row in list_catalogues(session)}
     assert resolve_catalogue(session, "probe-nuna5").pangenome_id == second.pangenome_id
 
 
@@ -352,7 +352,7 @@ def test_a_cohort_still_wearing_its_KEY_is_REFUSED_from_the_picker(session, seed
         offer_catalogue(session, catalogue_key="probe-nuna5")
 
     session.flush()
-    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}, (
+    assert "probe-nuna5" not in {row.pangenome.catalogue_key for row in list_catalogues(session)}, (
         "the refusal must leave the picker unchanged, not raise after writing the boolean"
     )
 
@@ -372,7 +372,7 @@ def test_the_SAME_catalogue_is_offered_once_its_cohort_has_a_label(session, seed
     offer_catalogue(session, catalogue_key="probe-nuna5")
     session.flush()
 
-    assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" in {row.pangenome.catalogue_key for row in list_catalogues(session)}
 
 
 def test_PUBLISH_checks_the_cohort_label_too_because_it_is_the_SECOND_door_into_the_picker(
@@ -421,12 +421,80 @@ def test_HIDING_a_catalogue_is_never_refused_for_want_of_a_label(session, seeded
     collection = seeded["collection"]
     second = _second_catalogue(session, seeded)
     session.flush()
-    assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" in {row.pangenome.catalogue_key for row in list_catalogues(session)}
 
     collection.collection_label = collection.collection_key
     session.flush()
     offer_catalogue(session, catalogue_key="probe-nuna5", offered=False)
     session.flush()
 
-    assert "probe-nuna5" not in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
+    assert "probe-nuna5" not in {row.pangenome.catalogue_key for row in list_catalogues(session)}
     assert second.is_published is False
+
+
+def test_a_SECOND_catalogue_over_the_SAME_cohort_is_refused_from_the_picker(session, seeded):
+    """⛔ The gate on the consequence of the axis change, and the live database needed it.
+
+    Once the picker's options are cohorts, two offered catalogues over one cohort are two options
+    with identical text — `E. coli AMR — 100 genomes` twice, differing only by ` (default)`. The
+    reader is choosing between things the control no longer names, and nothing downstream can
+    detect it because every option is a real catalogue. Measured on `bacatlas_ingest` the moment
+    the picker changed: four published catalogues over two cohorts, i.e. two such pairs.
+    """
+    from bacatlas_backend.ingest.publish_pangenome import PublishRefused, offer_catalogue
+
+    seeded["collection"].collection_label = "E. coli probe"
+    seeded["pangenome"].is_published = True
+    second = _second_catalogue(session, seeded)
+    second.is_published = False
+    session.flush()
+
+    with pytest.raises(PublishRefused, match="already offered"):
+        offer_catalogue(session, catalogue_key="probe-nuna5")
+
+    session.flush()
+    assert "probe-nuna5" not in {row.pangenome.catalogue_key for row in list_catalogues(session)}
+
+
+def test_the_SAME_second_catalogue_is_offered_once_the_FIRST_is_hidden(session, seeded):
+    """The other side — otherwise the gate could refuse everything and still pass above.
+
+    ⚠ And this is the documented remedy, so it has to work: hide the one being replaced, then
+    offer the replacement. Staging a second clustering of one cohort stays legal; showing both at
+    once is what is refused.
+    """
+    from bacatlas_backend.ingest.publish_pangenome import offer_catalogue
+
+    seeded["collection"].collection_label = "E. coli probe"
+    seeded["pangenome"].is_published = True
+    second = _second_catalogue(session, seeded)
+    second.is_published = False
+    session.flush()
+
+    offer_catalogue(session, catalogue_key="probe-nuna4", offered=False)
+    offer_catalogue(session, catalogue_key="probe-nuna5")
+    session.flush()
+
+    assert {row.pangenome.catalogue_key for row in list_catalogues(session)} == {"probe-nuna5"}
+
+
+def test_the_picker_offers_EVERY_published_catalogue_and_the_cohort_join_drops_none(session, seeded):
+    """⚠ The INNER join's own failure mode is a catalogue silently missing from the menu.
+
+    `list_catalogues` joins `genome_collection` INNER, which is provably equivalent to OUTER while
+    `genome_collection_id` is NOT NULL — but "provably equivalent" is an argument, and a row
+    dropped by a join produces a shorter menu and no error at all. Counted against `is_published`
+    directly, which is the one thing the join cannot influence.
+    """
+    from sqlalchemy import func as sql_func
+    from sqlalchemy import select
+
+    _second_catalogue(session, seeded)
+    seeded["pangenome"].is_published = True
+    session.flush()
+
+    published = session.execute(
+        select(sql_func.count()).select_from(Pangenome).where(Pangenome.is_published.is_(True))
+    ).scalar_one()
+    assert published == 2
+    assert len(list_catalogues(session)) == published
