@@ -59,13 +59,27 @@ engine=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 0)
 #     archive is never restored, only read.
 #   - the code's revision: the migration that no other migration names as its parent. No alembic, no
 #     database, just the files on disk.
+#
+# ⛔ **THE PATTERN MATCHES THE ID, NOT ITS QUOTES — and the quotes are what made this gate wrong.**
+# It used to grep `'[0-9a-f]{12}'`, single-quoted, because alembic's template writes single quotes
+# and all 24 migrations then on disk did. `b1f39c8b40e9` was hand-written with DOUBLE quotes, so the
+# pattern missed it, `comm -23` returned its PARENT `c99e925f7341` as the head, and the gate refused
+# every dump taken after it — telling the operator to re-take a dump that would mismatch identically
+# forever. One migration later it fails differently and no less fatally: with two unmatched ids the
+# head is not unique and the gate exits on "no single head".
+# ⚠ The fix belongs HERE, not in the migration: `backend/pyproject.toml` exempts
+# `migrations/versions/*` from every ruff rule precisely so a migration's bytes never change after it
+# has run, and rewriting one to suit a grep is the tail wagging the dog.
+# ⭐ `tests/test_deploy_vintage_gate.py` now runs this exact pipeline and compares its answer with
+# alembic's own `ScriptDirectory`, so a quoting style a future migration happens to use cannot move
+# the answer again without a test going red.
 versions=backend/bacatlas_backend/migrations/versions
 dump_rev=$(docker run --rm -v "$(cd "$dump_dir" && pwd)":/r:ro postgres:16 \
              pg_restore -f - --data-only --table=alembic_version "/r/$(basename "$dump")" 2>/dev/null \
            | grep -Eoi '\b[0-9a-f]{12}\b' | tail -1)
 code_rev=$(comm -23 \
-  <(grep -h '^revision' "$versions"/*.py | grep -Eo "'[0-9a-f]{12}'" | tr -d "'" | sort -u) \
-  <(grep -h '^down_revision' "$versions"/*.py | grep -Eo "'[0-9a-f]{12}'" | tr -d "'" | sort -u))
+  <(grep -h '^revision' "$versions"/*.py | grep -Eo '\b[0-9a-f]{12}\b' | sort -u) \
+  <(grep -h '^down_revision' "$versions"/*.py | grep -Eo '\b[0-9a-f]{12}\b' | sort -u))
 [ -n "$dump_rev" ] || { echo "could not read alembic_version from $dump — is it a \`pg_dump -Fc\` archive?"; exit 2; }
 [ "$(printf '%s' "$code_rev" | grep -c .)" = "1" ] || {
   echo "the migrations directory has no single head, so there is nothing to match against:"

@@ -198,3 +198,42 @@ def test_the_input_key_guard_matches_nuna_today_and_names_the_drift_if_it_stops(
     assert tuple(run_manifest.INPUT_KEYS) == KNOWN_INPUT_KEYS
     with pytest.raises(PangenomeIngestError, match="CHECK admits only"):
         guard_input_keys_have_not_drifted((*KNOWN_INPUT_KEYS, "step3c_assign"))
+
+
+# ── reconciliation: a zero needs its denominator ───────────────────────────────────────────────
+def test_a_run_with_no_PUBLISHED_TRIPLE_is_not_reconcilable_and_says_so():
+    """⛔ `reconcile_pangenome` returns no differences for an unknown run_id — having compared nothing.
+
+    Two runs have a checked-in triple. Every cohort loaded from the browser's cohort axis onward
+    has none, so the empty list is about to become the NORMAL result — and `main` printed
+    *"reconciled: every count the loader reported is what the tables hold"* on the strength of it.
+    `pangenome_is_reconcilable` is that zero's denominator: it is what lets the caller tell
+    *nothing differed* from *nothing was compared*.
+    """
+    from pathlib import Path
+
+    from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+    from bacatlas_backend.ingest.ingest_command_line import pangenome_is_reconcilable
+    from bacatlas_backend.ingest.published_catalogues import PUBLISHED_CATALOGUES
+
+    published = PUBLISHED_CATALOGUES[0]
+    known = CatalogueArtifacts(
+        data_root=Path("/nowhere"),
+        set_key=published.set_key,
+        model_label=published.model_label,
+        run_id=published.run_id,
+        species_key=published.species_key,
+    )
+    assert pangenome_is_reconcilable(known) is True
+
+    # ⚠ A plausible FUTURE run of the same species and the same model — only the run differs. It is
+    # the shape every cohort load takes, not a nonsense string, so the test fails for the reason it
+    # names rather than because the input was obviously unlike a real one.
+    unknown = CatalogueArtifacts(
+        data_root=Path("/nowhere"),
+        set_key=published.set_key,
+        model_label=published.model_label,
+        run_id=published.run_id + "_regenerated",
+        species_key=published.species_key,
+    )
+    assert pangenome_is_reconcilable(unknown) is False

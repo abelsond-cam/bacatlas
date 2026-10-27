@@ -253,6 +253,12 @@ def reconcile_pangenome(session: Session, artifacts: CatalogueArtifacts) -> list
 
     The published counts are a fact of record (`published_catalogues.py`), so this compares the load
     against them rather than against itself.
+
+    ⚠ **An unknown run_id is NOT a clean reconciliation**, and saying so is the whole of
+    `pangenome_is_reconcilable`. Only two runs have a checked-in triple, so every cohort loaded from
+    here on is unknown to this function — and an empty difference list made `main` print *"reconciled:
+    every count the loader reported is what the tables hold"* having compared nothing at all. A
+    reader cannot tell that from a load that was checked and agreed (`silence-is-not-success`).
     """
     from bacatlas_backend.ingest.published_catalogues import PUBLISHED_CATALOGUES
 
@@ -282,6 +288,19 @@ def reconcile_pangenome(session: Session, artifacts: CatalogueArtifacts) -> list
                 f"{name}: the database holds {held:,} but the published catalogue is {expected:,}"
             )
     return differences
+
+
+def pangenome_is_reconcilable(artifacts: CatalogueArtifacts) -> bool:
+    """Is there a checked-in triple to reconcile THIS run against?
+
+    ⛔ The denominator for `reconcile_pangenome`'s zero. `PUBLISHED_CATALOGUES` holds the two static
+    publications and nothing else, so a load of any other run — every cohort from the browser's
+    cohort axis onward — has no record to be compared with. *Nothing differed* and *nothing was
+    compared* must not print the same line.
+    """
+    from bacatlas_backend.ingest.published_catalogues import PUBLISHED_CATALOGUES
+
+    return any(entry.run_id == artifacts.run_id for entry in PUBLISHED_CATALOGUES)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -367,7 +386,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")
 
     engine = create_engine(args.database_url, future=True)
-    report, differences = None, []
+    report, differences, reconcilable = None, [], True
     with Session(engine) as session:
         # ⚠ First in `all`: the vocabularies are global and idempotent, so re-running costs one
         # upsert and an absent reference degrades chips rather than failing — but the count is
@@ -420,6 +439,7 @@ def main(argv: list[str] | None = None) -> int:
             ):
                 print(line)
             session.commit()
+            reconcilable = pangenome_is_reconcilable(artifacts)
             differences += reconcile_pangenome(session, artifacts)
             if args.offer:
                 from bacatlas_backend.ingest.publish_pangenome import offer_catalogue
@@ -433,8 +453,19 @@ def main(argv: list[str] | None = None) -> int:
                     .order_by(Pangenome.ingest_generation.desc())
                     .limit(1)
                 ).scalar_one()
-                print(offer_catalogue(session, catalogue_key=just_loaded))
-                session.commit()
+                # ⛔ CAUGHT, exactly as `--publish` below catches it. `offer_catalogue` refuses a
+                # cohort still wearing its key, and that refusal is the DESIGNED way an operator
+                # learns the label is missing — so it has to arrive as a line they can read, not as
+                # a traceback that kills the process twelve lines after `session.commit()` already
+                # wrote the load. Uncaught, the load succeeded, the catalogue is loaded and
+                # addressable, and the exit status says the whole run failed.
+                try:
+                    print(offer_catalogue(session, catalogue_key=just_loaded))
+                    session.commit()
+                except PublishRefused as error:
+                    session.rollback()
+                    print(f"OFFER REFUSED: {error}", file=sys.stderr)
+                    differences.append("the catalogue was loaded but not offered in the picker")
             if args.publish:
                 try:
                     print(publish_pangenome(session, run_id=artifacts.run_id).render())
@@ -453,8 +484,15 @@ def main(argv: list[str] | None = None) -> int:
         for difference in differences:
             print(f"  {difference}", file=sys.stderr)
         return 1
-    else:
+    elif reconcilable:
         print("reconciled: every count the loader reported is what the tables hold")
+    else:
+        # ⛔ NOT "reconciled". This run has no checked-in triple, so nothing was compared — and the
+        # line that used to print here claimed every count had been checked.
+        print(
+            "NOT reconciled: this run_id has no row in `published_catalogues.py`, so the load was "
+            "compared against nothing. The loader's own counts are above; they are unchecked."
+        )
     return 1 if (report and report.refusals) else 0
 
 

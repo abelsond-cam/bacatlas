@@ -375,6 +375,41 @@ def test_the_SAME_catalogue_is_offered_once_its_cohort_has_a_label(session, seed
     assert "probe-nuna5" in {p.catalogue_key for p, _s, _m in list_catalogues(session)}
 
 
+def test_PUBLISH_checks_the_cohort_label_too_because_it_is_the_SECOND_door_into_the_picker(
+    session, seeded
+):
+    """⛔⛔ `is_published` has two writers, and the guard first shipped on only one of them.
+
+    `offer_catalogue` refuses a cohort wearing its key. `publish_pangenome` writes the identical
+    boolean (`.values(is_published=True)`) and did not check it at all, so `--publish` could put a
+    machine token into the picker with every verification green — the exact state the guard exists
+    to forbid, reached through the door it was not fitted to.
+
+    Asserted as a NAMED check in the report rather than as an exception, because that is how
+    `--publish` surfaces everything else it refuses, and because `--force` must be able to override
+    a display-text problem without also overriding a missing landing locus.
+    """
+    from bacatlas_backend.ingest.publish_pangenome import verify_pangenome_is_servable
+
+    collection, pangenome = seeded["collection"], seeded["pangenome"]
+
+    collection.collection_label = collection.collection_key
+    session.flush()
+    _passed, failed = verify_pangenome_is_servable(session, pangenome)
+    assert any("label a reader can read" in line for line in failed), (
+        f"a cohort wearing its key must FAIL a check by name; the failures were {failed}"
+    )
+
+    collection.collection_label = "E. coli probe"
+    session.flush()
+    passed, failed = verify_pangenome_is_servable(session, pangenome)
+    assert any("label a reader can read" in line for line in passed), (
+        "and the same check must PASS once the cohort has a name — a check that can only ever fail "
+        "is indistinguishable from one that is failing for a reason nobody has noticed"
+    )
+    assert not any("label a reader can read" in line for line in failed)
+
+
 def test_HIDING_a_catalogue_is_never_refused_for_want_of_a_label(session, seeded):
     """⚠ A guard on the way in must not become a trap on the way out.
 

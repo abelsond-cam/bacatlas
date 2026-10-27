@@ -108,11 +108,13 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
 ```
 
 Then **publish** — a separate, explicit step, because the pointer is what the service reads and a
-load that is not published changes nothing a reader can see. `--publish` verifies twelve things about
-the catalogue (locus count against the row count, the landing locus, both map representations, both
-**catalogue scatter sprites** and that each accounts for every locus, every locus named, **every
-collection genome has its per-genome locus count row** …) and refuses to move the pointer if any
-fails.
+load that is not published changes nothing a reader can see. `--publish` runs every check in
+`verify_pangenome_is_servable` and refuses to move the pointer if any fails: locus count against the
+row count, the landing locus, both map representations, both **catalogue scatter sprites** and that
+each accounts for every locus, every locus named, **every collection genome has its per-genome locus
+count row**, and **that the cohort carries a label a reader can read** rather than its own key.
+⚠ The checks are **named in the report**, and are deliberately not counted here — this sentence said
+"twelve" while the function already ran thirteen, which is what a prose count does.
 
 ```bash
 .venv/bin/python -m bacatlas_backend.ingest --stage pangenome --publish  ...  # as above

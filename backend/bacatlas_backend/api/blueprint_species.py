@@ -22,6 +22,7 @@ from sqlalchemy import select
 from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
+from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
 from bacatlas_backend.serialisers.locus_serialiser import (
     serialise_annotation_entry,
     serialise_arrangement,
@@ -35,7 +36,6 @@ from bacatlas_backend.services.gene_sequence_service import (
     SequenceUnavailable,
     load_gene_sequences,
 )
-from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
 from bacatlas_backend.services.genome_listing_service import (
     GenomeSourceGroup,
     clamp_genome_limit,

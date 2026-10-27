@@ -225,7 +225,43 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
         f"{uncounted:,} collection genomes have no row and {stray:,} rows name a genome outside the "
         "collection — the anchor picker would drop or invent them",
     )
+
+    # ⛔ The cohort is what the picker SHOWS, and `--publish` is one of the two doors into it.
+    refusal = cohort_label_refusal(session, pangenome)
+    check("the cohort carries a label a reader can read", refusal is None, refusal or "")
     return passed, failed
+
+
+def cohort_label_refusal(session: Session, pangenome: Pangenome) -> str | None:
+    """Why this catalogue's cohort may not be shown to a reader — or `None` if it may.
+
+    ⛔ **A cohort may not reach the picker wearing its key.** The picker's options are cohorts now,
+    so `collection_label` is read by a person — and it defaults to `collection_key`, a machine token
+    with no space in it. Offering such a catalogue would put `kp-71k` in a menu where "Kp" belongs,
+    and nothing downstream could tell that from a label somebody meant.
+
+    ⛔⛔ **ONE RULE, TWO DOORS — and it first shipped on only one of them.** `is_published` is
+    written in exactly two places: `offer_catalogue`, which raises on this, and `publish_pangenome`,
+    which did not check it at all (`6cbe881`). So `--publish` could put a machine token into the
+    picker with every verification green, and the guard written to prevent precisely that would
+    never run. It is one function with two callers rather than two copies of a condition, because
+    the second copy is how the two doors drift apart again.
+
+    ⚠ Only SHOWING is refused. Loading the catalogue and addressing it by key stay allowed, because
+    a cohort nobody is offered has no reader to mislead — the three decisions (load · offer · serve
+    by default) stay separate.
+    """
+    collection = session.get(GenomeCollection, pangenome.genome_collection_id)
+    if collection is None or collection.collection_label != collection.collection_key:
+        return None
+    return (
+        f"{pangenome.catalogue_key!r} sits on cohort {collection.collection_key!r}, whose label is "
+        f"still its own key. The picker shows the LABEL, so this would offer a machine token where "
+        f"a cohort name belongs. Re-ingest with "
+        f"`--collection-label '<what a reader should see>'`, then offer it. "
+        f"⚠ Do not put the genome count in the label — the page renders that from the roster's own "
+        f"count ({collection.genome_count:,})."
+    )
 
 
 def offer_catalogue(session: Session, *, catalogue_key: str, offered: bool = True) -> str:
@@ -242,11 +278,9 @@ def offer_catalogue(session: Session, *, catalogue_key: str, offered: bool = Tru
     catalogue that is already loaded and addressable has otherwise been verified by whatever put it
     there.
 
-    ⛔ **The one check: a cohort may not reach the picker wearing its key.** The picker's options
-    are cohorts now, so `collection_label` is read by a person — and it defaults to
-    `collection_key`, which is a machine token with no space in it. Offering such a catalogue would
-    put `kp-71k` in a menu where "Kp" belongs, and nothing downstream could tell that from a label
-    somebody meant. Loading and addressing it by key stay allowed; only showing it is refused.
+    ⛔ **The one check is `cohort_label_refusal`** — a cohort may not reach the picker wearing its
+    key. It lives beside `verify_pangenome_is_servable`, which runs the same rule, because
+    `is_published` has two writers and a rule enforced at one of them is not enforced.
     """
     pangenome = session.execute(
         select(Pangenome).where(Pangenome.catalogue_key == catalogue_key)
@@ -254,16 +288,9 @@ def offer_catalogue(session: Session, *, catalogue_key: str, offered: bool = Tru
     if pangenome is None:
         raise PublishRefused(f"no catalogue {catalogue_key!r} — nothing to offer.")
     if offered:
-        collection = session.get(GenomeCollection, pangenome.genome_collection_id)
-        if collection is not None and collection.collection_label == collection.collection_key:
-            raise PublishRefused(
-                f"{catalogue_key!r} sits on cohort {collection.collection_key!r}, whose label is "
-                f"still its own key. The picker shows the LABEL, so this would offer a machine "
-                f"token where a cohort name belongs. Re-ingest with "
-                f"`--collection-label '<what a reader should see>'`, then offer it. "
-                f"⚠ Do not put the genome count in the label — the page renders that from the "
-                f"roster's own count ({collection.genome_count:,})."
-            )
+        refusal = cohort_label_refusal(session, pangenome)
+        if refusal is not None:
+            raise PublishRefused(refusal)
     was = pangenome.is_published
     session.execute(
         update(Pangenome)
