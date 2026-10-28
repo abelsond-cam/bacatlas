@@ -31,7 +31,7 @@ self-exclusion is dropped, because the focal recipient node is not a donor. `tal
 binds both consequences to one argument. A wrong null rescales every lift and leaves agreement
 untouched, so nothing in the output would look wrong.
 
-Run from `backend/` with `BACATLAS_DATABASE_URL` set and both `*-nuna4` catalogues loaded:
+Run from `backend/` with `BACATLAS_DATABASE_URL` set and both published cohorts loaded:
 
     python scripts/measure_cross_species_transfer.py \\
         ../../nuna/data/proc/analysis/cross_species/ecoli_to_kp_<model>_cross_species_neighbours.tsv
@@ -50,6 +50,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.instruments.annotation_transfer import (
     MIN_PAIRS,
     NOT_CALLED,
@@ -79,7 +80,12 @@ KINDS = (
     AnnotationKind.EC_NUMBER,
 )
 #: Catalogue keys, keyed by the species token the map's column names use.
-CATALOGUE = {"ecoli": "ecoli-nuna4", "kp": "kp-nuna4"}
+#: ⛔ Derived from the declaration, never typed. These keys moved once already — the model token
+#: became the cohort token on 2026-10-28, when the cohort became the axis — and every literal
+#: spelling of them below broke at once. The next move is a no-op here.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
+CATALOGUE = {"ecoli": ECOLI_CATALOGUE, "kp": KP_CATALOGUE}
 
 
 # ================================================================================ the map, off disk

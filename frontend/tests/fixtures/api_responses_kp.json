@@ -6,35 +6,41 @@
     "arrangement_locus_count": 5297,
     "collection_genome_ordinal": 0,
     "locus_count": 5322,
-    "sample_id": "SAMN03892119"
+    "sample_id": "SAMN03892119",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 5259,
     "collection_genome_ordinal": 1,
     "locus_count": 5272,
-    "sample_id": "SAMN03892120"
+    "sample_id": "SAMN03892120",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 5306,
     "collection_genome_ordinal": 2,
     "locus_count": 5326,
-    "sample_id": "SAMN03892126"
+    "sample_id": "SAMN03892126",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 5389,
     "collection_genome_ordinal": 3,
     "locus_count": 5411,
-    "sample_id": "SAMN04014844"
+    "sample_id": "SAMN04014844",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 5337,
     "collection_genome_ordinal": 4,
     "locus_count": 5352,
-    "sample_id": "SAMN04014845"
+    "sample_id": "SAMN04014845",
+    "source_group": "atb"
    }
   ],
   "matched_genome_count": 100,
   "query": "",
+  "source_group": null,
   "species_key": "kp",
   "truncated": true
  },
@@ -13096,7 +13102,6 @@
       "protein_sequence": "MKLAEDPSYPLILRLQSLLEQIPIIEKVKIIGDGPSMDEGVDYLIQVRIDKTTYVLACETKNNGQPRFVRSAIKTLRSYMYGREEILTPVLLAPYLSADSRQICQENNIAFLDMEGNAQLQFGGVYIDHRMPGKPVPEKRGLRTMFSPKSAQVLRMMLNDPLRTWKVTELSEEGKVSLGHASNVRKNLLEREWAVISSEGLTLNKPGALVNEWRDNYRPIQGKKKNFYTPLHGNALESQLRNLLGCDEVQGSAILASFSAAQWLSPYGRTGMHFFFADEKGMERLISGLKLSTTSKGANVTITVPNDEGIFLDAIEPAPGIVTTGVIQTYLDLTVQGERGQEAAEHLRNEWMEW",
       "seqid": "SAMN03892119.contig00001",
       "start_position": 73637,
-      "stored_gc_percent": 46.76056338028169,
       "strand": "-",
       "strand_is_observed": true,
       "upstream_flank_is_truncated_by_contig_end": false,
@@ -13183,22 +13188,25 @@
    }
   ],
   "landing_locus": "1098",
-  "model": {
-   "exclusivity_form": "damped_exclusion",
-   "key": "nuna4",
-   "knn_k": 100,
-   "label": "nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
-   "step_count": 4
-  },
   "pangenome": {
    "built_at": null,
-   "catalogue_key": "kp-nuna4",
-   "exclusivity_form": "damped_exclusion",
+   "catalogue_key": "kp-probe100",
+   "cohort": {
+    "genome_count": 100,
+    "key": "probe100",
+    "label": "Kp AMR"
+   },
    "gene_count": 532851,
    "genome_count": 100,
-   "git_sha": "899a124",
-   "ingested_at": "2026-09-25T09:42:04.617481+01:00",
+   "genome_source_groups": {
+    "atb": 100,
+    "ncbi_complete": 0,
+    "ncbi_draft": 0
+   },
+   "git_sha": "95f10bc",
+   "ingested_at": "2026-10-28T12:38:56.141270+00:00",
    "locus_count": 15670,
+   "model_label": "kp_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
    "omitted_sections": {
     "seqid_to_medoid": "the audit ran with --skip-seqid-to-medoid, so member-vs-medoid identity was never measured \u2014 seqid_coverage is NULL for every locus, and that is a fact about the RUN"
    },
@@ -13218,44 +13226,6 @@
    "shell": 87115,
    "soft_core": 33019
   },
-  "provenance_rows": [
-   [
-    "representation",
-    "bacformer"
-   ],
-   [
-    "provenance",
-    "3 run manifests (read, not decoded)"
-   ],
-   [
-    "step 1 \u00b7 dedup",
-    "MMseqs2 --min-seq-id 0.98 -c 0.95 (coverage = pipeline default, not in run_id)"
-   ],
-   [
-    "step 2 \u00b7 merge over families",
-    "esm \u00b7 \u03b3 0.98 \u00b7 k100 \u00b7 \u03c1 off \u00b7 excl(h) off"
-   ],
-   [
-    "step 3 \u00b7 split within groups",
-    "bacformer \u00b7 \u03b3 0.5 \u00b7 k100 \u00b7 \u03c1 \u2264 1 pairwise_max"
-   ],
-   [
-    "step 4 \u00b7 merge over a prior partition",
-    "bacformer \u00b7 \u03b3 0.1 \u00b7 k100 \u00b7 \u03c1 \u2264 1 ceiling \u00b7 excl(h) on"
-   ],
-   [
-    "merge algorithm",
-    "CPM (leidenalg CPMVertexPartition)"
-   ],
-   [
-    "graph construction",
-    "density(s) \u00b7 \u03c1\u22641 \u00b7 explode(m\u1d62m\u2c7c) \u00b7 excl(h)"
-   ],
-   [
-    "seed",
-    "0"
-   ]
-  ],
   "similarity_baselines": [
    {
     "floor_median": 0.7509912252426147,
@@ -13281,42 +13251,7 @@
   "species": {
    "key": "kp",
    "scientific_name": "Klebsiella pneumoniae"
-  },
-  "steps": [
-   {
-    "gamma": 0.98,
-    "name": "step2",
-    "ordinal": 2,
-    "representation": "esm",
-    "rho_ceiling": 1000000000.0,
-    "rho_rule": "ceiling",
-    "stage_detail": "esm \u00b7 \u03b3 0.98 \u00b7 k100 \u00b7 \u03c1 off \u00b7 excl(h) off",
-    "stage_name": "merge over families",
-    "uses_exclusivity": false
-   },
-   {
-    "gamma": 0.5,
-    "name": "step3b",
-    "ordinal": 3,
-    "representation": "bacformer",
-    "rho_ceiling": 1.0,
-    "rho_rule": "pairwise_max",
-    "stage_detail": "bacformer \u00b7 \u03b3 0.5 \u00b7 k100 \u00b7 \u03c1 \u2264 1 pairwise_max",
-    "stage_name": "split within groups",
-    "uses_exclusivity": null
-   },
-   {
-    "gamma": 0.1,
-    "name": "step4",
-    "ordinal": 4,
-    "representation": "bacformer",
-    "rho_ceiling": 1.0,
-    "rho_rule": "ceiling",
-    "stage_detail": "bacformer \u00b7 \u03b3 0.1 \u00b7 k100 \u00b7 \u03c1 \u2264 1 ceiling \u00b7 excl(h) on",
-    "stage_name": "merge over a prior partition",
-    "uses_exclusivity": true
-   }
-  ]
+  }
  },
  "species_key": "kp"
 }

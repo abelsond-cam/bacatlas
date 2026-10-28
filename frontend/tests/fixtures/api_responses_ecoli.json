@@ -6,35 +6,41 @@
     "arrangement_locus_count": 4830,
     "collection_genome_ordinal": 0,
     "locus_count": 4866,
-    "sample_id": "SAMEA103923484"
+    "sample_id": "SAMEA103923484",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 5052,
     "collection_genome_ordinal": 1,
     "locus_count": 5088,
-    "sample_id": "SAMEA2204280"
+    "sample_id": "SAMEA2204280",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 4874,
     "collection_genome_ordinal": 2,
     "locus_count": 4898,
-    "sample_id": "SAMEA2204304"
+    "sample_id": "SAMEA2204304",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 4996,
     "collection_genome_ordinal": 3,
     "locus_count": 5025,
-    "sample_id": "SAMEA2204339"
+    "sample_id": "SAMEA2204339",
+    "source_group": "atb"
    },
    {
     "arrangement_locus_count": 4974,
     "collection_genome_ordinal": 4,
     "locus_count": 4996,
-    "sample_id": "SAMEA2204487"
+    "sample_id": "SAMEA2204487",
+    "source_group": "atb"
    }
   ],
   "matched_genome_count": 100,
   "query": "",
+  "source_group": null,
   "species_key": "ecoli",
   "truncated": true
  },
@@ -16428,7 +16434,6 @@
       "protein_sequence": "MKWLLLITLSLYSFIVQSAPCALTNVGEQRGTYILKPLSMKGNLTAEKIENTGNIIECTDLQETTNAIKVHFLTQNALRFKVGSRHYIINFPFEYDGKKIELPGKSSYNLEEMLSAINFTIPYSIASVSDSSNTADIFPGTPFPLLFEIEVSSCTGNNTNCNSVRFNYNLNTILQVNLMTCGFEDQSIDTGRFVLSRINNENYQFHHIRFDCIQGEQGELVFEPSDVEYYFEPVTIQESGTSILKNELENSEDGAGQVGFQLSNDGTNEIQYGKSNYYSFQHPHEGSNQIPLFIRPRTYGNNVSSGQIMSRVKIVVMYN",
       "seqid": "SAMEA103923484.contig00001",
       "start_position": 3055,
-      "stored_gc_percent": 36.770833333333336,
       "strand": "-",
       "strand_is_observed": true,
       "upstream_flank_is_truncated_by_contig_end": false,
@@ -16515,22 +16520,25 @@
    }
   ],
   "landing_locus": "2811",
-  "model": {
-   "exclusivity_form": "damped_exclusion",
-   "key": "nuna4",
-   "knn_k": 100,
-   "label": "nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
-   "step_count": 4
-  },
   "pangenome": {
    "built_at": null,
-   "catalogue_key": "ecoli-nuna4",
-   "exclusivity_form": "damped_exclusion",
+   "catalogue_key": "ecoli-probe100",
+   "cohort": {
+    "genome_count": 100,
+    "key": "probe100",
+    "label": "E. coli AMR"
+   },
    "gene_count": 489146,
    "genome_count": 100,
-   "git_sha": "899a124",
-   "ingested_at": "2026-09-25T09:35:06.477248+01:00",
+   "genome_source_groups": {
+    "atb": 100,
+    "ncbi_complete": 0,
+    "ncbi_draft": 0
+   },
+   "git_sha": "95f10bc",
+   "ingested_at": "2026-10-28T12:31:46.235767+00:00",
    "locus_count": 17531,
+   "model_label": "ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
    "omitted_sections": {
     "seqid_to_medoid": "the audit ran with --skip-seqid-to-medoid, so member-vs-medoid identity was never measured \u2014 seqid_coverage is NULL for every locus, and that is a fact about the RUN"
    },
@@ -16550,44 +16558,6 @@
    "shell": 117141,
    "soft_core": 26027
   },
-  "provenance_rows": [
-   [
-    "representation",
-    "bacformer"
-   ],
-   [
-    "provenance",
-    "3 run manifests (read, not decoded)"
-   ],
-   [
-    "step 1 \u00b7 dedup",
-    "MMseqs2 --min-seq-id 0.98 -c 0.95 (coverage = pipeline default, not in run_id)"
-   ],
-   [
-    "step 2 \u00b7 merge over families",
-    "esm \u00b7 \u03b3 0.98 \u00b7 k100 \u00b7 \u03c1 off \u00b7 excl(h) off"
-   ],
-   [
-    "step 3 \u00b7 split within groups",
-    "bacformer \u00b7 \u03b3 0.5 \u00b7 k100 \u00b7 \u03c1 \u2264 1 pairwise_max"
-   ],
-   [
-    "step 4 \u00b7 merge over a prior partition",
-    "bacformer \u00b7 \u03b3 0.1 \u00b7 k100 \u00b7 \u03c1 \u2264 1 ceiling \u00b7 excl(h) on"
-   ],
-   [
-    "merge algorithm",
-    "CPM (leidenalg CPMVertexPartition)"
-   ],
-   [
-    "graph construction",
-    "density(s) \u00b7 \u03c1\u22641 \u00b7 explode(m\u1d62m\u2c7c) \u00b7 excl(h)"
-   ],
-   [
-    "seed",
-    "0"
-   ]
-  ],
   "similarity_baselines": [
    {
     "floor_median": 0.7416989207267761,
@@ -16613,42 +16583,7 @@
   "species": {
    "key": "ecoli",
    "scientific_name": "Escherichia coli"
-  },
-  "steps": [
-   {
-    "gamma": 0.98,
-    "name": "step2",
-    "ordinal": 2,
-    "representation": "esm",
-    "rho_ceiling": 1000000000.0,
-    "rho_rule": null,
-    "stage_detail": "esm \u00b7 \u03b3 0.98 \u00b7 k100 \u00b7 \u03c1 off \u00b7 excl(h) off",
-    "stage_name": "merge over families",
-    "uses_exclusivity": false
-   },
-   {
-    "gamma": 0.5,
-    "name": "step3b",
-    "ordinal": 3,
-    "representation": "bacformer",
-    "rho_ceiling": 1.0,
-    "rho_rule": "pairwise_max",
-    "stage_detail": "bacformer \u00b7 \u03b3 0.5 \u00b7 k100 \u00b7 \u03c1 \u2264 1 pairwise_max",
-    "stage_name": "split within groups",
-    "uses_exclusivity": null
-   },
-   {
-    "gamma": 0.1,
-    "name": "step4",
-    "ordinal": 4,
-    "representation": "bacformer",
-    "rho_ceiling": 1.0,
-    "rho_rule": "ceiling",
-    "stage_detail": "bacformer \u00b7 \u03b3 0.1 \u00b7 k100 \u00b7 \u03c1 \u2264 1 ceiling \u00b7 excl(h) on",
-    "stage_name": "merge over a prior partition",
-    "uses_exclusivity": true
-   }
-  ]
+  }
  },
  "species_key": "ecoli"
 }

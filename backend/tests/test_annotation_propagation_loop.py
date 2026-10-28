@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
 from measure_annotation_propagation_loop import (  # noqa: E402
+    CATALOGUES,
     CLAIMS,
     MASK_FRACTION,
     TARGET,
@@ -303,7 +304,7 @@ def test_uniref_assigns_nothing_where_a_family_s_labelled_nodes_disagree():
 
 # ============================================================ the census identity, against SQL not itself
 @needs_database
-@pytest.mark.parametrize("catalogue", ["ecoli-nuna4", "kp-nuna4"])
+@pytest.mark.parametrize("catalogue", CATALOGUES)
 def test_node_coverage_equals_nodes_with_at_least_one_annotated_gene(catalogue):
     """⛔ The oracle is SQL, independent of the harness — not the harness compared with itself.
 
@@ -330,7 +331,7 @@ def test_node_coverage_equals_nodes_with_at_least_one_annotated_gene(catalogue):
 
 
 @needs_database
-@pytest.mark.parametrize("catalogue", ["ecoli-nuna4", "kp-nuna4"])
+@pytest.mark.parametrize("catalogue", CATALOGUES)
 def test_the_masked_nodes_are_absent_from_the_donor_pool(catalogue):
     """⛔ A masked node that could still donate would make the held-out set worthless."""
     from measure_annotation_propagation_loop import load_problems  # noqa: PLC0415

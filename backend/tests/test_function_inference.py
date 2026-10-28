@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.instruments.annotation_transfer import (
     CALLING_FLOOR,
     MIN_PAIRS,
@@ -42,7 +43,14 @@ from bacatlas_backend.services.function_inference_service import (
     propagation_for,
 )
 
-
+#: ⛔ The catalogue keys as `published_cohorts.py` SPELLS them, never as literals. They moved once
+#: already — the model token became the cohort token on 2026-10-28, when the cohort became the axis
+#: — and every query below failed because the old spelling was typed into its SQL. Deriving them
+#: makes the next move, which the model rebuild will bring, a no-op in this file.
+#: ⚠ The queries interpolate these rather than binding them: they are module constants from our own
+#: declaration, never input, and the alternative is a `:param` on seven separate `execute` calls.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
 @pytest.fixture(scope="module")
 def database_url():
     url = os.environ.get("BACATLAS_DATABASE_URL")
@@ -235,14 +243,14 @@ def test_gumC_is_no_longer_offered_a_KEGG_it_would_be_wrong_about(client):
 def test_the_floor_is_not_vacuous_a_STRONG_neighbour_still_suggests(client, session):
     """⛔ A floor that suppressed everything would pass every test above and serve a blank page."""
     label = session.execute(
-        text("""
+        text(f"""
             select focal.node_label
               from locus focal
               join pangenome p on p.pangenome_id = focal.pangenome_id
               join locus_nearest_locus n
                    on n.locus_id = focal.locus_id and n.representation = 'ESM'
               join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = 'kp-nuna4'
+             where p.catalogue_key = '{KP_CATALOGUE}'
                and focal.cog_distinct_id_count = 0
                and donor.cog_distinct_id_count > 0
                and n.cross_similarity >= 0.99
@@ -391,10 +399,10 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
     band = cog["propagation"]
     assert band["prevalence_band"] == "core", "gumC is a 100-genome core node, not a singleton"
     carrying = session.execute(
-        text("""
+        text(f"""
             select count(*)
               from locus l join pangenome p using (pangenome_id)
-             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'CORE'
+             where p.catalogue_key = '{KP_CATALOGUE}' and l.prevalence_band = 'CORE'
                and l.cog_distinct_id_count > 0
         """)
     ).scalar_one()
@@ -421,7 +429,7 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
 
 
 # ── the TWO mechanisms, and the populations they serve ──────────────────────────────────────────
-@pytest.mark.parametrize("catalogue,pangenome_id", [("ecoli-nuna4", 1), ("kp-nuna4", 2)])
+@pytest.mark.parametrize("catalogue,pangenome_id", [(ECOLI_CATALOGUE, 1), (KP_CATALOGUE, 2)])
 def test_the_two_mechanisms_PARTITION_the_catalogue_with_nothing_left_over(
     client, session, catalogue, pangenome_id
 ):
@@ -489,7 +497,7 @@ def test_a_donor_CARRIES_a_vocabulary_by_the_ANY_GENE_rule_not_by_a_medoid(clien
     silent change in what the page suggests rather than an error.
     """
     row = session.execute(
-        text("""
+        text(f"""
             select focal.node_label as focal, donor.node_label as donor,
                    donor.cog_annotated_member_count as annotated,
                    donor.member_gene_count as members
@@ -498,7 +506,7 @@ def test_a_donor_CARRIES_a_vocabulary_by_the_ANY_GENE_rule_not_by_a_medoid(clien
               join locus_nearest_locus n
                    on n.locus_id = focal.locus_id and n.representation = 'ESM'
               join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = 'kp-nuna4'
+             where p.catalogue_key = '{KP_CATALOGUE}'
                and focal.cog_distinct_id_count = 0
                and donor.cog_distinct_id_count > 0
                and donor.cog_annotated_member_count = 1
@@ -555,10 +563,10 @@ def test_the_band_rate_does_NOT_depend_on_how_many_genes_carried_the_call(client
     mean the page was quoting a property of the node rather than of its reference class.
     """
     crowded = session.execute(
-        text("""
+        text(f"""
             select l.node_label
               from locus l join pangenome p using (pangenome_id)
-             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'CORE'
+             where p.catalogue_key = '{KP_CATALOGUE}' and l.prevalence_band = 'CORE'
                and l.cog_annotated_member_count >= 50
              order by l.node_label limit 1
         """)
@@ -586,10 +594,10 @@ def test_a_RARE_node_is_told_the_rate_is_NOT_MEASURABLE_and_never_zero(client, s
     It is the mistake `no_homology` was retired for, in a new place.
     """
     label = session.execute(
-        text("""
+        text(f"""
             select l.node_label
               from locus l join pangenome p using (pangenome_id)
-             where p.catalogue_key = 'kp-nuna4' and l.prevalence_band = 'RARE'
+             where p.catalogue_key = '{KP_CATALOGUE}' and l.prevalence_band = 'RARE'
                and l.cog_distinct_id_count > 0
              order by l.node_label limit 1
         """)
@@ -615,7 +623,7 @@ def test_the_DONOR_card_quotes_the_DONORS_band_and_not_the_recipients(client, se
     label that could quietly stop exercising it.
     """
     row = session.execute(
-        text("""
+        text(f"""
             select focal.node_label as focal, lower(focal.prevalence_band::text) as focal_band,
                    donor.node_label as donor, lower(donor.prevalence_band::text) as donor_band
               from locus focal
@@ -623,7 +631,7 @@ def test_the_DONOR_card_quotes_the_DONORS_band_and_not_the_recipients(client, se
               join locus_nearest_locus n
                    on n.locus_id = focal.locus_id and n.representation = 'ESM'
               join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = 'kp-nuna4'
+             where p.catalogue_key = '{KP_CATALOGUE}'
                and focal.cog_distinct_id_count = 0
                and donor.cog_distinct_id_count > 0
                and donor.prevalence_band <> focal.prevalence_band
@@ -699,14 +707,14 @@ def test_the_walk_shows_the_ranks_that_carried_NOTHING(client, session):
     past rank 1 — rather than by a pinned label that could quietly stop exercising it.
     """
     label = session.execute(
-        text("""
+        text(f"""
             select focal.node_label
               from locus focal
               join pangenome p on p.pangenome_id = focal.pangenome_id
               join locus_nearest_locus n
                    on n.locus_id = focal.locus_id and n.representation = 'ESM'
               join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = 'ecoli-nuna4'
+             where p.catalogue_key = '{ECOLI_CATALOGUE}'
                and focal.cog_distinct_id_count = 0
                and donor.cog_distinct_id_count > 0
                and n.cross_similarity >= 0.98

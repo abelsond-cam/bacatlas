@@ -957,10 +957,21 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(gene.protein_sequence).not.toContain("*");
     });
 
-    it("⭐ the sliced GC reproduces the column ingest wrote", () => {
-      // Two computations of one number, from the same coordinates at different times.
+    it("⭐ the reported GC is the GC of the bases the API sent", () => {
+      // Two computations of one number — still, but the second one had to move. This compared
+      // against `stored_gc_percent`, the column ingest wrote, until GC left the database on
+      // 2026-10-26 (`70daa90dfc78`) and the field went with it. ⛔ The assertion did not fail: the
+      // committed fixture still carried the dead field, `tests/` is outside tsconfig's `include`
+      // so nothing type-checked the `!`, and the test stayed green and vacuous for two days.
+      // Recomputing from the bases keeps a genuinely independent second implementation.
+      // ⚠ Mirror the server's denominator exactly (`gene_sequence_reader.py:56-59`): G+C over the
+      // bases that are ACGT, ambiguous ones excluded from BOTH sides.
       const gene = minus.response.genes[0]!;
-      expect(gene.gc_percent).toBeCloseTo(gene.stored_gc_percent!, 9);
+      const countable = (gene.coding_sequence.match(/[ACGT]/g) ?? []).length;
+      const gc = (gene.coding_sequence.match(/[GC]/g) ?? []).length;
+      // ⛔ Without this the server's 0.0-for-no-countable-bases would equal ours and prove nothing.
+      expect(countable).toBeGreaterThan(0);
+      expect(gene.gc_percent).toBeCloseTo((100 * gc) / countable, 9);
     });
 
     it("⛔ the bases are DNA and nothing else", () => {

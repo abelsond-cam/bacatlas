@@ -1,6 +1,6 @@
 """Every number in `nuna/docs/model_evaluation/function_inference.md`, from the live database.
 
-Run from `backend/` with `BACATLAS_DATABASE_URL` set and both `*-nuna4` catalogues loaded:
+Run from `backend/` with `BACATLAS_DATABASE_URL` set and both published cohorts loaded:
 
     python scripts/measure_cog_function_inference.py
 
@@ -21,6 +21,7 @@ from statistics import median
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.instruments.annotation_transfer import (
     ANNOTATED_COUNT_PREDICATE,
     MIN_PAIRS,
@@ -40,7 +41,12 @@ from bacatlas_backend.instruments.within_node_propagation import MIN_NODES, comp
 from bacatlas_backend.models.enumerations import AnnotationKind
 from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
-CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
+#: ⛔ Derived from the declaration, never typed. These keys moved once already — the model token
+#: became the cohort token on 2026-10-28, when the cohort became the axis — and every literal
+#: spelling of them below broke at once. The next move is a no-op here.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
+CATALOGUES = (ECOLI_CATALOGUE, KP_CATALOGUE)
 #: ⭐ All four vocabularies, not the two this file was named for. GO and KEGG were measured for the
 #: first time on 2026-10-03 after David asked why they were missing; GO turns out to cover MORE genes
 #: than COG in *E. coli* (351,559 against 313,617), so leaving it out understated the model's reach.

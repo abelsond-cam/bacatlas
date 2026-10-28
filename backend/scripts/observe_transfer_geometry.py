@@ -37,10 +37,16 @@ from collections import Counter
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.transfer import claims as claim_module
 from bacatlas_backend.transfer.candidates import read_cross_map, within_species
 
-CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
+#: ⛔ Derived from the declaration, never typed. These keys moved once already — the model token
+#: became the cohort token on 2026-10-28, when the cohort became the axis — and every literal
+#: spelling of them below broke at once. The next move is a no-op here.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
+CATALOGUES = (ECOLI_CATALOGUE, KP_CATALOGUE)
 
 
 def mcnemar(both_right: int, max_only: int, median_only: int, both_wrong: int) -> tuple[float, str]:
@@ -231,7 +237,7 @@ def main() -> None:
         print(f"  {name:<12}{catalogue.node_total:,} nodes · {catalogue.gene_total:,} genes · annotated: {counts}")
 
     cross_map, provenance = read_cross_map(arguments.cross_esm, donor="ecoli", recipient="kp")
-    q1_max_vs_median(loaded["kp-nuna4"], loaded["ecoli-nuna4"], cross_map, provenance)
+    q1_max_vs_median(loaded[KP_CATALOGUE], loaded[ECOLI_CATALOGUE], cross_map, provenance)
     for name in CATALOGUES:
         q2_candidate_ladder(loaded[name], walks[name])
     for name in CATALOGUES:

@@ -43,7 +43,7 @@ serves the Function tab from. Nothing here re-implements a fold, a claim or a ru
 ⛔⛔ **Nothing here goes near the web page**, and nothing measured here is RECORDED until David has
 seen it (`~/.claude/CLAUDE.md`: gather the data, then STOP).
 
-Run from `backend/` with both `*-nuna4` catalogues loaded::
+Run from `backend/` with both published cohorts loaded::
 
     export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_ingest"
     python scripts/measure_annotation_propagation_loop.py --stage all \
@@ -65,6 +65,7 @@ from pathlib import Path
 from sqlalchemy import create_engine, select, text
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.instruments.annotation_transfer import _chance_by_rung, _claims, go_rung
 from bacatlas_backend.models.enumerations import (
     GENE_ONTOLOGY_NAMESPACE_NAMES,
@@ -121,7 +122,12 @@ MAX_ROUNDS = 5
 #: rate, and retiring a mechanism on noise would understate the loop.
 MIN_SCORED_TO_RETIRE = 30
 
-CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
+#: ⛔ Derived from the declaration, never typed. These keys moved once already — the model token
+#: became the cohort token on 2026-10-28, when the cohort became the axis — and every literal
+#: spelling of them below broke at once. The next move is a no-op here.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
+CATALOGUES = (ECOLI_CATALOGUE, KP_CATALOGUE)
 REPS = ("ESM", "BACFORMER")
 #: Cross-species bars swept in S5. ⚠ Cross-species cosines are a THIRD distribution: the ESM map's
 #: rank-1 pairs sit at ~0.976 and Bacformer's at ~0.35, so neither within-species ladder transfers.
@@ -722,10 +728,10 @@ def report_chance(problems: dict[str, dict[str, Problem]], states: dict[str, dic
             chance = _chance_by_rung(pool, rung)
             shown.append(sum(chance(truth) for truth in state.masked.values()) / max(1, len(state.masked)))
         donor = {
-            node: {rung: claim} for node, claim in states["ecoli-nuna4"][key].label.items()
+            node: {rung: claim} for node, claim in states[ECOLI_CATALOGUE][key].label.items()
         }
         cross = _chance_by_rung(donor, rung, self_excluded=False)
-        kp_masked = states["kp-nuna4"][key].masked
+        kp_masked = states[KP_CATALOGUE][key].masked
         across = sum(cross(truth) for truth in kp_masked.values()) / max(1, len(kp_masked))
         print(f"  {label:<22}{shown[0]:>13.1%} {shown[1]:>11.1%} {across:>15.1%}")
 
@@ -843,8 +849,8 @@ def report_extra(
         f"{'B prec':>8}{'B scored':>10}{'called':>9}{'node cover':>12}"
     )
     for key, label, _kind, _rung in CLAIMS:
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
-        recipient_base, donor_base = states["kp-nuna4"][key], states["ecoli-nuna4"][key]
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
+        recipient_base, donor_base = states[KP_CATALOGUE][key], states[ECOLI_CATALOGUE][key]
         halves = sorted(recipient_base.masked)
         half_a = set(halves[::2])
         half_b = set(halves[1::2])
@@ -899,10 +905,10 @@ def report_cross_reach(
         f"    {'claim':<22}{'kp unlabelled':>14}{'within kp':>11}{'from ecoli':>12}"
         f"{'within %':>10}{'cross %':>9}"
     )
-    donor_id_of = {label: node for node, label in problems["ecoli-nuna4"]["cog"].node_label.items()}
+    donor_id_of = {label: node for node, label in problems[ECOLI_CATALOGUE]["cog"].node_label.items()}
     for key, label, _kind, _rung in CLAIMS:
-        recipient, state = problems["kp-nuna4"][key], states["kp-nuna4"][key]
-        donor_state = states["ecoli-nuna4"][key]
+        recipient, state = problems[KP_CATALOGUE][key], states[KP_CATALOGUE][key]
+        donor_state = states[ECOLI_CATALOGUE][key]
         unlabelled = [node for node in recipient.gene_count if node not in state.label]
         within = sum(nearest_labelled(recipient, state, node, "ESM") is not None for node in unlabelled)
         across = 0
@@ -916,7 +922,7 @@ def report_cross_reach(
             f"    {label:<22}{len(unlabelled):>14,}{within:>11,}{across:>12,}"
             f"{within / len(unlabelled):>10.1%}{across / len(unlabelled):>9.1%}"
         )
-    ecoli, kp = problems["ecoli-nuna4"], problems["kp-nuna4"]
+    ecoli, kp = problems[ECOLI_CATALOGUE], problems[KP_CATALOGUE]
     print("    ⚠ The donor pools are not equally annotated, and that is a candidate explanation:")
     for key, label, _kind, _rung in CLAIMS:
         print(
@@ -1143,11 +1149,11 @@ def measure_one_pass(
                 },
             )
             apply(state, assigned, "inter", 1)
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
-        state = working["kp-nuna4"]
-        assigned = extrapolate(recipient, state, donor, working["ecoli-nuna4"], maps, cross_bars)
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
+        state = working[KP_CATALOGUE]
+        assigned = extrapolate(recipient, state, donor, working[ECOLI_CATALOGUE], maps, cross_bars)
         _called, scored, rate = precision(state, assigned)
-        out["kp-nuna4"][2]["extra"] = {
+        out[KP_CATALOGUE][2]["extra"] = {
             "called": len(assigned),
             "scored": scored,
             "precision": rate,
@@ -1221,12 +1227,12 @@ def scoreable_calls(
             passes.append((catalogue, "inter", problem, state, assigned))
         for _catalogue, _mechanism, _problem, state, assigned in list(passes):
             apply(state, assigned, "inter", 1)
-        recipient = problems["kp-nuna4"][key]
-        state = working["kp-nuna4"]
+        recipient = problems[KP_CATALOGUE][key]
+        state = working[KP_CATALOGUE]
         assigned = extrapolate(
-            recipient, state, problems["ecoli-nuna4"][key], working["ecoli-nuna4"], maps, cross_bars
+            recipient, state, problems[ECOLI_CATALOGUE][key], working[ECOLI_CATALOGUE], maps, cross_bars
         )
-        passes.append(("kp-nuna4", "extra", recipient, state, assigned))
+        passes.append((KP_CATALOGUE, "extra", recipient, state, assigned))
 
         for catalogue, mechanism, problem, state, assigned in passes:
             for node, claim in assigned.items():
@@ -1306,8 +1312,8 @@ def unrestricted_calls(
                     }
                 )
 
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
-        state, donor_state = states["kp-nuna4"][key], states["ecoli-nuna4"][key]
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
+        state, donor_state = states[KP_CATALOGUE][key], states[ECOLI_CATALOGUE][key]
         donor_id_of = {name: identifier for identifier, name in donor.node_label.items()}
         for node in state.masked:
             found: dict[str, tuple[frozenset[str], float, int]] = {}
@@ -1331,7 +1337,7 @@ def unrestricted_calls(
             )
             rows.append(
                 {
-                    "catalogue": "kp-nuna4",
+                    "catalogue": KP_CATALOGUE,
                     "claim": key,
                     "claim_label": label,
                     "mechanism": "extra",
@@ -1384,8 +1390,8 @@ def coverage_candidates(
                         "concur": int(bool(bacformer and (esm[0] & bacformer[0]))),
                     }
                 )
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
-        state, donor_state = truth_states["kp-nuna4"], truth_states["ecoli-nuna4"]
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
+        state, donor_state = truth_states[KP_CATALOGUE], truth_states[ECOLI_CATALOGUE]
         donor_id_of = {name: identifier for identifier, name in donor.node_label.items()}
         for node in recipient.gene_count:
             if node in state.label:
@@ -1410,7 +1416,7 @@ def coverage_candidates(
             )
             rows.append(
                 {
-                    "catalogue": "kp-nuna4", "claim": key, "claim_label": label,
+                    "catalogue": KP_CATALOGUE, "claim": key, "claim_label": label,
                     "mechanism": "extra", "node": node,
                     "gene_count": recipient.gene_count[node],
                     "esm_cosine": esm[1], "pair_bacformer_cosine": pair,
@@ -1541,19 +1547,19 @@ def report_interaction(
     print("  ⛔ 'common' is precision over the masked nodes ALL FOUR cells call — the only fair column")
     print("     when the cells call different numbers of nodes for structural reasons.\n")
     for key, label, _kind, _rung in CLAIMS:
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
         cells: dict[tuple[bool, bool], tuple[dict[int, frozenset[str]], State]] = {}
         for donor_interpolated in (False, True):
             donor_state = (
-                _after_inter(donor, states["ecoli-nuna4"][key], key)
+                _after_inter(donor, states[ECOLI_CATALOGUE][key], key)
                 if donor_interpolated
-                else states["ecoli-nuna4"][key].copy()
+                else states[ECOLI_CATALOGUE][key].copy()
             )
             for recipient_interpolated in (False, True):
                 recipient_state = (
-                    _after_inter(recipient, states["kp-nuna4"][key], key)
+                    _after_inter(recipient, states[KP_CATALOGUE][key], key)
                     if recipient_interpolated
-                    else states["kp-nuna4"][key].copy()
+                    else states[KP_CATALOGUE][key].copy()
                 )
                 assigned = extrapolate(
                     recipient, recipient_state, donor, donor_state, maps, cross_bars
@@ -1617,11 +1623,11 @@ def report_concordance(
     )
     rows: list[tuple[str, dict]] = []
     for key, label, _kind, _rung in CLAIMS:
-        recipient, donor = problems["kp-nuna4"][key], problems["ecoli-nuna4"][key]
-        state = states["kp-nuna4"][key]
+        recipient, donor = problems[KP_CATALOGUE][key], problems[ECOLI_CATALOGUE][key]
+        state = states[KP_CATALOGUE][key]
         inter_calls = interpolate(recipient, state.copy(), INTERPOLATION_POLICY[key])
         extra_calls = extrapolate(
-            recipient, state.copy(), donor, states["ecoli-nuna4"][key], maps, cross_bars
+            recipient, state.copy(), donor, states[ECOLI_CATALOGUE][key], maps, cross_bars
         )
         both = set(inter_calls) & set(extra_calls)
         agreeing = {node for node in both if inter_calls[node] & extra_calls[node]}
@@ -1713,12 +1719,12 @@ def run_loop(
                 catalogue, "inter", round_number,
                 interpolate(problems[catalogue][claim_key], working[catalogue], INTERPOLATION_POLICY[claim_key]),
             )
-        if ("kp-nuna4", "extra") not in retired:
+        if (KP_CATALOGUE, "extra") not in retired:
             added += record(
-                "kp-nuna4", "extra", round_number,
+                KP_CATALOGUE, "extra", round_number,
                 extrapolate(
-                    problems["kp-nuna4"][claim_key], working["kp-nuna4"],
-                    problems["ecoli-nuna4"][claim_key], working["ecoli-nuna4"],
+                    problems[KP_CATALOGUE][claim_key], working[KP_CATALOGUE],
+                    problems[ECOLI_CATALOGUE][claim_key], working[ECOLI_CATALOGUE],
                     maps, cross_bars,
                 ),
             )

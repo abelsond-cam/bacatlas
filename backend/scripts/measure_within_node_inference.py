@@ -24,6 +24,8 @@ import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest.published_cohorts import cohort_for
+
 #: ⚠ **HARD-CODED CATALOGUE KEYS, and they are the keys of TODAY.** The cohort axis means these
 #: become `ecoli-probe100` / `kp-probe100` when the cohorts are re-ingested. Six scripts under
 #: `backend/scripts/` carry such a literal and a seventh builds one with an f-string
@@ -32,7 +34,12 @@ from sqlalchemy.orm import Session
 #: and an outer aggregate over zero rows still returns one row, with `total_genes` NULL, so the
 #: first division raised `TypeError: unsupported operand type(s) for /: 'int' and 'NoneType'` —
 #: which reads as a defect in the script rather than "that catalogue no longer exists".
-CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
+#: ⛔ Derived from the declaration, never typed. These keys moved once already — the model token
+#: became the cohort token on 2026-10-28, when the cohort became the axis — and every literal
+#: spelling of them below broke at once. The next move is a no-op here.
+ECOLI_CATALOGUE = cohort_for("ecoli", "ecoli").catalogue_key
+KP_CATALOGUE = cohort_for("kp", "kp").catalogue_key
+CATALOGUES = (ECOLI_CATALOGUE, KP_CATALOGUE)
 
 
 def _refuse_unknown_catalogue(session, catalogue: str) -> None:
