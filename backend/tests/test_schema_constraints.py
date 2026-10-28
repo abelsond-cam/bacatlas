@@ -10,7 +10,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 
 from bacatlas_backend.database import Base
-from bacatlas_backend.models.enumerations import ExclusivityForm, ExclusivityFormSource
+from bacatlas_backend.models.enumerations import RhoRule
 from bacatlas_backend.models.locus_offset_occupant import LocusOffsetOccupant
 from bacatlas_backend.models.pangenome import Pangenome
 
@@ -61,50 +61,15 @@ def test_a_measurement_column_ACCEPTS_null_because_null_means_not_measured(sessi
     session.flush()
 
 
-def test_the_exclusivity_constraint_REJECTS_a_token_that_disagrees_with_its_form(session, seeded):
-    # ⛔ `-excl` is a PREFIX of `-exclLOGP` and four readers got this wrong silently in one day.
-    # After ingest no query looks at a run_id string again, because this row cannot exist.
-    session.add(
-        Pangenome(
-            run_id="wrong_token_run",
-            catalogue_key="probe-wrong-token",
-            model_label="nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
-            pathogen_species_id=seeded["species"].pathogen_species_id,
-            genome_collection_id=seeded["collection"].genome_collection_id,
-            exclusivity_form=ExclusivityForm.EXCLUSION,       # standard …
-            exclusivity_form_source=ExclusivityFormSource.RUN_ID_TOKEN,
-            run_id_exclusivity_token="-excl",                  # … but the DAMPED token
-            genome_count=100,
-            gene_count=1,
-            locus_count=1,
-        )
-    )
-    with pytest.raises(IntegrityError, match="exclusivity_token_agrees"):
-        session.flush()
-
-
-@pytest.mark.parametrize(
-    ("token", "form"),
-    [("-exclLOGP", ExclusivityForm.EXCLUSION), ("-excl", ExclusivityForm.DAMPED_EXCLUSION)],
-)
-def test_the_exclusivity_constraint_ACCEPTS_each_token_with_its_own_form(session, seeded, token, form):
-    session.add(
-        Pangenome(
-            run_id=f"ok_{token}",
-            catalogue_key=f"probe-ok{token}",
-            model_label="nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
-            pathogen_species_id=seeded["species"].pathogen_species_id,
-            genome_collection_id=seeded["collection"].genome_collection_id,
-            exclusivity_form=form,
-            exclusivity_form_source=ExclusivityFormSource.RUN_ID_TOKEN,
-            run_id_exclusivity_token=token,
-            genome_count=100,
-            gene_count=1,
-            locus_count=1,
-        )
-    )
-    session.flush()
-
+# ⛔ **THE TWO `exclusivity_token_agrees` TESTS ARE DELETED WITH THE CONSTRAINT (2026-10-27)**, and
+# the loss is named rather than quietly absorbed. They pinned that `-excl`, a PREFIX of
+# `-exclLOGP`, could not be stored against the wrong decoded form — the trap four readers fell into
+# in one day. Nothing in this service decodes a run_id any anymore, so there is no derived form to be
+# inconsistent with: the id is stored verbatim and the token is inside it, where nuna's own suite
+# owns the vocabulary. A test over a vocabulary this repo no longer reads is theatre.
+#
+# ⚠ The structurally identical trap that IS still live is in the CATALOGUE KEYS — `ecoli` globbing
+# `locus_browser_ecoli_nuna5_*.json` — and `test_catalogue_addressing.py` is where it is pinned.
 
 def test_an_offset_of_zero_is_rejected(session, seeded):
     # `0` is the focal locus; a row at 0 would be a locus claiming to be its own neighbour.
@@ -170,18 +135,21 @@ def test_there_is_NO_unique_constraint_on_locus_and_genome(engine):
         )
 
 
-def test_rho_ceiling_can_hold_step_twos_literal_1e9(session, seeded):
-    """⛔ `nuna_pipeline.py:410` passes the string `"1e9"`, and CLAUDE.md's table says so too.
+def test_pangenome_step_rho_ceiling_can_hold_step_twos_literal_1e9(session, seeded):
+    """⛔ `nuna_pipeline.py` passes the string `"1e9"`, and every multi-step model's step 2 carries it.
 
-    At `Numeric(12, 4)` this raised `numeric field overflow`, so ingesting the step 2 of EVERY
-    multi-step model would have failed. The value is stored, not merely accepted, because a silent
-    truncation to `99999999.9999` would still describe a ρ rail — just not this one.
+    The test this replaced pinned the same value on `nuna_model_step`, whose `rho_ceiling` is
+    `Numeric(18, 4)` — widened from `Numeric(12, 4)` after `numeric field overflow` would have
+    failed the ingest of EVERY multi-step model. That table is gone with the registry, but the
+    value is not: it arrives from the run's own manifest and lands in `pangenome_step`, which is
+    kept. ⭐ That column is a `Float`, so the overflow hazard does not transfer — asserted rather
+    than assumed, because "a different type, therefore fine" is the kind of reasoning this suite
+    exists to replace with a measurement.
     """
-    from bacatlas_backend.models.enumerations import RhoRule
-    from bacatlas_backend.models.nuna_model import NunaModelStep
+    from bacatlas_backend.models.pangenome import PangenomeStep
 
-    step = NunaModelStep(
-        nuna_model_id=seeded["model"].nuna_model_id,
+    step = PangenomeStep(
+        pangenome_id=seeded["pangenome"].pangenome_id,
         step_ordinal=2, step_name="step2", gamma=0.98,
         rho_rule=RhoRule.OFF, rho_ceiling=1e9, node_mode="mmseq", uses_exclusivity=False,
     )

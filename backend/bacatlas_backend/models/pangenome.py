@@ -1,4 +1,13 @@
-"""A pangenome = one `nuna_model` applied to one `genome_collection`. It is what owns loci."""
+"""A pangenome = one clustering RUN over one `genome_collection`. It is what owns loci.
+
+⛔ **It used to be "one `nuna_model` applied to one collection", and the model half is gone**
+(David, 2026-10-27). The browser's axis is the cohort; the model is `model_label`, one free-text
+string beside the `run_id` that actually addresses the artifacts. `nuna_model`, `nuna_model_step`,
+`nuna_model_id` and the three `exclusivity_*` columns went with it — 32 + 129 rows, two enum types,
+a registry ingest and nine decoded provenance rows, all to print a footer nobody picked a catalogue
+by. ⚠ `pangenome_step` STAYS: it is what the run actually did, with wall time, peak RSS and each
+step's assignment path, where the registry's equivalents were structurally NULL.
+"""
 
 from __future__ import annotations
 
@@ -23,8 +32,6 @@ from bacatlas_backend.database import Base
 from bacatlas_backend.models.enumerations import (
     EmbeddingRepresentation,
     EvaluationKind,
-    ExclusivityForm,
-    ExclusivityFormSource,
     GateVerdict,
     RhoRule,
 )
@@ -40,15 +47,13 @@ class Pangenome(Base):
         # A name over that is truncated with a hash while Alembic compares against the name it ASKED
         # for, so the table reports as drifted from its own migration forever.
         UniqueConstraint("catalogue_key"),
-        # ⛔ THE `-excl` PREFIX HAZARD, made unrepresentable. `-excl` is a prefix of `-exclLOGP`,
-        # and four readers got this wrong silently in one day. A row that disagrees with its own
-        # token cannot exist, so no query downstream has to be careful.
-        CheckConstraint(
-            "run_id_exclusivity_token IS NULL"
-            " OR (run_id_exclusivity_token = '-exclLOGP' AND exclusivity_form = 'EXCLUSION')"
-            " OR (run_id_exclusivity_token = '-excl' AND exclusivity_form = 'DAMPED_EXCLUSION')",
-            name="exclusivity_token_agrees",
-        ),
+        # ⛔ **THE `-excl` PREFIX CHECK IS GONE, and what it protected is gone with it.** It made
+        # a row disagreeing with its own decoded token unrepresentable — `-excl` is a prefix of
+        # `-exclLOGP`, and four readers got that wrong in one day. It admitted only those two
+        # LEGACY tokens, so once nuna started emitting `-p_hypergeo` (2026-10-23) no hypergeo
+        # catalogue could be inserted at all. ⭐ Nothing decodes a run_id here any more, so there
+        # is no decode to be inconsistent with: the id is stored verbatim and the token is in it.
+        # ⚠ The structurally identical trap in `catalogue_key` is NOT retired — see below.
     )
 
     pangenome_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -82,13 +87,6 @@ class Pangenome(Base):
     genome_collection_id: Mapped[int] = mapped_column(
         ForeignKey("genome_collection.genome_collection_id"), nullable=False
     )
-    nuna_model_id: Mapped[int | None] = mapped_column(ForeignKey("nuna_model.nuna_model_id"), nullable=True)
-
-    exclusivity_form: Mapped[ExclusivityForm] = mapped_column(nullable=False)
-    exclusivity_form_source: Mapped[ExclusivityFormSource] = mapped_column(nullable=False)
-    #: The literal token found in the run_id, or NULL. Stored so the decision is auditable without
-    #: re-parsing — and so the CHECK above has something to check against.
-    run_id_exclusivity_token: Mapped[str | None] = mapped_column(String(16), nullable=True)
 
     #: ⭐ **The model, in full, as one free-text string** — `CPM_gamma0.5_hypergeo_gamma0.6`,
     #: `nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL`. David, 2026-10-27: the footer publishes it
@@ -173,9 +171,11 @@ class Pangenome(Base):
 class PangenomeStep(Base):
     """What a step of THIS run actually did — the same shape as the model's step, plus its cost.
 
-    Cross-checked against `nuna_model_step` at ingest. ⚠ A disagreement is **recorded, not
-    resolved**: that is how a run whose manifest contradicts the registry gets caught rather than
-    silently normalised to one of them.
+    ⚠ It used to be cross-checked against `nuna_model_step` at ingest, with any disagreement
+    **recorded rather than resolved** — the right shape, because it caught a run whose manifest
+    contradicted the registry instead of silently normalising to whichever the loader preferred.
+    The registry is gone (2026-10-27), so there is nothing left to disagree with: the run's own
+    manifests are the only description of what it did, which is what they always were.
     """
 
     __tablename__ = "pangenome_step"

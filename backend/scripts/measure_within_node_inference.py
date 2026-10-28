@@ -24,7 +24,28 @@ import sys
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
+#: ⚠ **HARD-CODED CATALOGUE KEYS, and they are the keys of TODAY.** The cohort axis means these
+#: become `ecoli-probe100` / `kp-probe100` when the cohorts are re-ingested. Six scripts under
+#: `backend/scripts/` carry such a literal and a seventh builds one with an f-string
+#: (`compare_representations_cross_species.py`); five of them die loudly on `scalar_one()` when the
+#: key goes. This one did NOT — both its queries aggregate over `where p.catalogue_key = :catalogue`
+#: and an outer aggregate over zero rows still returns one row, with `total_genes` NULL, so the
+#: first division raised `TypeError: unsupported operand type(s) for /: 'int' and 'NoneType'` —
+#: which reads as a defect in the script rather than "that catalogue no longer exists".
 CATALOGUES = ("ecoli-nuna4", "kp-nuna4")
+
+
+def _refuse_unknown_catalogue(session, catalogue: str) -> None:
+    """Name a retired catalogue key, rather than dividing by a NULL eight lines later."""
+    held = session.execute(
+        text("select catalogue_key from pangenome order by catalogue_key")
+    ).scalars().all()
+    if catalogue not in held:
+        raise SystemExit(
+            f"no catalogue {catalogue!r} in this database. Held: {', '.join(held) or '(none)'}. "
+            f"⚠ The catalogue keys moved when the picker's axis became the cohort — update "
+            f"`CATALOGUES` above."
+        )
 
 #: (label, the gene-level predicate that means "this gene carries it")
 AXES = (
@@ -80,6 +101,7 @@ def main() -> None:
             print(f"  {'axis':<18}{'nodes':>8}{'genes have':>12}{'→ %':>7}"
                   f"{'GAINED':>10}{'→ % after':>11}{'(unverifiable)':>16}{'nodes w/ 1':>12}")
             print("  " + "-" * 94)
+            _refuse_unknown_catalogue(session, catalogue)
             for label, predicate in AXES:
                 row = session.execute(
                     text(QUERY.format(predicate=predicate)), {"catalogue": catalogue}

@@ -27,7 +27,6 @@ from __future__ import annotations
 import pytest
 
 from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for
-from bacatlas_backend.models.enumerations import ExclusivityForm, ExclusivityFormSource
 from bacatlas_backend.models.pangenome import Pangenome
 from bacatlas_backend.services.species_catalogue_service import (
     CatalogueNotFound,
@@ -70,10 +69,6 @@ def _second_catalogue(session, seeded, *, key="probe-nuna5", run_id="probe_run_n
         ingest_generation=1,
         pathogen_species_id=seeded["species"].pathogen_species_id,
         genome_collection_id=seeded["collection"].genome_collection_id,
-        nuna_model_id=seeded["model"].nuna_model_id,
-        exclusivity_form=ExclusivityForm.EXCLUSION,
-        exclusivity_form_source=ExclusivityFormSource.RUN_ID_TOKEN,
-        run_id_exclusivity_token="-exclLOGP",
         genome_count=100,
         gene_count=489146,
         locus_count=2,
@@ -149,7 +144,10 @@ def _roster_of(monkeypatch, tmp_path, samples):
 
     class _Artifacts:
         gene_universe = universe
-        set_key = "probe_ecoli"
+        # ⚠ No underscore: the collection key is half of `catalogue_key` now, and
+        # `ingest_genome_collection` runs `catalogue_key_for`'s guards on it before writing a row.
+        set_key = "probe100"
+        species_key = "probe"
 
     return roster_module, _Artifacts()
 
@@ -184,7 +182,8 @@ def test_a_REORDERED_roster_is_refused_when_another_catalogue_depends_on_the_ord
     ordered = ["SAMEA0000001", "SAMEA0000002"]
     roster_module, artifacts = _roster_of(monkeypatch, tmp_path, ordered)
     roster_module.ingest_genome_collection(
-        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id
+        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id,
+        collection_key="probe100", collection_label="E. coli probe",
     )
     session.flush()
 
@@ -192,7 +191,8 @@ def test_a_REORDERED_roster_is_refused_when_another_catalogue_depends_on_the_ord
     _roster_of(monkeypatch, tmp_path, list(reversed(ordered)))
     with pytest.raises(roster_module.RosterError) as raised:
         roster_module.ingest_genome_collection(
-            session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id
+            session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id,
+            collection_key="probe100", collection_label="E. coli probe",
         )
 
     # ⚠ Assert WHY it refused, not merely that it did. A test that accepts any RosterError would
@@ -210,11 +210,13 @@ def test_an_IDENTICAL_roster_is_still_idempotent(session, seeded, monkeypatch, t
     ordered = ["SAMEA0000001"]
     roster_module, artifacts = _roster_of(monkeypatch, tmp_path, ordered)
     first, _ = roster_module.ingest_genome_collection(
-        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id
+        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id,
+        collection_key="probe100", collection_label="E. coli probe",
     )
     session.flush()
     again, _ = roster_module.ingest_genome_collection(
-        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id
+        session, artifacts, pathogen_species_id=seeded["species"].pathogen_species_id,
+        collection_key="probe100", collection_label="E. coli probe",
     )
     assert first == again
 

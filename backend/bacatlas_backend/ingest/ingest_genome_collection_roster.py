@@ -26,6 +26,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+from bacatlas_backend.ingest.published_cohorts import cohort_for
 from bacatlas_backend.models.enumerations import RosterLineage
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
@@ -41,6 +42,9 @@ class RosterReport:
     """What the roster load did, in numbers that can be reconciled against the store."""
 
     collection_key: str
+    #: ⭐ What the picker will SHOW for this cohort — reported so the operator sees the words a
+    #: reader will see, not just the machine key they were resolved from.
+    collection_label: str
     genome_count: int
     members_written: int
     genes_in_universe: int
@@ -86,14 +90,44 @@ def ingest_genome_collection(
     than merged: an ordinal is a position in a list, so a partial update could leave two genomes
     claiming one position while every individual row still looked valid.
 
-    ⚠ **`collection_label` defaults to the KEY, and that default is meant to be visible.** The label
-    is what the picker shows now that the cohort is the browser's axis, and a key in a picker reads
-    as obviously unfinished — where a blank or a species name would read as finished and wrong.
-    `publish_pangenome` refuses to offer a catalogue whose cohort is still wearing its key, so the
-    default can never reach a reader; it only survives on a catalogue that is loaded and not offered.
+    ⛔⛔ **BOTH THE KEY AND THE LABEL DEFAULT FROM `published_cohorts.py`, NOT FROM THE ARTIFACTS,
+    and that is what makes a chosen label survive the next load.** Two defaults were wrong in the
+    same direction:
+
+    * `collection_key` defaulted to `artifacts.set_key`, so a no-flags load wrote the catalogue key
+      `{species}-{set_key}` — `ecoli-ecoli`, `kp-kp` — which passes all three of
+      `catalogue_key_for`'s guards and is silently not a cohort anybody named. The checked-in
+      recipe in `backend/README.md` passes neither flag, so following it produced exactly that.
+    * `collection_label` defaulted to the KEY, and this function **assigns it unconditionally on an
+      existing row**. So a label a human chose survived only until the next `--stage pangenome` run
+      that omitted `--collection-label`, which put the machine token back; and `offer_catalogue`'s
+      guard fires only on the way IN, so an already-offered catalogue never re-checks and the token
+      reaches a reader with nothing refusing it. A write-once-per-invocation field defaulting to a
+      machine token, on the axis the whole picker is built around.
+
+    ⚠ An explicit `collection_key` / `collection_label` still wins, which is how a roster is staged
+    by hand without being declared. An undeclared load with NEITHER is refused rather than invented
+    — `UndeclaredCohort` names what is known.
     """
     samples, n_genes = read_genome_vocabulary(artifacts)
-    key = collection_key or artifacts.set_key
+    declared = None
+    if collection_key is None or collection_label is None:
+        # ⚠ Looked up even when only ONE of the two was passed: the other still needs its default,
+        # and taking it from the artifacts is what this change exists to stop.
+        declared = cohort_for(artifacts.species_key, artifacts.set_key)
+    key = collection_key or declared.collection_key
+    label = collection_label or declared.label
+
+    # ⛔ **THE COLLECTION KEY MUST BE ABLE TO BECOME A CATALOGUE KEY, and it is now half of one.**
+    # `catalogue_key_for(species, cohort)` builds `{species}-{cohort}`, and its guards exist
+    # because nuna's payload lookup globs `locus_browser_<key>_*.json` and takes the newest match —
+    # so an underscore anywhere in a key lets a shorter key capture a longer one's payloads and
+    # serve another catalogue's data in silence. Checked HERE, where it fails before the collection
+    # row and its whole membership are written, rather than twenty lines later at the pangenome.
+    # ⚠ Called for its guards, not its value: one implementation of the rule, not two.
+    from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for
+
+    catalogue_key_for(artifacts.species_key, key)
 
     collection = session.execute(
         select(GenomeCollection).where(
@@ -105,7 +139,7 @@ def ingest_genome_collection(
         collection = GenomeCollection(pathogen_species_id=pathogen_species_id, collection_key=key)
         session.add(collection)
     collection.roster_lineage = roster_lineage
-    collection.collection_label = collection_label or key
+    collection.collection_label = label
     collection.genome_count = len(samples)
     collection.roster_source_path = str(artifacts.gene_universe)
     collection.roster_source_sha256 = _file_sha256(artifacts.gene_universe)
@@ -187,6 +221,7 @@ def ingest_genome_collection(
     session.flush()
     return collection.genome_collection_id, RosterReport(
         collection_key=key,
+        collection_label=label,
         genome_count=len(samples),
         members_written=len(samples),
         genes_in_universe=n_genes,

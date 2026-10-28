@@ -38,15 +38,24 @@ def _stage_genome_rows(session, species_id, sample_ids):
     session.flush()
 
 
-def _fake_universe(tmp_path, sample_ids):
-    """A `{set}_close_seq.parquet` with a chosen vocabulary, in the real directory shape."""
+def _fake_universe(tmp_path, sample_ids, *, set_key="probe", species_key=None):
+    """A `{set}_close_seq.parquet` with a chosen vocabulary, in the real directory shape.
+
+    ⚠ `set_key` is a parameter because the cohort declaration is keyed on `(species, set_key)`:
+    `probe` is deliberately UNDECLARED, so a load of it must name its own key and label, while
+    `ecoli` resolves through `published_cohorts` and is how the declared path is exercised.
+    """
     root = tmp_path / "data"
     (root / "proc" / "mmseqs").mkdir(parents=True)
     pandas.DataFrame(
         {"sample_id": sample_ids, "flat_index": list(range(len(sample_ids)))}
-    ).to_parquet(root / "proc" / "mmseqs" / "probe_close_seq.parquet")
+    ).to_parquet(root / "proc" / "mmseqs" / f"{set_key}_close_seq.parquet")
     return CatalogueArtifacts(
-        data_root=root, set_key="probe", model_label="probe_model", run_id="probe_run"
+        data_root=root,
+        set_key=set_key,
+        model_label=f"{set_key}_model",
+        run_id=f"{set_key}_run",
+        species_key=species_key,
     )
 
 
@@ -75,7 +84,10 @@ def test_a_roster_genome_with_no_genome_row_is_REFUSED_rather_than_skipped(sessi
     _stage_genome_rows(session, species_ids["ecoli"], ["SAM_A", "SAM_B"])
     artifacts = _fake_universe(tmp_path, ["SAM_A", "SAM_B", "SAM_MISSING"])
     with pytest.raises(RosterError, match="no `genome` row"):
-        ingest_genome_collection(session, artifacts, pathogen_species_id=species_ids["ecoli"])
+        ingest_genome_collection(
+            session, artifacts, pathogen_species_id=species_ids["ecoli"],
+            collection_key="probe100", collection_label="E. coli probe",
+        )
 
 
 def test_ordinals_with_a_hole_in_them_are_refused_by_the_READER_too(session, seeded):
@@ -101,7 +113,8 @@ def test_the_ordinal_follows_the_SORTED_vocabulary_and_not_the_file_order(sessio
     _stage_genome_rows(session, species_ids["ecoli"], ["SAM_C", "SAM_A", "SAM_B"])
     artifacts = _fake_universe(tmp_path, ["SAM_C", "SAM_A", "SAM_B"])
     collection_id, report = ingest_genome_collection(
-        session, artifacts, pathogen_species_id=species_ids["ecoli"]
+        session, artifacts, pathogen_species_id=species_ids["ecoli"],
+        collection_key="probe100", collection_label="E. coli probe",
     )
     session.flush()
     assert report.genome_count == 3
@@ -123,7 +136,7 @@ def test_the_real_ecoli_roster_reproduces_meta_genomes_and_reloads_without_dupli
 
     first, report = ingest_genome_collection(
         session, ecoli_artifacts, pathogen_species_id=species_ids["ecoli"]
-    )
+    )  # ⭐ declared: `(ecoli, ecoli)` resolves through `published_cohorts`, no flags needed
     session.flush()
     assert (report.genome_count, report.members_written, report.unresolved_sample_ids) == (100, 100, [])
 
@@ -156,18 +169,63 @@ def _labelled(session, tmp_path, samples, **kwargs):
     session.flush()
     _stage_genome_rows(session, species_ids["ecoli"], samples)
     collection_id, _ = ingest_genome_collection(
-        session, _fake_universe(tmp_path, samples), pathogen_species_id=species_ids["ecoli"], **kwargs
+        session, _fake_universe(tmp_path, samples), pathogen_species_id=species_ids["ecoli"],
+        **{"collection_key": "probe100", "collection_label": "E. coli probe", **kwargs},
     )
     session.flush()
     return collection_id
 
 
-def test_an_unlabelled_cohort_takes_its_KEY_so_the_gap_is_visible_rather_than_blank(session, tmp_path):
-    collection = session.get(GenomeCollection, _labelled(session, tmp_path, ["SAM_A", "SAM_B"]))
-    assert collection.collection_label == collection.collection_key, (
-        "an unlabelled cohort must wear its key, not a blank and not a species name — a reader can "
-        "see that a key is unfinished, and `offer_catalogue` refuses to show one"
+def test_an_UNDECLARED_cohort_with_no_key_and_no_label_is_REFUSED_rather_than_invented(
+    session, tmp_path
+):
+    """⛔ The premise of the test this replaced is now false, and the replacement is stricter.
+
+    It used to assert that an unlabelled cohort wears its KEY — visible, unfinished, and refused
+    by `offer_catalogue` on the way into the picker. Two things were wrong with relying on that.
+    The key itself defaulted to `artifacts.set_key`, so a no-flags load wrote the catalogue key
+    `{species}-{set_key}` — `ecoli-ecoli` — which passes every guard and is nobody's cohort. And
+    the label is assigned UNCONDITIONALLY on an existing row, so a name a human chose was put back
+    to the machine token by the next load that omitted the flag, while `offer_catalogue`'s guard
+    fires only on the way IN and an already-offered catalogue never re-checks.
+
+    Both defaults now come from `published_cohorts`, and an undeclared load with neither flag is
+    refused by name instead of being invented.
+    """
+    from bacatlas_backend.ingest.published_cohorts import UndeclaredCohort
+
+    species_ids = ingest_pathogen_species(session)
+    session.flush()
+    _stage_genome_rows(session, species_ids["ecoli"], ["SAM_A", "SAM_B"])
+    with pytest.raises(UndeclaredCohort, match="no cohort declared"):
+        ingest_genome_collection(
+            session,
+            _fake_universe(tmp_path, ["SAM_A", "SAM_B"]),
+            pathogen_species_id=species_ids["ecoli"],
+        )
+
+
+def test_a_DECLARED_cohort_takes_the_label_from_the_declaration_and_NOT_its_key(session, tmp_path):
+    """⭐ The other side, and the reason the declaration is code rather than a comment.
+
+    `(ecoli, ecoli)` is declared, so a load that passes no flags at all gets the words David chose
+    — and gets them again on every later re-ingest, which is what makes a chosen label survive.
+    """
+    species_ids = ingest_pathogen_species(session)
+    session.flush()
+    _stage_genome_rows(session, species_ids["ecoli"], ["SAM_A", "SAM_B"])
+    collection_id, report = ingest_genome_collection(
+        session,
+        _fake_universe(tmp_path, ["SAM_A", "SAM_B"], set_key="ecoli", species_key="ecoli"),
+        pathogen_species_id=species_ids["ecoli"],
     )
+    session.flush()
+    collection = session.get(GenomeCollection, collection_id)
+    assert (collection.collection_key, collection.collection_label) == ("probe100", "E. coli AMR")
+    assert collection.collection_label != collection.collection_key
+    assert report.collection_label == "E. coli AMR", "and the operator is told the words, not the key"
+    # ⚠ Still no count in the label — the page composes that from `genome_count` beside it.
+    assert str(collection.genome_count) not in collection.collection_label
 
 
 def test_a_supplied_label_is_stored_VERBATIM_and_carries_no_count(session, tmp_path):
@@ -202,7 +260,8 @@ def test_a_re_ingest_can_CHANGE_the_label_without_renumbering_one_genome(session
     # one tmp_path. Reusing it is also the honest shape — the roster file did not change.
     artifacts = _fake_universe(tmp_path, samples)
     first, _ = ingest_genome_collection(
-        session, artifacts, pathogen_species_id=species_ids["ecoli"], collection_label="first"
+        session, artifacts, pathogen_species_id=species_ids["ecoli"],
+        collection_key="probe100", collection_label="first",
     )
     session.flush()
     members = lambda cid: session.execute(  # noqa: E731
@@ -213,7 +272,8 @@ def test_a_re_ingest_can_CHANGE_the_label_without_renumbering_one_genome(session
     before = members(first)
 
     second, _ = ingest_genome_collection(
-        session, artifacts, pathogen_species_id=species_ids["ecoli"], collection_label="second"
+        session, artifacts, pathogen_species_id=species_ids["ecoli"],
+        collection_key="probe100", collection_label="second",
     )
     session.flush()
 

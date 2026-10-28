@@ -23,29 +23,19 @@ class GateVerdict(enum.Enum):
     INCOMPLETE = "incomplete"
 
 
-class ExclusivityForm(enum.Enum):
-    """The genome-exclusivity edge weight a step used.
-
-    ⛔ The on-disk tokens are FROZEN and ``-excl`` is a **prefix** of ``-exclLOGP``. Four readers
-    got this wrong silently in one day. This column is populated by
-    ``nuna.tl.cluster.exclusivity.form_from_run_id`` and by nothing else; after ingest no query ever
-    looks at a run_id string again.
-    """
-
-    #: ``f = min(1, s·−log₁₀P₀)`` — the standard form. Token ``-exclLOGP``.
-    EXCLUSION = "exclusion"
-    #: ``h = s·(1−P₀)`` — superseded; it SATURATES at N=100 for a=b≥40. Token ``-excl``.
-    DAMPED_EXCLUSION = "damped_exclusion"
-    #: The step does not use an exclusivity weight at all.
-    NONE = "none"
-
-
-class ExclusivityFormSource(enum.Enum):
-    """How the exclusivity form was determined — so a reader knows how much to trust it."""
-
-    RUN_MANIFEST = "run_manifest"
-    RUN_ID_TOKEN = "run_id_token"
-    MODEL_REGISTRY = "model_registry"
+# ⛔⛔ **`ExclusivityForm` and `ExclusivityFormSource` ARE DELETED (2026-10-27), with the four
+# columns that used them: `pangenome.exclusivity_form` / `_source`, `nuna_model.exclusivity_form`
+# and `nuna_model_step.provenance_source`. Both PG types are dropped by `b0c7d4ea9f31`.**
+#
+# ⚠ The VALUES `exclusion` and `damped_exclusion` are on the never-rename list
+# (`nuna/PROJECT_STATE.md`), and this is not a rename: nothing in this service reads a run_id
+# token any more, so there is no decoded form to spell one way or another. The tokens themselves
+# are untouched — they are nuna's, they are still emitted, and the run_id that carries them is
+# stored here verbatim. What is gone is this repo's second, derived copy of that fact.
+#
+# ⚠ The enum's own docstring was ALSO out of date before it was deleted: it named
+# `nuna.tl.cluster.exclusivity.form_from_run_id` as its populator, and nuna renamed that module to
+# `hypergeometric` on 2026-10-23.
 
 
 class PrevalenceBand(enum.Enum):

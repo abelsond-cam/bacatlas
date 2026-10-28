@@ -18,10 +18,14 @@ identical to the published page's footer** on both species.
 `parent_run_id` set and `parent_pangenome_id` NULL — a gap **admitted**, which is the shape that
 column exists for.
 
-⛔ **`rho_rule` is compared through `rho_rule_is_effectively_off`, never as a string.** Step 2 runs
-with `--rho-ceiling 1e9` and no `--rho-rule`, so its manifest records `density_potts`' default
-`"ceiling"` while the model means *ρ off*. Comparing the two literals reports a conflict on every
-multi-step model on every ingest, and a cross-check that always fires is a cross-check nobody reads.
+⛔ **NOTHING HERE DECODES A run_id ANY MORE (2026-10-27).** `resolve_exclusivity_form` was the last
+reader of nuna's `HYPERGEOMETRIC_TOKENS` in this repo, and it is gone with the three
+`pangenome.exclusivity_*` columns and the CHECK that kept them honest. The run_id is stored
+verbatim, so the token is still there for anyone who wants it — it is simply no longer parsed, and
+the `-excl`-is-a-prefix-of-`-exclLOGP` hazard that four readers got wrong in one day is retired
+rather than guarded. ⚠ The structurally identical trap in the CATALOGUE KEYS is NOT retired: the
+hyphen separator and the no-underscore rule in `catalogue_key_for` are what keep those prefix-free,
+and `test_catalogue_addressing.py` is where that lives now.
 """
 
 from __future__ import annotations
@@ -36,16 +40,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
-from bacatlas_backend.ingest.ingest_nuna_model_registry import rho_rule_is_effectively_off
 from bacatlas_backend.ingest.mirrored_manifest_chain import manifests_resolved_against
 from bacatlas_backend.models.enumerations import (
     EmbeddingRepresentation,
     EvaluationKind,
-    ExclusivityForm,
-    ExclusivityFormSource,
     RhoRule,
 )
-from bacatlas_backend.models.nuna_model import NunaModelStep
 from bacatlas_backend.models.pangenome import (
     Pangenome,
     PangenomeEvaluation,
@@ -74,9 +74,11 @@ class PangenomeRunReport:
     input_edges_written: int
     unresolved_parent_run_ids: list[str]
     evaluation_rows_written: int
-    exclusivity_form: str
-    exclusivity_form_source: str
-    step_disagreements: list[str] = field(default_factory=list)
+    #: ⭐ The model as one string, which is what the footer publishes. It replaced the decoded
+    #: `exclusivity_form` / `_source` pair: a report line describing a decision no longer recorded
+    #: anywhere is the shape of a stale comment, and with the registry gone the CLI's record of a
+    #: load would otherwise name no model at all.
+    model_label: str
     notes: list[str] = field(default_factory=list)
 
     def render(self) -> str:
@@ -89,60 +91,11 @@ class PangenomeRunReport:
             + (f" ({len(self.unresolved_parent_run_ids)} parent runs not ingested)"
                if self.unresolved_parent_run_ids else ""),
             f"  evaluation rows       {self.evaluation_rows_written}",
-            f"  exclusivity           {self.exclusivity_form} (from {self.exclusivity_form_source})",
+            f"  model                 {self.model_label}",
         ]
-        for disagreement in self.step_disagreements:
-            lines.append(f"  ⚠ STEP DISAGREEMENT {disagreement}")
         for note in self.notes:
             lines.append(f"  NOTE {note}")
         return "\n".join(lines)
-
-
-# ── exclusivity ────────────────────────────────────────────────────────────────────────────────
-def resolve_exclusivity_form(
-    run_id: str, manifest: dict | None
-) -> tuple[ExclusivityForm, ExclusivityFormSource, str | None]:
-    """`(form, how it was determined, the literal token)` for one run.
-
-    ⛔ `hypergeometric.form_from_run_id` is the only permitted decoder of the id, and the token is
-    found by walking `HYPERGEOMETRIC_TOKENS` **longest first** — `-excl` is a PREFIX of `-exclLOGP`,
-    and the three ways to get that wrong (`in`, a half-`replace`, an `endswith` chain) were all live
-    bugs on one day. The manifest wins where it recorded a form, because a token is a guess about a
-    default and a manifest is a record.
-
-    ⛔⛔ **nuna renamed this whole vocabulary on 2026-10-23 and the names here did not follow.** The
-    module `nuna.tl.cluster.exclusivity` became `hypergeometric`, `EXCLUSIVITY_TOKENS` became
-    `HYPERGEOMETRIC_TOKENS`, and — the part that is not a rename — `canonical_form` and
-    `form_from_run_id` now return `hypergeometric` / `damped` where they returned `exclusion` /
-    `damped_exclusion`. Those two strings are what `ExclusivityForm` STORES, so the translation is
-    explicit and shared with the registry loader rather than repeated: see
-    `ingest_nuna_model_registry.EXCLUSIVITY_FORM_OF_HYPERGEOMETRIC`. ⚠ The run_id TOKENS are
-    unchanged and must stay readable — `-excl` and `-exclLOGP` name the two published catalogues.
-
-    ⚠ Returns `ExclusivityForm.NONE` where nothing names a form. That is the step-2/step-3b parent
-    case: those runs carry no exclusivity at all, their ids carry no token, and `form_from_run_id`
-    returns `None` for them — which a NOT NULL column cannot store.
-    """
-    from nuna.tl.cluster.hypergeometric import (  # noqa: PLC0415 — nuna is an ingest-only dependency
-        HYPERGEOMETRIC_TOKENS,
-        canonical_form,
-        form_from_run_id,
-    )
-
-    from bacatlas_backend.ingest.ingest_nuna_model_registry import (  # noqa: PLC0415 — one mapping, no cycle
-        EXCLUSIVITY_FORM_OF_HYPERGEOMETRIC as STORED_FORM,
-    )
-
-    token = next((tok for tok, _ in HYPERGEOMETRIC_TOKENS if tok in run_id), None)
-
-    manifest_form = (manifest or {}).get("exclusivity_form")
-    if manifest_form:
-        return STORED_FORM[canonical_form(str(manifest_form))], ExclusivityFormSource.RUN_MANIFEST, token
-
-    decoded = form_from_run_id(run_id)
-    if decoded is not None:
-        return STORED_FORM[decoded], ExclusivityFormSource.RUN_ID_TOKEN, token
-    return ExclusivityForm.NONE, ExclusivityFormSource.RUN_ID_TOKEN, token
 
 
 # ── the steps a run actually took ──────────────────────────────────────────────────────────────
@@ -204,54 +157,6 @@ def build_step_rows(chain: list[dict]) -> list[dict]:
     return rows
 
 
-def cross_check_steps(step_rows: list[dict], registry_steps: list[NunaModelStep]) -> list[str]:
-    """Where the run's manifests and the registry disagree, as one line each.
-
-    ⚠ **Recorded, not resolved.** That is how a run whose manifest contradicts the registry gets
-    caught rather than silently normalised to whichever the loader happened to prefer. An empty list
-    means the two agree on every step both describe.
-
-    ⛔ ρ is compared through the OFF normalisation, not as a string — see the module docstring.
-    """
-    by_name = {step.step_name: step for step in registry_steps}
-    messages = []
-    for row in step_rows:
-        expected = by_name.get(row["step_name"])
-        if expected is None:
-            messages.append(f"{row['step_name']}: the registry model has no step of that name")
-            continue
-        if expected.gamma is not None and row["gamma"] is not None:
-            if abs(float(expected.gamma) - float(row["gamma"])) > 1e-9:
-                messages.append(
-                    f"{row['step_name']}: manifest γ={row['gamma']} but the registry says {expected.gamma}"
-                )
-        run_off = rho_rule_is_effectively_off(
-            row["rho_rule"].value if row["rho_rule"] else None, row["rho_ceiling"]
-        )
-        registry_off = rho_rule_is_effectively_off(
-            expected.rho_rule.value if expected.rho_rule else None, expected.rho_ceiling
-        )
-        if run_off != registry_off:
-            messages.append(
-                f"{row['step_name']}: manifest ρ={row['rho_rule']}@{row['rho_ceiling']} "
-                f"but the registry says ρ={expected.rho_rule}@{expected.rho_ceiling}"
-            )
-        elif not run_off and row["rho_rule"] is not None and expected.rho_rule is not None:
-            if row["rho_rule"] is not expected.rho_rule:
-                messages.append(
-                    f"{row['step_name']}: manifest ρ rule {row['rho_rule'].value} "
-                    f"but the registry says {expected.rho_rule.value}"
-                )
-        if expected.uses_exclusivity is not None and row["uses_exclusivity"] is not None:
-            if bool(expected.uses_exclusivity) != bool(row["uses_exclusivity"]):
-                messages.append(
-                    f"{row['step_name']}: manifest exclusivity={row['uses_exclusivity']} "
-                    f"but the registry says {expected.uses_exclusivity}"
-                )
-    return messages
-
-
-# ── the graded headline ────────────────────────────────────────────────────────────────────────
 def audit_evaluation_rows(audit_summary: dict, source_path: Path) -> list[dict]:
     """Every audit-summary key → one `pangenome_evaluation` row, copied verbatim.
 
@@ -353,8 +258,6 @@ def ingest_pangenome_run(
     *,
     pathogen_species_id: int,
     genome_collection_id: int,
-    nuna_model_id: int | None,
-    registry_steps: list[NunaModelStep],
     genome_count: int,
     gene_count: int,
     locus_count: int,
@@ -389,8 +292,6 @@ def ingest_pangenome_run(
             "model this run may not have been."
         )
 
-    form, form_source, token = resolve_exclusivity_form(run_id, manifest)
-
     existing = session.execute(
         select(Pangenome).where(
             Pangenome.run_id == run_id, Pangenome.ingest_generation == ingest_generation
@@ -407,10 +308,6 @@ def ingest_pangenome_run(
     existing.model_label = artifacts.model_label
     existing.pathogen_species_id = pathogen_species_id
     existing.genome_collection_id = genome_collection_id
-    existing.nuna_model_id = nuna_model_id
-    existing.exclusivity_form = form
-    existing.exclusivity_form_source = form_source
-    existing.run_id_exclusivity_token = token
     existing.genome_count = genome_count
     existing.gene_count = gene_count
     existing.locus_count = locus_count
@@ -434,8 +331,13 @@ def ingest_pangenome_run(
     pangenome_id = existing.pangenome_id
 
     # ── steps ──────────────────────────────────────────────────────────────────────────────────
+    # ⛔ **No cross-check against the registry any more, because there is no registry.** It
+    # compared each manifest step with `nuna_model_step` and RECORDED the disagreements rather than
+    # resolving them, which was the right shape — but the registry was a second, hand-maintained
+    # description of what a run did, and the run's own manifests are the first. `pangenome_step`
+    # keeps what actually happened, with wall time, peak RSS and the step's assignment path, where
+    # the registry's equivalents were structurally NULL.
     step_rows = build_step_rows(chain)
-    disagreements = cross_check_steps(step_rows, registry_steps)
     session.query(PangenomeStep).filter(PangenomeStep.pangenome_id == pangenome_id).delete(
         synchronize_session=False
     )
@@ -515,9 +417,7 @@ def ingest_pangenome_run(
         input_edges_written=edges,
         unresolved_parent_run_ids=unresolved,
         evaluation_rows_written=len(evaluation_rows),
-        exclusivity_form=form.value,
-        exclusivity_form_source=form_source.value,
-        step_disagreements=disagreements,
+        model_label=artifacts.model_label,
     )
     if len(chain) == 1:
         report.notes.append(

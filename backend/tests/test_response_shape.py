@@ -206,3 +206,53 @@ def test_the_two_LIST_routes_now_carry_a_validator_and_it_tracks_the_BODY(client
 
     # ⚠ And it is stable: a digest that moved per request would defeat the point entirely.
     assert client.get("/api/v1/catalogues").headers["ETag"] == tags["/api/v1/catalogues"]
+
+
+# ── the cohort declaration, against the database it describes ─────────────────────────────────
+def test_every_OFFERED_cohort_is_declared_and_its_key_and_label_AGREE(client):
+    """⛔ `published_cohorts.py` is load-bearing, so a database that disagrees with it is a bug.
+
+    It supplies `collection_key` and `collection_label` whenever an ingest omits them. A live row
+    keyed differently from the declaration is therefore not a cosmetic mismatch: the next
+    `--stage pangenome` run resolves the declared key, finds no row, and INSERTS a second
+    collection over the same genomes — leaving the first behind, still offered, still labelled,
+    while `ingest_pangenome_run` repoints only the catalogue that was re-ingested. One species,
+    two picker options, one hundred genomes.
+
+    ⚠ Asserted against what the picker SERVES rather than against the table, because that is the
+    thing a reader sees and it is one join further from the declaration.
+    """
+    from bacatlas_backend.ingest.published_cohorts import cohort_by_collection
+
+    offered = client.get("/api/v1/catalogues").get_json()["catalogues"]
+    assert offered, "nothing is offered, so this test is checking nothing"
+    for entry in offered:
+        species, cohort = entry["species"]["key"], entry["cohort"]
+        declared = cohort_by_collection(species, cohort["key"])
+        assert declared is not None, (
+            f"{entry['key']}: the picker offers cohort {cohort['key']!r} under species "
+            f"{species!r}, which `published_cohorts.py` does not declare. The next ingest of it "
+            f"would resolve a different key and insert a second collection beside this one."
+        )
+        assert cohort["label"] == declared.label, (
+            f"{entry['key']}: the database labels this cohort {cohort['label']!r} and the "
+            f"declaration says {declared.label!r}. The declaration wins on the next ingest, so "
+            f"the label a reader sees would change without anyone deciding it."
+        )
+
+
+def test_no_cohort_label_states_its_own_GENOME_COUNT(client):
+    """⛔ The rule behind David's three names, asserted on what is actually served.
+
+    He gave "E.coli AMR 100, Kp AMR 100, Kp 71,500". The page renders `{label} — {count:,}
+    genomes` from the label beside `genome_count`, which is *passed, never inferred* — so a label
+    carrying its own number could contradict the roster it names, and "Kp 71,500" against a roster
+    of 71,435 would have done it on the first day.
+    """
+    for entry in client.get("/api/v1/catalogues").get_json()["catalogues"]:
+        label, count = entry["cohort"]["label"], entry["cohort"]["genome_count"]
+        for spelling in (str(count), f"{count:,}"):
+            assert spelling not in label, (
+                f"cohort label {label!r} spells its own genome count ({spelling}). The page adds "
+                f"the count, so this renders as '{label} — {count:,} genomes'."
+            )

@@ -31,7 +31,8 @@ is picker visibility inside the service (four catalogues are visible), while a r
 GitHub Pages (two). The day a nuna5 catalogue is published statically it gains a row and its own
 `dset` — which is why that key is carried explicitly rather than derived from the species.
 
-⛔ **Three keys, three jobs, and conflating any two of them has already cost a debugging session:**
+⛔ **It used to say "three keys, three jobs". It is FIVE** — the cohort axis added two, and the
+table now lives in `published_cohorts.py`, which owns the vocabulary. The three this file is about:
 
     pathogen_species.species_key    ecoli          the organism
     PublishedCatalogue.dset         ecoli          the static page (`ecoli.html`), = `--dset`
@@ -40,6 +41,16 @@ GitHub Pages (two). The day a nuna5 catalogue is published statically it gains a
 `dset` and `catalogue_key` differ for nuna4 and always will: the service reads the hyphen to tell
 "pin this catalogue" from "follow this species' default", so it cannot spell nuna4 as `ecoli`; and
 `ecoli.html` is a published url, so the static site cannot spell it `ecoli-nuna4`.
+
+⚠ **`dset` is free to equal `catalogue_key` for any FUTURE catalogue and frozen for these two.**
+GitHub Pages was deleted 2026-10-22, so nothing new will ever get a static page — but six test
+modules read `data/{dset}.json` as the parity oracle, and `ecoli.html` / `kp.html` / `index.html`'s
+redirect pin these two spellings.
+
+⚠ **`PublishedCatalogue.model_label` is the ARTIFACT PATH COMPONENT** (`ecoli_nuna4_g2_0.98_…`),
+consumed by `CatalogueArtifacts(model_label=…)`. `pangenome.model_label`, added 2026-10-27, is the
+free-text string the footer prints. They hold the same characters today and are different facts —
+do not make a third thing of that name.
 """
 
 from __future__ import annotations

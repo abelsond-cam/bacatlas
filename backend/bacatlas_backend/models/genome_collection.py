@@ -22,7 +22,16 @@ from bacatlas_backend.models.enumerations import RosterLineage
 
 
 class GenomeCollection(Base):
-    """`probe_ecoli`, `kp_HI_s0`, `union_roster`, `blood_faeces`, `kpsc_all`."""
+    """`probe100`, `71k`, `kp-HI-s0`, `union-roster`, `blood-faeces`, `kpsc-all`.
+
+    ⛔ **NO UNDERSCORES — and the examples here used to have one each.** The key is now half of
+    `pangenome.catalogue_key` (`{species}-{collection_key}`), which is a URL segment and must be
+    PREFIX-FREE: nuna's payload lookup globs `locus_browser_<key>_*.json` and takes the newest
+    match, so a key containing `_` can be captured by a shorter one and silently serve another
+    catalogue's payloads. `ingest_genome_collection` runs `catalogue_key_for`'s guards against this
+    value before writing the row. The five names this docstring used to give — `probe_ecoli`,
+    `kp_HI_s0`, `union_roster`, `blood_faeces`, `kpsc_all` — would every one be refused.
+    """
 
     __tablename__ = "genome_collection"
     __table_args__ = (UniqueConstraint("pathogen_species_id", "collection_key"),)

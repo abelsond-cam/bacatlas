@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 
 import pytest
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session
 
 import bacatlas_backend.models  # noqa: F401  (registers every table on the metadata)
@@ -18,8 +18,6 @@ from bacatlas_backend.database import Base
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.published_catalogues import catalogue as published_catalogue
 from bacatlas_backend.models.enumerations import (
-    ExclusivityForm,
-    ExclusivityFormSource,
     PrevalenceBand,
     RosterLineage,
     SampleIdentifierKind,
@@ -27,7 +25,6 @@ from bacatlas_backend.models.enumerations import (
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollection
 from bacatlas_backend.models.locus import Locus
-from bacatlas_backend.models.nuna_model import NunaModel
 from bacatlas_backend.models.pangenome import Pangenome
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
 
@@ -48,12 +45,50 @@ def engine():
             connection.execute(text("SELECT 1"))
     except Exception as error:  # noqa: BLE001
         pytest.skip(f"probe database unavailable at {PROBE_URL}: {error}")
-    # ⛔ `pg_trgm` BEFORE `create_all`: `ix_locus__search_text_trigram` uses `gin_trgm_ops`, and
-    # without the extension the whole schema build fails on that one index — which reads as "the
-    # probe database is broken" rather than "an extension is missing".
+    # ⛔⛔ **`drop_all` CANNOT SHED A TABLE THE MODELS NO LONGER DECLARE, and that is a trap with
+    # a long fuse.** It drops exactly what `Base.metadata` holds, so the moment a table is DELETED
+    # from the models its row in the probe database becomes an orphan no run can ever remove.
+    # Measured when `nuna_model_step` went (2026-10-27): the orphan still depended on the
+    # `embeddingrepresentation` enum, so the next `create_all` died on `cannot drop type
+    # embeddingrepresentation because other objects depend on it` — which reads as "the probe
+    # database is broken", not "a table you removed is still there". Orphaned enum TYPES are the
+    # same shape: `drop_all` removes the ones the metadata still knows about and leaves the rest,
+    # and `create_all` then cannot recreate one that is already there.
+    #
+    # ⚠ **Surgical, not `DROP SCHEMA public CASCADE`.** That was the first fix and it was worse:
+    # this fixture is MODULE-scoped and several modules share one probe database, so a statement
+    # that removes everything makes the fixture destructive across modules. It produced eight
+    # `relation "pathogen_species" does not exist` errors in one full run and none in the next —
+    # and a flaky probe is a worse failure than the one being fixed, because it teaches people to
+    # re-run. This touches only tables and types the models no longer declare, so for a module
+    # with no orphans it does exactly what `drop_all` always did.
     with engine.begin() as connection:
+        # ⛔ `pg_trgm` BEFORE `create_all`: `ix_locus__search_text_trigram` uses `gin_trgm_ops`,
+        # and without the extension the whole schema build fails on that one index — which reads
+        # as "the probe database is broken" rather than "an extension is missing".
         connection.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+
+    declared_tables = set(Base.metadata.tables)
+    orphan_tables = [
+        name
+        for name in inspect(engine).get_table_names()
+        if name not in declared_tables and name != "alembic_version"
+    ]
+    with engine.begin() as connection:
+        for name in orphan_tables:
+            connection.execute(text(f'DROP TABLE IF EXISTS "{name}" CASCADE'))
+
     Base.metadata.drop_all(engine)
+
+    # ⚠ AFTER `drop_all`, so every type the models still declare has gone with its columns and
+    # whatever enum types remain are by definition orphans of a deleted model.
+    with engine.begin() as connection:
+        remaining = connection.execute(
+            text("SELECT typname FROM pg_type WHERE typtype = 'e'")
+        ).scalars().all()
+        for name in remaining:
+            connection.execute(text(f'DROP TYPE IF EXISTS "{name}" CASCADE'))
+
     Base.metadata.create_all(engine)
     return engine
 
@@ -85,13 +120,17 @@ def seeded(session, _seed_ids):
         "species": session.get(PathogenSpecies, _seed_ids["species"]),
         "genome": session.get(Genome, _seed_ids["genome"]),
         "collection": session.get(GenomeCollection, _seed_ids["collection"]),
-        "model": session.get(NunaModel, _seed_ids["model"]),
         "pangenome": session.get(Pangenome, _seed_ids["pangenome"]),
     }
 
 
 def _build_seed(session):
-    """One species, one genome, one collection, one model, one pangenome."""
+    """One species, one genome, one collection, one pangenome.
+
+    ⚠ There is no model row any more: `nuna_model` and `nuna_model_step` were dropped with the
+    model axis (2026-10-27). A pangenome is one RUN over one cohort, and the model it used is the
+    free-text `model_label` below.
+    """
     species = PathogenSpecies(species_key="probe", scientific_name="Escherichia coli")
     session.add(species)
     session.flush()
@@ -104,19 +143,16 @@ def _build_seed(session):
     )
     collection = GenomeCollection(
         pathogen_species_id=species.pathogen_species_id,
-        collection_key="probe_ecoli",
+        # ⚠ No underscore: the collection key is now half of `catalogue_key`, which must be
+        # prefix-free, and `ingest_genome_collection` runs `catalogue_key_for`'s guards on it.
+        collection_key="probe100",
         # ⚠ Deliberately NOT equal to the key: `offer_catalogue` refuses a cohort still wearing
         # its key, and a fixture that tripped that guard would make every picker test test the guard.
         collection_label="E. coli probe",
         roster_lineage=RosterLineage.PROBE_BIOSAMPLE,
         genome_count=100,
     )
-    model = NunaModel(
-        model_key="nuna4",
-        label="nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
-        exclusivity_form=ExclusivityForm.DAMPED_EXCLUSION,
-    )
-    session.add_all([genome, collection, model])
+    session.add_all([genome, collection])
     session.flush()
 
     pangenome = Pangenome(
@@ -128,10 +164,6 @@ def _build_seed(session):
         ingest_generation=1,
         pathogen_species_id=species.pathogen_species_id,
         genome_collection_id=collection.genome_collection_id,
-        nuna_model_id=model.nuna_model_id,
-        exclusivity_form=ExclusivityForm.DAMPED_EXCLUSION,
-        exclusivity_form_source=ExclusivityFormSource.RUN_MANIFEST,
-        run_id_exclusivity_token="-excl",
         genome_count=100,
         gene_count=489146,
         locus_count=1,
@@ -142,7 +174,6 @@ def _build_seed(session):
         "species": species.pathogen_species_id,
         "genome": genome.genome_id,
         "collection": collection.genome_collection_id,
-        "model": model.nuna_model_id,
         "pangenome": pangenome.pangenome_id,
     }
 

@@ -96,8 +96,15 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
   --model-label ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
 
-# then ONE pangenome layer per species: the model registry, the roster, the run and the catalogue.
-# ~60 s each, re-runnable — the blast radius is exactly one pangenome.
+# then ONE pangenome layer per species: the roster, the run and the catalogue. ~60 s each,
+# re-runnable — the blast radius is exactly one pangenome.
+#
+# ⭐ The COHORT — its key, its label and therefore `{species}-{cohort}`, the catalogue key — is
+# resolved from `ingest/published_cohorts.py` by `(--species-key, --set-key)`. A pair that is not
+# declared there is REFUSED by name. ⛔ That lookup is what stops a no-flags load writing the
+# catalogue key `ecoli-ecoli`: `--collection-key` used to default to the dataset token, which
+# passes every guard in `catalogue_key_for` and is nobody's cohort. Pass `--collection-key` and
+# `--collection-label` only to stage a roster that is deliberately not declared.
 .venv/bin/python -m bacatlas_backend.ingest --stage pangenome --set-key ecoli --species-key ecoli \
   --model-label ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
@@ -125,7 +132,7 @@ count row**, and **that the cohort carries a label a reader can read** rather th
 | endpoint | replaces |
 |---|---|
 | `GET /api/v1/species` | `published.tsv` |
-| `GET /api/v1/species/{key}` | `meta`, the census, the footer provenance, `meta.landing`/`examples` |
+| `GET /api/v1/species/{key}` | `meta` (incl. `model_label` and the `cohort`), the census, `meta.landing`/`examples`. ⚠ NOT the nine decoded provenance rows: `model`, `steps` and `provenance_rows` left the wire with the model axis (2026-10-27) |
 | `GET /api/v1/species/{key}/loci/{label}` | ⭐ the hot path — `show(i)` minus the function tab |
 | `GET …/loci/{label}/arrangements` | `focalCard`'s full scroller, paged |
 | `GET …/loci/{label}/function` | `renderFunction`, on tab open |

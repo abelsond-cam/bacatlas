@@ -30,7 +30,6 @@ from bacatlas_backend.models.locus_similarity import (  # noqa: F401
     LocusSimilarity,
     PangenomeSimilarityBaseline,
 )
-from bacatlas_backend.models.nuna_model import NunaModel, NunaModelStep  # noqa: F401
 from bacatlas_backend.models.pangenome import (  # noqa: F401
     Pangenome,
     PangenomeEvaluation,
@@ -71,8 +70,6 @@ __all__ = [
     "PangenomeSimilarityBaseline",
     "LocusOffsetOccupant",
     "LocusUnirefFamilyCrosstab",
-    "NunaModel",
-    "NunaModelStep",
     "Pangenome",
     "PangenomeEvaluation",
     "PangenomeGenomeLocusCount",

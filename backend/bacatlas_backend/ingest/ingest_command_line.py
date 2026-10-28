@@ -31,10 +31,6 @@ from bacatlas_backend.ingest.ingest_genome_collection_roster import (
 )
 from bacatlas_backend.ingest.ingest_genome_gene_table import GenomeIngestError, ingest_one_genome
 from bacatlas_backend.ingest.ingest_locus_catalogue import ingest_locus_catalogue
-from bacatlas_backend.ingest.ingest_nuna_model_registry import (
-    ingest_model_registry,
-    model_key_for_audit_label,
-)
 from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for, ingest_pangenome_run
 from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_species
 from bacatlas_backend.ingest.ingest_projected_genomes import ProjectionRefused, load_projection
@@ -43,7 +39,6 @@ from bacatlas_backend.ingest.publish_pangenome import PublishRefused, publish_pa
 from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation, GenomeNoncodingFeature
 from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.locus import Locus
-from bacatlas_backend.models.nuna_model import NunaModel
 from bacatlas_backend.models.pangenome import Pangenome
 
 
@@ -191,20 +186,9 @@ def load_pangenome_layer(
     roster: every arrangement's membership is a position in the genome vocabulary, so a hole in it
     would address the wrong genome and nothing downstream could detect that.
     """
-    from nuna.tl.cluster.nuna_pipeline import MODELS
-
     species_ids = ingest_pathogen_species(session)
     session.flush()
     species_id = species_ids[species_key]
-
-    model_key = model_key_for_audit_label(artifacts.model_label, artifacts.set_key, MODELS)
-    from bacatlas_backend.ingest.ingest_pangenome_run import nuna_git_sha
-
-    ingest_model_registry(session, models=MODELS, registry_git_sha=nuna_git_sha())
-    session.flush()
-    model = session.execute(
-        select(NunaModel).where(NunaModel.model_key == model_key)
-    ).scalar_one()
 
     collection_id, roster = ingest_genome_collection(
         session,
@@ -220,16 +204,17 @@ def load_pangenome_layer(
         artifacts,
         pathogen_species_id=species_id,
         genome_collection_id=collection_id,
-        nuna_model_id=model.nuna_model_id,
-        registry_steps=list(model.steps),
         genome_count=roster.genome_count,
         gene_count=roster.genes_in_universe,
         # ⚠ Zero until the loci exist; `ingest_locus_catalogue` sets the real count in the same
         # transaction, so a committed row never claims a locus count it does not hold.
         locus_count=0,
-        # ⭐ How a reader addresses this catalogue. Defaults to `{species}-{model}`, which is also
-        # what nuna's exporter writes as `--dset`, so one key spans both surfaces.
-        catalogue_key=catalogue_key_for(species_key, model_key, catalogue_key),
+        # ⭐ How a reader addresses this catalogue: `{species}-{cohort}`, from the roster this
+        # load actually wrote. ⛔ The second half used to be the MODEL key. Taking it from
+        # `roster.collection_key` is what makes the key and the picker's option name the same
+        # thing, and `published_cohorts` is what stops that key defaulting to the dataset token
+        # (which produced `ecoli-ecoli`: legal under all three guards and nobody's cohort).
+        catalogue_key=catalogue_key_for(species_key, roster.collection_key, catalogue_key),
     )
     catalogue_report = ingest_locus_catalogue(
         session,
@@ -239,9 +224,9 @@ def load_pangenome_layer(
         genome_id_by_ordinal=genome_id_by_ordinal(session, collection_id),
     )
     return [
-        f"catalogue: {catalogue_key_for(species_key, model_key, catalogue_key)}",
-        f"model: {model_key} ({model.step_count} steps, {model.exclusivity_form.value})",
-        f"collection: {roster.collection_key} — {roster.genome_count} genomes, "
+        f"catalogue: {catalogue_key_for(species_key, roster.collection_key, catalogue_key)}",
+        f"cohort: {roster.collection_key} — {roster.collection_label!r}, "
+        f"{roster.genome_count} genomes, "
         f"{roster.genes_in_universe:,} genes in the universe",
         run_report.render(),
         catalogue_report.render(),
