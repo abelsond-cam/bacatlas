@@ -630,9 +630,7 @@ def build_catalogue_frames(
     synteny = near_synteny_agreement(
         windows.rename(columns={"neigh_pos": "neigh_id"}), radius=NEAR_SHELLS
     ).set_index("node")["syntenic_A5"]
-    gene_memberships = _gene_memberships(
-        assign, windows, arrangement_frame, slot_of, numpy, pandas
-    )
+    gene_memberships = _gene_memberships(assign, windows, arrangement_frame, slot_of)
     del windows
 
     # ── the audit's own columns ────────────────────────────────────────────────────────────────
@@ -938,7 +936,7 @@ def _uniref_crosstab(top_families, node_position):
     return top_families[top_families["node"].isin(node_position)].reset_index(drop=True)
 
 
-def _gene_memberships(assign, windows, arrangement_frame, slot_of, numpy, pandas):
+def _gene_memberships(assign, windows, arrangement_frame, slot_of):
     """One row per ASSIGNED gene, with the arrangement rank it realises where it has one.
 
     ⭐ Written in the same pass as `member_genome_ids`, so the array and the rows cannot disagree
@@ -963,21 +961,17 @@ def _gene_memberships(assign, windows, arrangement_frame, slot_of, numpy, pandas
             ["node", "sample_id", "flat_index", "arrangement_rank"]
         ]
 
+    # ⛔ **nuna's `gene_slot_vectors`, not a copy of it** — this function held fourteen lines that were
+    # `gene_slot_vectors`' body with the variables renamed (proved identical frame-for-frame, object and
+    # categorical dtypes alike, before they were deleted). That is precisely the duplication nuna's own
+    # docstring exists to prevent: *"a projected window that was built by a lookalike could not be compared
+    # with a published arrangement at all"* — and this module's header forbids reimplementing nuna here for
+    # the same reason. It also meant the slot matrix had two dtypes to keep in step; it now has one, and the
+    # ranks below merge on columns produced by the very function that produced the arrangements.
+    from nuna.tl.locus_browser.export_payload import gene_slot_vectors
+
     columns = [f"s{index}" for index in range(len(slot_of))]
-    gene_columns = ["node", "sample_id", "flat_index"]
-    codes, unique = pandas.MultiIndex.from_frame(windows[gene_columns]).factorize()
-    unique = unique.set_names(gene_columns)
-    slots = windows["d"].map(slot_of)
-    usable = slots.notna().to_numpy()
-    matrix = numpy.full((len(unique), len(slot_of)), -1, dtype=numpy.int64)
-    matrix[codes[usable], slots[usable].to_numpy(dtype=int)] = (
-        windows["neigh_pos"].to_numpy(dtype=numpy.int64)[usable] * 2
-        + windows["same_strand"].to_numpy().astype(numpy.int64)[usable]
-    )
-    genes = pandas.DataFrame(matrix, columns=columns)
-    genes["node"] = unique.get_level_values("node")
-    genes["sample_id"] = unique.get_level_values("sample_id")
-    genes["flat_index"] = unique.get_level_values("flat_index")
+    genes = gene_slot_vectors(windows, slot_of)
     ranks = arrangement_frame[["node", *columns, "rank"]].rename(columns={"rank": "arrangement_rank"})
     windowed = genes.merge(ranks, on=["node", *columns], how="left")[
         ["node", "sample_id", "flat_index", "arrangement_rank"]

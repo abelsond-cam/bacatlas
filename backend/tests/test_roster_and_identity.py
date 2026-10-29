@@ -591,8 +591,6 @@ def _window_inputs():
 
 
 def _memberships(categorical: bool):
-    import numpy
-    import pandas
     from nuna.tl.locus_browser.export_payload import (
         OFFSETS,
         arrangements,
@@ -606,9 +604,7 @@ def _memberships(categorical: bool):
     slot_of = {offset: index for index, offset in enumerate(OFFSETS)}
     arrangement_frame = arrangements(windows, slot_of, top=None, sample_pos=sample_position)
     assign = assign_coords[["sample_id", "flat_index", "node"]]
-    got = catalogue_frames._gene_memberships(
-        assign, windows, arrangement_frame, slot_of, numpy, pandas
-    )
+    got = catalogue_frames._gene_memberships(assign, windows, arrangement_frame, slot_of)
     return got, windows
 
 
