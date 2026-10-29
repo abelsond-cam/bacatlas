@@ -139,14 +139,28 @@ def ingest_one_genome(
     artifacts: CatalogueArtifacts,
     *,
     sample_id: str,
-    bakrep_dataset_id: str,
+    bakrep_dataset_id: str | None,
     pathogen_species_ids: dict[str, int],
+    species_key: str | None = None,
     write_functional_annotations: bool = True,
     write_noncoding_features: bool = True,
 ) -> GenomeIngestReport:
     """Load one genome's contigs, genes and labels. Raises before writing anything if it cannot.
 
     ``pathogen_species_ids`` maps `species_key` → id, from `ingest_pathogen_species`.
+
+    ⭐ **``species_key`` names the species instead of reading it, and then ``species`` is not
+    requested from the parquet at all.** The probe store's `_meta` files carry that column; **300
+    of 300 sampled kp71k files do not** — they share a 10-column schema without it — so a load of
+    that cohort failed on a `KeyError` from pyarrow before it read a single gene. ⚠ A constant is
+    *correct* there and not a convenience: `selected_genomes_kp_final` is
+    `kpsc_final_list ∧ species == "Klebsiella pneumoniae"` exactly, and its report JSON records the
+    6,618 non-*pneumoniae* genomes excluded when the roster was built. Absent, the parquet is read
+    as before, so the probe path is untouched.
+
+    ⚠ ``bakrep_dataset_id`` may be ``None`` — a roster genome the annotation tree does not hold.
+    It is refused **by name** rather than dropped, because the roster is the gene universe now and
+    a genome missing from it is a different fact than a genome missing a file.
     """
     import pandas  # the `ingest` extra, deliberately not a serving dependency
 
@@ -154,23 +168,28 @@ def ingest_one_genome(
     if not meta_path.is_file():
         raise GenomeIngestError(f"{sample_id}: no meta parquet at {meta_path}")
 
-    meta = pandas.read_parquet(
-        meta_path,
-        # `gene_name` is read for the symbol FALLBACK only — see `_read_products`. It is never the
-        # primary source, because it carries the locus tag where there is no symbol.
-        columns=["flat_index", "contig_idx", "start", "end", "protein_sequence", "species", "gene_name"],
-    ).sort_values("flat_index")
+    # `gene_name` is read for the symbol FALLBACK only — see `_read_products`. It is never the
+    # primary source, because it carries the locus tag where there is no symbol.
+    columns = ["flat_index", "contig_idx", "start", "end", "protein_sequence", "gene_name"]
+    if species_key is None:
+        columns.insert(5, "species")
+    meta = pandas.read_parquet(meta_path, columns=columns).sort_values("flat_index")
     if meta.empty:
         raise GenomeIngestError(f"{sample_id}: the meta parquet is empty")
 
-    parquet_species = str(meta["species"].iloc[0])
-    species_key = species_key_for_parquet_value(parquet_species)
+    if species_key is None:
+        species_key = species_key_for_parquet_value(str(meta["species"].iloc[0]))
     if species_key not in pathogen_species_ids:
         raise GenomeIngestError(
             f"{sample_id}: species {species_key!r} has no row. Run ingest_pathogen_species first."
         )
     species_id = pathogen_species_ids[species_key]
 
+    if bakrep_dataset_id is None:
+        raise GenomeIngestError(
+            f"{sample_id}: in the roster but under no dataset directory in "
+            f"{artifacts.annotation_root} — no `<datasetID>/<BS>/<BS>.bakta.gff3.gz`"
+        )
     annotation_path = artifacts.genome_annotation(sample_id, bakrep_dataset_id)
     if not annotation_path.is_file():
         raise GenomeIngestError(f"{sample_id}: no GFF at {annotation_path}")

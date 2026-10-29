@@ -62,9 +62,23 @@ class CatalogueArtifacts:
     model_label: str
     run_id: str
     species_key: str | None = None
+    #: ⭐ The two inputs whose DERIVED names are a convention a big cohort does not keep, named
+    #: outright instead. ⛔ They are overrides and not a second naming rule: a cohort that follows
+    #: the convention passes neither, and the derived paths below are unchanged for it.
+    #:
+    #: ⛔ **And they are why a symlink is the wrong fix.** `__post_init__` refuses unless
+    #: `model_label` starts with `{set_key}_`, so choosing a `set_key` to make a symlink resolve
+    #: also pins the model label, the Pfam path, the payload path and `species_key`. The set key is
+    #: load-bearing in six places; a filename is one.
+    gene_universe_path: Path | None = None
+    assignment_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data_root", Path(self.data_root).expanduser())
+        for field_name in ("gene_universe_path", "assignment_path"):
+            value = getattr(self, field_name)
+            if value is not None:
+                object.__setattr__(self, field_name, Path(value).expanduser())
         if self.species_key is None:
             object.__setattr__(self, "species_key", self.set_key)
         if not self.model_label.startswith(f"{self.set_key}_"):
@@ -98,13 +112,37 @@ class CatalogueArtifacts:
     # ── the run ───────────────────────────────────────────────────────────────────────────────
     @property
     def gene_universe(self) -> Path:
-        """One row per gene in the set — the universe, and the genome vocabulary's own source."""
+        """One row per gene in the set — the universe, and the genome vocabulary's own source.
+
+        ⚠ The derived name is a CONVENTION, not a law — nuna's own `gene_universe(proc, dset, *,
+        close_seq=...)` says so, because the 13,573-genome Kp cohort's file is
+        `kleb_close_seq_isosrc_id0.98.parquet`, which no `{dset}` spells. `gene_universe_path`
+        names it where the convention does not reach.
+        """
+        if self.gene_universe_path is not None:
+            return self.gene_universe_path
         return self.processed_root / "mmseqs" / f"{self.set_key}_close_seq.parquet"
 
     @property
     def assignment(self) -> Path:
-        """One row per gene, exactly once — the loader raises otherwise."""
-        return self.analysis_root / "step4_global_merge" / "assignments" / f"{self.run_id}.tsv"
+        """One row per gene, exactly once — the loader raises otherwise.
+
+        ⚠ The derived path is where `run_nuna_model` writes a probe run. A big run writes under
+        `comparison/nuna/<model>/<run>/step4/` instead, which no rule here reaches, so
+        `assignment_path` names it.
+
+        ⭐ **The parquet sidecar resolves only when the TSV is ABSENT.** `write_assignments` emits
+        both, the sidecar is 16.0× smaller (measured on kp71k: 1,549,393,569 B against
+        24,753,251,725 B), and `load_assignments` reads either — but preferring it where both exist
+        would change which file every published catalogue is built from, silently, as a side effect
+        of a path change. That swap is an input-thinning decision with its own frame-identity gate,
+        not a locator default.
+        """
+        if self.assignment_path is not None:
+            return self.assignment_path
+        derived = self.analysis_root / "step4_global_merge" / "assignments" / f"{self.run_id}.tsv"
+        sidecar = derived.with_suffix(".parquet")
+        return sidecar if sidecar.exists() and not derived.exists() else derived
 
     @property
     def run_manifest(self) -> Path:

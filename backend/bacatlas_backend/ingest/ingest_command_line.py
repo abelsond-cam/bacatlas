@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import create_engine, func, select
+from sqlalchemy import ARRAY, Integer, any_, create_engine, func, literal, select
 from sqlalchemy.orm import Session
 
 import bacatlas_backend.models  # noqa: F401  (registers every table on the metadata)
@@ -28,6 +28,7 @@ from bacatlas_backend.ingest.genome_gene_alignment import GeneAlignmentError
 from bacatlas_backend.ingest.ingest_genome_collection_roster import (
     genome_id_by_ordinal,
     ingest_genome_collection,
+    read_genome_vocabulary,
 )
 from bacatlas_backend.ingest.ingest_genome_gene_table import GenomeIngestError, ingest_one_genome
 from bacatlas_backend.ingest.ingest_locus_catalogue import ingest_locus_catalogue
@@ -55,6 +56,10 @@ class GenomeLayerReport:
     seconds: float = 0.0
     refusals: list[tuple[str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    #: ⭐ The genomes THIS run wrote — `reconcile`'s denominator. Without it the only available
+    #: comparison is against the whole table, which equals the run's own writes only when the
+    #: table started empty.
+    genome_ids: list[int] = field(default_factory=list)
 
     def render(self) -> str:
         """The report as the lines the CLI prints — counts first, then every refusal by name."""
@@ -73,24 +78,78 @@ class GenomeLayerReport:
         return "\n".join(lines)
 
 
-def discover_genomes(artifacts: CatalogueArtifacts) -> list[tuple[str, str]]:
-    """`(sample_id, bakrep_dataset_id)` for every GFF in the store.
+class EmptyRoster(RuntimeError):
+    """A roster with no genomes in it — refused, because loading nothing succeeds."""
+
+
+def annotation_index(artifacts: CatalogueArtifacts) -> dict[str, str]:
+    """`sample_id → bakrep_dataset_id`, from ONE walk of the annotation tree.
 
     ⚠ The dataset id is a PATH component and appears in no parquet — captured here or lost. The GFF
     sits one level deeper than `<BS>/`, which is why the glob has three segments and not two.
+
+    ⛔ **Locating a genome, which is not the same question as which genomes exist.** An absent tree
+    returns an empty index and every genome is then refused BY NAME, where it used to produce an
+    empty roster and a successful load of nothing.
     """
-    pairs = [
-        (path.parent.name, path.parent.parent.name)
-        for path in sorted(artifacts.annotation_root.glob("*/*/*.bakta.gff3.gz"))
-    ]
-    duplicates = {name for name, _ in pairs if sum(1 for other, _ in pairs if other == name) > 1}
+    index: dict[str, str] = {}
+    duplicates: set[str] = set()
+    for path in sorted(artifacts.annotation_root.glob("*/*/*.bakta.gff3.gz")):
+        sample_id, dataset_id = path.parent.name, path.parent.parent.name
+        if index.setdefault(sample_id, dataset_id) != dataset_id:
+            duplicates.add(sample_id)
     if duplicates:
         raise RuntimeError(
             f"{len(duplicates)} sample id(s) appear under more than one dataset directory: "
             f"{sorted(duplicates)[:5]}. One genome must resolve to one GFF, or the sequence "
             "endpoint would serve whichever the glob happened to reach first."
         )
-    return pairs
+    return index
+
+
+def discover_genomes(artifacts: CatalogueArtifacts) -> list[tuple[str, str | None]]:
+    """`(sample_id, bakrep_dataset_id | None)` for every genome this data root should hold.
+
+    ⛔⛔ **THE GENE UNIVERSE IS NOW A ROSTER SOURCE, WHERE THE GFF TREE USED TO BE THE ONLY ONE.**
+    This function derived the entire roster by globbing `annotation_root/*/*/*.bakta.gff3.gz`.
+    Where that nested tree does not exist — a cohort whose Bakta GFFs are flat
+    `<BioSample>.bakta.gff3.gz`, or one served from streamed assemblies — the glob matched
+    nothing, the genome layer loaded **zero genomes**, printed `0 loaded, 0 refused`, and the run
+    reported success. Nothing downstream could tell that apart from a cohort that genuinely had no
+    genomes, because the two produce the same output.
+
+    ⭐ **The roster is the UNION of the two, and neither alone is right:**
+
+    * the **gene universe** is what the catalogue *requires*. Every one of its genomes must have a
+      `genome` row or `ingest_genome_collection` refuses the whole load, so a roster that does not
+      cover it cannot build a catalogue at all. It is also read by `read_genome_vocabulary`, the
+      same function the collection builds its ordinals from — one reader, so the genome layer and
+      the membership cannot disagree about which genomes a cohort has.
+    * the **annotation tree** is what this data root *holds*, and the genome layer is explicitly
+      model-independent. ⚠ A genome in the tree and in no universe is exactly a **projectable**
+      genome — `--stage projection` places genomes the model never clustered, and
+      `projected_gene_placement` is keyed onto `gene (genome_id, flat_index)`, so it needs rows
+      the catalogue's own roster will never name. Measured on the probe store: 280 GFFs, 200
+      genomes across the two universes, and **10 of the other 80 are the placed genomes**.
+
+    ⛔ An empty UNION is refused by name. That is the silent success, and it is the only case
+    where loading nothing and finding nothing look the same.
+
+    ⚠ A universe genome the tree does not hold gets `None` and is **refused by name** by
+    `ingest_one_genome` rather than dropped. Missing and absent must not look the same.
+    """
+    roster, _ = read_genome_vocabulary(artifacts)
+    index = annotation_index(artifacts)
+    in_universe = set(roster)
+    roster += sorted(sample_id for sample_id in index if sample_id not in in_universe)
+    if not roster:
+        raise EmptyRoster(
+            f"neither the gene universe at {artifacts.gene_universe} nor the annotation tree at "
+            f"{artifacts.annotation_root} names a genome. A roster of zero loads zero genomes and "
+            "reports success, which is indistinguishable from a cohort that has none — so it is "
+            "refused here instead."
+        )
+    return [(sample_id, index.get(sample_id)) for sample_id in roster]
 
 
 def load_genome_layer(
@@ -100,13 +159,36 @@ def load_genome_layer(
     limit: int | None = None,
     only: set[str] | None = None,
     progress_every: int = 25,
+    species_key: str | None = None,
+    write_functional_annotations: bool = True,
+    write_noncoding_features: bool = True,
 ) -> GenomeLayerReport:
-    """Load every genome in the store, one atomic transaction each."""
+    """Load every genome in the roster, one atomic transaction each.
+
+    ``species_key`` names the species for every genome instead of reading it per parquet — see
+    `ingest_one_genome`, which is where the reason lives. The two ``write_*`` switches exist so a
+    table can be left out of a load deliberately and *said*, rather than arriving empty.
+    """
     report = GenomeLayerReport()
     species_ids = ingest_pathogen_species(session)
     session.commit()
+    if species_key is not None and species_key not in species_ids:
+        raise KeyError(
+            f"--species-key {species_key!r} has no `pathogen_species` row (known: "
+            f"{sorted(species_ids)}). Named rather than defaulted: a load under the wrong species "
+            "is a load nothing downstream can detect."
+        )
 
     genomes = discover_genomes(artifacts)
+    # ⭐ The frame, stated. Two sources make one roster, and a reader cannot otherwise tell a
+    # 280-genome load of a 100-genome cohort from a 280-genome cohort.
+    located = sum(1 for _, dataset_id in genomes if dataset_id is not None)
+    in_universe, _ = read_genome_vocabulary(artifacts)
+    report.notes.append(
+        f"roster: {len(genomes):,} genomes — {len(in_universe):,} in the gene universe, "
+        f"{len(genomes) - len(in_universe):,} in the annotation tree only; "
+        f"{located:,} located under a dataset directory"
+    )
     if only:
         genomes = [pair for pair in genomes if pair[0] in only]
     if limit:
@@ -117,10 +199,15 @@ def load_genome_layer(
         try:
             one = ingest_one_genome(
                 session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
-                pathogen_species_ids=species_ids,
+                pathogen_species_ids=species_ids, species_key=species_key,
+                write_functional_annotations=write_functional_annotations,
+                write_noncoding_features=write_noncoding_features,
             )
             session.commit()
-        except (GenomeIngestError, GeneAlignmentError, KeyError) as error:
+        # ⚠ `ValueError` is in the tuple because `pyarrow.lib.ArrowInvalid` IS one: a single
+        # unreadable parquet used to escape this handler and abort the whole run, which is the
+        # opposite of what a per-genome unit of work is for.
+        except (GenomeIngestError, GeneAlignmentError, KeyError, ValueError) as error:
             # ⛔ Roll back THIS genome and carry on. A genome is the unit of work, so one refusal
             # must not discard the 200 already loaded — and it must be named, not counted.
             session.rollback()
@@ -128,6 +215,7 @@ def load_genome_layer(
             report.refusals.append((sample_id, str(error).replace("\n", " ")[:300]))
             continue
         report.genomes_loaded += 1
+        report.genome_ids.append(one.genome_id)
         report.genes += one.genes_written
         report.contigs += one.contigs_written
         report.functional_annotations += one.functional_annotations_written
@@ -147,17 +235,34 @@ def reconcile(session: Session, report: GenomeLayerReport) -> list[str]:
 
     A loader reporting its own writes confirms itself. This asks the database, and a difference means
     something else wrote (or deleted) rows underneath the run.
+
+    ⭐ **Scoped to the genomes THIS run loaded**, which is the only frame in which the claim is
+    true. Counted over the whole table it agrees with the run's own writes exactly when the table
+    started empty — so the two probe species in one database, or a second cohort beside the first,
+    made every reconciliation report a difference that was not one. ⚠ `any_` over an array rather
+    than `IN (…)`: at 71,435 genomes an `IN` list exceeds Postgres' 65,535 bind parameters, which
+    fails at the one scale this exists to serve.
     """
+    scope = literal(report.genome_ids, ARRAY(Integer))
     held = {
-        "genes": session.execute(select(func.count()).select_from(Gene)).scalar_one(),
-        "contigs": session.execute(select(func.count()).select_from(GenomeContig)).scalar_one(),
+        "genes": session.execute(
+            select(func.count()).select_from(Gene).where(Gene.genome_id == any_(scope))
+        ).scalar_one(),
+        "contigs": session.execute(
+            select(func.count()).select_from(GenomeContig)
+            .where(GenomeContig.genome_id == any_(scope))
+        ).scalar_one(),
         "functional_annotations": session.execute(
             select(func.count()).select_from(GeneFunctionalAnnotation)
+            .where(GeneFunctionalAnnotation.genome_id == any_(scope))
         ).scalar_one(),
         "noncoding_features": session.execute(
             select(func.count()).select_from(GenomeNoncodingFeature)
+            .where(GenomeNoncodingFeature.genome_id == any_(scope))
         ).scalar_one(),
-        "genomes": session.execute(select(func.count()).select_from(Genome)).scalar_one(),
+        "genomes": session.execute(
+            select(func.count()).select_from(Genome).where(Genome.genome_id == any_(scope))
+        ).scalar_one(),
     }
     written = {
         "genes": report.genes, "contigs": report.contigs,
@@ -165,7 +270,8 @@ def reconcile(session: Session, report: GenomeLayerReport) -> list[str]:
         "noncoding_features": report.noncoding_features, "genomes": report.genomes_loaded,
     }
     return [
-        f"{key}: wrote {written[key]:,} but the table holds {held[key]:,}"
+        f"{key}: wrote {written[key]:,} but the table holds {held[key]:,} "
+        f"for the {len(report.genome_ids):,} genome(s) this run loaded"
         for key in written
         if written[key] != held[key]
     ]
@@ -179,6 +285,7 @@ def load_pangenome_layer(
     catalogue_key: str | None = None,
     collection_key: str | None = None,
     collection_label: str | None = None,
+    allow_missing_strand: bool = False,
 ) -> list[str]:
     """Model registry → roster → run → catalogue, in the one order the foreign keys allow.
 
@@ -222,6 +329,7 @@ def load_pangenome_layer(
         pangenome_id=pangenome_id,
         pathogen_species_id=species_id,
         genome_id_by_ordinal=genome_id_by_ordinal(session, collection_id),
+        allow_missing_strand=allow_missing_strand,
     )
     return [
         f"catalogue: {catalogue_key_for(species_key, roster.collection_key, catalogue_key)}",
@@ -314,7 +422,11 @@ def build_parser() -> argparse.ArgumentParser:
                              "pointer is what the service reads, so this is a separate, explicit "
                              "step: a load that is not published changes nothing a reader can see")
     parser.add_argument("--species-key", default=None,
-                        help="the browser key (`ecoli` | `kp`); defaults to the artifacts' own")
+                        help="the browser key (`ecoli` | `kp`); defaults to the artifacts' own. "
+                             "\u2b50 It now also names the species of every GENOME, instead of "
+                             "reading `meta.species` per parquet \u2014 300 of 300 sampled kp71k "
+                             "`_meta` files have no such column, and a constant is correct for a "
+                             "roster built as `kpsc_final \u2227 species == K. pneumoniae`")  # fmt: skip
     parser.add_argument("--offer", action="store_true",
                         help="after loading, SHOW this catalogue in the picker without making it the "
                              "default. ⭐ The three decisions are separate: load it, offer it, serve "
@@ -338,6 +450,32 @@ def build_parser() -> argparse.ArgumentParser:
                              "`{species}-{model}`, which is also what nuna's exporter writes as "
                              "`--dset`. ⛔ Hyphen, never underscore: the keys must stay prefix-free "
                              "or one catalogue's payloads match another's key")  # fmt: skip
+    parser.add_argument("--gene-universe", type=Path, default=None,
+                        help="the close_seq parquet, where the derived "
+                             "`proc/mmseqs/{set}_close_seq.parquet` does not name it. \u26d4 Pass "
+                             "this rather than symlinking: the set key also pins the model label, "
+                             "the Pfam path, the payload path and the species key")  # fmt: skip
+    parser.add_argument("--assignment", type=Path, default=None,
+                        help="the step-4 assignment, where the derived "
+                             "`analysis/step4_global_merge/assignments/{run_id}.tsv` does not name "
+                             "it \u2014 a big run writes under `comparison/nuna/<model>/<run>/step4/`. "
+                             "Either the .tsv or its .parquet sidecar")  # fmt: skip
+    parser.add_argument("--no-functional-annotations", action="store_true",
+                        help="\u2b50 do not write `gene_functional_annotation`. The per-node rollups "
+                             "in `locus_annotation_entry` are what the page reads; the per-gene "
+                             "table is 372 M rows at 71,435 genomes and nothing renders it. Left "
+                             "OUT deliberately and reported, never arriving empty")  # fmt: skip
+    parser.add_argument("--no-noncoding-features", action="store_true",
+                        help="do not write `genome_noncoding_feature`. \u26a0 It is the largest "
+                             "single table at 71,435 genomes (~5.8 GB, recomputed from "
+                             "`storing_the_gene_layer.md`'s @13,573 decomposition) and it renders "
+                             "a track \u2014 so this is a decision to take and state, not a default")  # fmt: skip
+    parser.add_argument("--allow-missing-strand", action="store_true",
+                        help="proceed when genomes have no `{BS}_strand.parquet`, recording the "
+                             "shortfall in `omitted`. \u26d4 Refused by default: `load_gene_coords` "
+                             "fills an absent sidecar with `+` for that genome's WHOLE gene set, "
+                             "which un-reverses its windows, points every track arrow forward and "
+                             "pulls syntenic_A5 toward 0.5 with no error anywhere")  # fmt: skip
     parser.add_argument("--limit", type=int, help="stop after N genomes (a smoke run, not a mode)")
     parser.add_argument("--only", nargs="*", help="load only these sample ids")
     return parser
@@ -366,6 +504,7 @@ def main(argv: list[str] | None = None) -> int:
     artifacts = CatalogueArtifacts(
         data_root=args.data_root, set_key=args.set_key,
         model_label=args.model_label, run_id=args.run_id,
+        gene_universe_path=args.gene_universe, assignment_path=args.assignment,
     )
     optional = artifacts.verify()
     print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")
@@ -382,7 +521,10 @@ def main(argv: list[str] | None = None) -> int:
             session.commit()
         if args.stage in ("genomes", "all"):
             report = load_genome_layer(
-                session, artifacts, limit=args.limit, only=set(args.only) if args.only else None
+                session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
+                species_key=args.species_key,
+                write_functional_annotations=not args.no_functional_annotations,
+                write_noncoding_features=not args.no_noncoding_features,
             )
             session.commit()
             print(report.render())
@@ -421,6 +563,7 @@ def main(argv: list[str] | None = None) -> int:
                 catalogue_key=args.catalogue_key,
                 collection_key=args.collection_key,
                 collection_label=args.collection_label,
+                allow_missing_strand=args.allow_missing_strand,
             ):
                 print(line)
             session.commit()

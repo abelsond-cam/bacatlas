@@ -94,7 +94,67 @@ class CatalogueFrames:
 
 
 # ── loading ────────────────────────────────────────────────────────────────────────────────────
-def _load_source_frames(artifacts: CatalogueArtifacts) -> dict:
+class MissingStrand(CatalogueFrameError):
+    """A cohort whose strand sidecars are short — refused, because the damage is invisible."""
+
+
+def _gate_strand(processed, samples: list[str], omitted: dict, *, allow_missing: bool) -> None:
+    """⛔ Refuse a cohort whose `{BS}_strand.parquet` set is short, naming what is absent.
+
+    `load_gene_coords` fills an absent sidecar with `+` for that genome's **whole gene set** and
+    only *prints* a counter. Every track arrow on that genome then points forward, its windows are
+    never reversed, and `syntenic_A5` — a mean over the cohort — is pulled toward 0.5 with no error
+    anywhere. ⚠ **Partial coverage is worse than none**: one neighbourhood yields two different
+    `s0..s9` vectors purely on which genomes happened to have a file.
+
+    ⭐ The rule and both its checks are nuna's — `cohort_a5_run` already answers this for the same
+    statistic — so this is the second CALLER of one gate, not a second gate. `strand_balance` is
+    here because a sidecar that exists and reads `+` everywhere passes `strand_coverage` and then
+    produces exactly the same uniform map.
+    """
+    from nuna.tl.probe.cohort_a5_run import strand_coverage
+
+    n_present, missing = strand_coverage(processed, samples)
+    if not missing:
+        return
+    head = ", ".join(missing[:5]) + (" …" if len(missing) > 5 else "")
+    message = (
+        f"{len(missing):,} of {len(samples):,} genomes have no `_strand.parquet` ({head}). "
+        f"{n_present:,} present. load_gene_coords fills those with '+' for the genome's whole "
+        "gene set, which un-reverses its windows, points every track arrow forward and pulls "
+        "syntenic_A5 toward 0.5 with no error."
+    )
+    if not allow_missing:
+        raise MissingStrand(message + " Refusing — pass --allow-missing-strand to proceed.")
+    omitted["strand"] = message + " --allow-missing-strand given; PROCEEDING."
+    print(f"⚠ {omitted['strand']}", flush=True)
+
+
+def _gate_strand_balance(coords, omitted: dict, *, allow_missing: bool) -> None:
+    """⚠ The SECOND silent-failure path: sidecars that all exist and all read `+`.
+
+    Genes are roughly evenly split between strands in a real bacterial genome, so a cohort outside
+    `cohort_a5_run.STRAND_BALANCE_BAND` is not a cohort — it is a map that was never read. This
+    passes `strand_coverage` by construction, which is why it is a separate check and not a
+    branch of it.
+    """
+    from nuna.tl.probe.cohort_a5_run import strand_balance
+
+    verdict = strand_balance(coords)
+    if not verdict["strand_degenerate"]:
+        return
+    message = (
+        f"strand is degenerate: {verdict['share_forward']:.4f} of genes read '+' "
+        f"({verdict['strand_counts']}). Every sidecar may be present and still carry one strand, "
+        "which produces exactly the uniform map an absent sidecar does."
+    )
+    if not allow_missing:
+        raise MissingStrand(message + " Refusing — pass --allow-missing-strand to proceed.")
+    omitted["strand_balance"] = message + " --allow-missing-strand given; PROCEEDING."
+    print(f"⚠ {omitted['strand_balance']}", flush=True)
+
+
+def _load_source_frames(artifacts: CatalogueArtifacts, *, allow_missing_strand: bool = False) -> dict:
     """Every source frame `export_payload.main` loads, by the same calls and in the same order."""
     import numpy
     import pandas
@@ -107,15 +167,20 @@ def _load_source_frames(artifacts: CatalogueArtifacts) -> dict:
     )
 
     processed = artifacts.processed_root
-    universe = gene_universe(processed, artifacts.set_key)
+    # ⚠ `close_seq=` and not the derived `{set}_close_seq.parquet`: the derived name is a naming
+    # CONVENTION a big cohort does not keep, and the locator is the one place that knows which
+    # file this catalogue's universe actually is.
+    universe = gene_universe(processed, artifacts.set_key, close_seq=artifacts.gene_universe)
     samples = sorted(str(value) for value in universe["sample_id"].unique())
 
     omitted: dict[str, str] = {}
+    _gate_strand(processed, samples, omitted, allow_missing=allow_missing_strand)
     assign = load_assignments(artifacts.assignment, universe=universe)[
         ["sample_id", "flat_index", "node"]
     ]
     products = load_bakta_products(processed, samples)
     coords = load_gene_coords(processed, samples)
+    _gate_strand_balance(coords, omitted, allow_missing=allow_missing_strand)
     noncoding = load_bakta_noncoding(processed, samples)
 
     dbxrefs = load_bakta_dbxrefs(processed, samples)
@@ -299,7 +364,10 @@ def _values_by_node(annotation, column, convert, node_keys):
 
 # ── the catalogue ──────────────────────────────────────────────────────────────────────────────
 def build_catalogue_frames(
-    artifacts: CatalogueArtifacts, *, annotation_fold: GeneOntologyFold | None = None
+    artifacts: CatalogueArtifacts,
+    *,
+    annotation_fold: GeneOntologyFold | None = None,
+    allow_missing_strand: bool = False,
 ) -> CatalogueFrames:
     """Assemble every table of one catalogue. The only entry point; everything else is a helper.
 
@@ -359,7 +427,7 @@ def build_catalogue_frames(
             "position, so it is refused rather than absorbed."
         )
 
-    source = _load_source_frames(artifacts)
+    source = _load_source_frames(artifacts, allow_missing_strand=allow_missing_strand)
     omitted = source["omitted"]
     audit = _load_audit_frames(artifacts, omitted)
     samples, assign = source["samples"], source["assign"]

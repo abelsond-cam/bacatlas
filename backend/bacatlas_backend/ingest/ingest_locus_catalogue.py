@@ -498,6 +498,7 @@ def ingest_locus_catalogue(
     pathogen_species_id: int,
     genome_id_by_ordinal: list[int],
     frames: CatalogueFrames | None = None,
+    allow_missing_strand: bool = False,
 ) -> CatalogueLoadReport:
     """Load the whole pangenome layer for one catalogue. One transaction, one blast radius."""
     # ⛔ The fold comes from `gene_ontology_term`, which is what `function_inference_service` reads,
@@ -506,7 +507,7 @@ def ingest_locus_catalogue(
     # question is how a stored verdict and a served one disagree with nothing to say so.
     annotation_fold = gene_ontology_fold(session)
     frames = frames if frames is not None else build_catalogue_frames(
-        artifacts, annotation_fold=annotation_fold
+        artifacts, annotation_fold=annotation_fold, allow_missing_strand=allow_missing_strand
     )
     policy = _policy()
     derived = _derive_locus_columns(frames, load_pfam_name_table(), policy)

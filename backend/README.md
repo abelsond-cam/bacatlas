@@ -92,6 +92,19 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
 
 # ONE genome layer for both species: contigs, genes, functional labels. Model-INDEPENDENT — a new
 # pangenome must never rewrite it. ~180 s for all 280 genomes.
+#
+# ⭐ The roster is the UNION of the catalogue's gene universe and the mirrored GFF tree, and the
+# report prints both counts. The universe is what the catalogue requires; the tree is what this
+# data root holds, and a genome in the tree and in no universe is exactly a PROJECTABLE one (10 of
+# the probe store's 80 extras are the placed genomes). ⛔ An empty union is refused by name — it
+# used to load zero genomes and report success wherever the nested `<datasetID>/<BS>/` tree was
+# absent, which is every cohort whose Bakta GFFs are flat.
+#
+# ⚠ Four flags exist for a cohort that does not follow these conventions, and none has a default
+# that guesses: `--gene-universe` / `--assignment` name a file the derived path does not reach,
+# `--species-key` names the species where `_meta` carries no `species` column, and
+# `--no-functional-annotations` / `--no-noncoding-features` leave a table out deliberately rather
+# than letting it arrive empty.
 .venv/bin/python -m bacatlas_backend.ingest --stage genomes \
   --model-label ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
@@ -105,6 +118,12 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
 # catalogue key `ecoli-ecoli`: `--collection-key` used to default to the dataset token, which
 # passes every guard in `catalogue_key_for` and is nobody's cohort. Pass `--collection-key` and
 # `--collection-label` only to stage a roster that is deliberately not declared.
+# ⛔ `--stage pangenome` REFUSES a cohort whose `{BS}_strand.parquet` set is short, or whose
+# strand reads `+` almost everywhere. `load_gene_coords` fills an absent sidecar with `+` for that
+# genome's whole gene set, which points every track arrow forward and pulls syntenic_A5 toward 0.5
+# with no error — and partial coverage is worse than none, because one neighbourhood then yields
+# two different `s0..s9` vectors purely on which genomes had a file. `--allow-missing-strand`
+# proceeds with the shortfall recorded in `omitted`.
 .venv/bin/python -m bacatlas_backend.ingest --stage pangenome --set-key ecoli --species-key ecoli \
   --model-label ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
