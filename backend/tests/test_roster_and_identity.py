@@ -373,6 +373,163 @@ def test_sidecars_that_all_read_plus_are_refused_TOO(tmp_path):
     assert omitted == {}
 
 
+# ── T1 · the coordinate convention, which `need_length=False` would otherwise have retired ────
+def _convention_store(tmp_path: Path, samples: list[str], *, inclusive: bool = True) -> Path:
+    """A `_meta` store whose coordinates do, or do not, follow the GFF's 1-based-inclusive rule.
+
+    ⚠ The wrong case is the REAL one, not a scribble: 0-based half-open is what every other
+    genomics convention uses, so `end - start` rather than `end - start + 1` is the mistake an
+    importer actually makes. It is one base out on every gene and nothing raises.
+    """
+    directory = tmp_path / "embeddings" / "meta"
+    directory.mkdir(parents=True, exist_ok=True)
+    aa = [100, 250, 60, 410]
+    for sample_id in samples:
+        start = [1, 2_000, 5_000, 9_000]
+        span = [3 * (n + 1) for n in aa]
+        pairs = list(zip(start, span, strict=True))
+        end = [s + w - 1 for s, w in pairs] if inclusive else [s + w for s, w in pairs]
+        pandas.DataFrame({
+            "sample_id": [sample_id] * len(aa),
+            "flat_index": list(range(len(aa))),
+            "contig_idx": [0] * len(aa),
+            "start": start,
+            "end": end,
+            "protein_sequence": ["M" * n for n in aa],
+        }).to_parquet(directory / f"{sample_id}_meta.parquet")  # fmt: skip
+    return tmp_path
+
+
+def test_a_1_based_inclusive_cohort_passes_the_convention_check_silently(tmp_path):
+    from bacatlas_backend.ingest.catalogue_frames import _gate_length_convention
+
+    omitted: dict = {}
+    _gate_length_convention(_convention_store(tmp_path, ["SAMN1", "SAMN2"]), ["SAMN1", "SAMN2"], omitted)
+    assert omitted == {}
+
+
+def test_a_half_open_cohort_is_RECORDED_because_every_block_width_would_be_wrong(tmp_path, capsys):
+    """⛔ The check `need_length=False` would have silently retired. One base out on every gene:
+    no exception, no empty table, just a track drawn slightly wrong forever."""
+    from bacatlas_backend.ingest.catalogue_frames import _gate_length_convention
+
+    omitted: dict = {}
+    processed = _convention_store(tmp_path, ["SAMN1", "SAMN2"], inclusive=False)
+    _gate_length_convention(processed, ["SAMN1", "SAMN2"], omitted)
+
+    assert "length_convention" in omitted, "a collapsed convention must not pass unrecorded"
+    assert "0.0%" in omitted["length_convention"], omitted["length_convention"]
+    assert "1-based" in omitted["length_convention"]
+    assert "⚠" in capsys.readouterr().out
+
+
+def test_a_sample_that_yields_no_protein_length_says_UNCHECKED_not_nothing(tmp_path):
+    """⚠ `not measured` and `measured fine` are the same silence unless one of them speaks."""
+    from bacatlas_backend.ingest.catalogue_frames import _gate_length_convention
+
+    (tmp_path / "embeddings" / "meta").mkdir(parents=True)
+    omitted: dict = {}
+    _gate_length_convention(tmp_path, ["SAMN1", "SAMN2"], omitted)
+    assert "UNCHECKED" in omitted["length_convention"]
+
+
+def test_the_convention_check_READS_A_BOUNDED_SEEDED_SAMPLE_not_the_cohort(tmp_path, monkeypatch):
+    """⛔ The gate exists inside the change that stopped reading `protein_sequence` for the cohort.
+    If it reads every genome it has given the whole saving back, and nothing else would notice —
+    the numbers it prints would be right either way. So the genomes it asks for are the assertion.
+    """
+    import nuna.eval.reference_annotation as reference_annotation
+
+    from bacatlas_backend.ingest.catalogue_frames import (
+        LENGTH_CONVENTION_SAMPLE,
+        _gate_length_convention,
+    )
+
+    samples = [f"SAMN{i:04d}" for i in range(LENGTH_CONVENTION_SAMPLE * 4)]
+    processed = _convention_store(tmp_path, samples)
+
+    asked: list[list[str]] = []
+    real = reference_annotation.load_gene_coords
+
+    def recording(proc, drawn, **kwargs):
+        asked.append(list(drawn))
+        return real(proc, drawn, **kwargs)
+
+    monkeypatch.setattr(reference_annotation, "load_gene_coords", recording)
+    _gate_length_convention(processed, samples, {})
+    _gate_length_convention(processed, samples, {})
+
+    assert len(asked) == 2
+    assert len(asked[0]) == LENGTH_CONVENTION_SAMPLE, f"read {len(asked[0])} of {len(samples)}"
+    assert asked[0] == asked[1], "seeded — two runs of one cohort must check the same genomes"
+    assert set(asked[0]) < set(samples)
+
+
+def test_a_cohort_smaller_than_the_sample_is_read_WHOLE_and_still_checked(tmp_path):
+    """⚠ `random.sample` raises when k exceeds the population — the probe cohorts are 100 and 280."""
+    from bacatlas_backend.ingest.catalogue_frames import _gate_length_convention
+
+    omitted: dict = {}
+    _gate_length_convention(_convention_store(tmp_path, ["SAMN1"]), ["SAMN1"], omitted)
+    assert omitted == {}
+
+
+def test_the_cohort_read_ASKS_FOR_NO_PROTEIN_SEQUENCE_which_is_the_whole_input_saving(
+    tmp_path, monkeypatch
+):
+    """⛔ T1, gated where it lives: `_load_source_frames` must call `load_gene_coords` LEAN.
+
+    `protein_sequence` is **92.59 %** of the `_meta` store's column bytes (measured over all 280
+    probe genomes, 458.7 MiB of column chunks, 1,436,421 genes) and `length_aa` — the only thing
+    derived from it — is read **nowhere** in this repository. At 71,435 genomes the keyword is the
+    difference between ~124.5 GiB and ~6.9 GiB of input.
+
+    ⚠ **It is gated here because losing it is INVISIBLE.** The lean call returns the identical frame
+    minus one unread column, so every other test, every row count and the whole database are
+    byte-for-byte unchanged either way. Nothing but the clock would notice a revert, and the clock
+    is only read at a scale where the run is already hours long.
+
+    ⭐ This is also the only test that executes `_load_source_frames` at all — the orchestration
+    above seven tested loaders, which until now was reached only through a full database ingest.
+    """
+    import nuna.eval.assignments as assignments
+    import nuna.eval.reference_annotation as reference_annotation
+
+    from bacatlas_backend.ingest import catalogue_frames
+
+    samples = ["SAMN1", "SAMN2"]
+    universe = pandas.DataFrame({
+        "sample_id": samples * 2, "flat_index": [0, 0, 1, 1], "node": ["n0", "n0", "n1", "n1"],
+    })  # fmt: skip
+    coords = pandas.DataFrame({
+        "sample_id": samples * 2, "flat_index": [0, 0, 1, 1], "contig_idx": [0] * 4,
+        "start": [1, 1, 100, 100], "end": [60, 60, 160, 160],
+        "strand": ["+", "-", "+", "-"], "rank_on_contig": [0, 0, 1, 1],
+    })  # fmt: skip
+
+    seen: dict = {}
+
+    def fake_load_gene_coords(proc, requested, **kwargs):
+        seen["kwargs"] = kwargs
+        return coords
+
+    monkeypatch.setattr(assignments, "gene_universe", lambda *a, **k: universe)
+    monkeypatch.setattr(assignments, "load_assignments", lambda *a, **k: universe)
+    monkeypatch.setattr(reference_annotation, "load_gene_coords", fake_load_gene_coords)
+    for empty in ("load_bakta_products", "load_bakta_dbxrefs", "load_bakta_noncoding"):
+        monkeypatch.setattr(reference_annotation, empty, lambda *a, **k: pandas.DataFrame())
+    monkeypatch.setattr(catalogue_frames, "_gate_strand", lambda *a, **k: None)
+    monkeypatch.setattr(catalogue_frames, "_gate_length_convention", lambda *a, **k: None)
+
+    source = catalogue_frames._load_source_frames(_artifacts(tmp_path))
+
+    assert seen["kwargs"].get("need_length") is False, (
+        f"the cohort read must be lean; it asked {seen['kwargs']!r}"
+    )
+    assert "length_aa" not in source["coords"].columns
+    assert source["samples"] == samples and source["n_genes"] == 4
+
+
 # ── the gate: nothing about the two published catalogues moved ────────────────────────────────
 @pytest.mark.parametrize("entry", list(PUBLISHED_CATALOGUES), ids=lambda e: e.species_key)
 def test_the_published_rosters_are_PAIR_FOR_PAIR_what_the_glob_produced(entry):

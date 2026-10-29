@@ -154,8 +154,86 @@ def _gate_strand_balance(coords, omitted: dict, *, allow_missing: bool) -> None:
     print(f"⚠ {omitted['strand_balance']}", flush=True)
 
 
+#: How many genomes to read ``protein_sequence`` for when checking the coordinate convention.
+#: ⚠ A sample, and it is one because the full read is the cost this module just stopped paying:
+#: 50 of 71,435 is **0.07 %**. The statistic is a cohort-wide share, so a seeded sample of whole
+#: genomes estimates it to well inside the band anyone would act on.
+LENGTH_CONVENTION_SAMPLE = 50
+
+#: ⛔ `export_payload._report_length_convention`'s own line, reused rather than re-chosen. It warns
+#: below this and deliberately does **not** assert, *"because a real cohort has genuine exceptions —
+#: programmed frameshifts, run-on ORFs at contig edges, and Bakta's own alternate-start handling."*
+#: Picking a different number here would be two thresholds for one question.
+LENGTH_CONVENTION_FLOOR = 0.8
+
+
+def _gate_length_convention(processed, samples: list[str], omitted: dict) -> None:
+    """⚠ The check `need_length=False` would otherwise have SILENTLY RETIRED — kept, on a sample.
+
+    ⛔ **Why it cannot just be dropped.** `length_convention` is, in nuna's own words, *"the only
+    cheap way to catch an off-by-one in the coordinate convention, which is otherwise invisible: a
+    one-base error makes every block on the track one pixel-tenth narrow and every gap length wrong,
+    and nothing crashes."* Until now this module got it for free, because it read `length_aa` for
+    the whole cohort whether or not anything wanted it. Reading `protein_sequence` for 92.59 % of
+    the store's bytes is not a defensible way to buy one scalar — but neither is losing the scalar.
+
+    ⚠ **A NEW COHORT is exactly what moves this number.** Every genome measured so far came through
+    one Bakta/BakRep path; the 71,435-genome cohort is mixed, and a slice annotated by a different
+    tool is free to use a different convention. That is the case this exists for, so it is run
+    against the cohort being ingested rather than inherited from the probe.
+
+    ⭐ Both sides of the ratio come from ONE `load_gene_coords` call, not from the cohort frame
+    joined to a second read: a comparison whose two numerators came from different reads can disagree
+    for reasons that have nothing to do with the thing it measures.
+
+    Reported and recorded, never raised — nuna decided that, and one question gets one threshold.
+    """
+    import random
+
+    from nuna.eval.reference_annotation import load_gene_coords
+    from nuna.tl.locus_browser.export_payload import length_convention
+
+    if not samples:
+        return
+    # Seeded, so two runs of the same cohort check the same genomes and the number is comparable.
+    drawn = sorted(random.Random(0).sample(samples, min(LENGTH_CONVENTION_SAMPLE, len(samples))))
+    sampled = load_gene_coords(processed, drawn)
+    if not len(sampled) or "length_aa" not in sampled.columns:
+        omitted["length_convention"] = (
+            f"the coordinate convention is UNCHECKED: none of the {len(drawn)} sampled genomes "
+            "yielded a protein length. Every gene block's width is drawn from end-start+1 and "
+            "nothing downstream can notice if that convention is wrong."
+        )
+        print(f"⚠ {omitted['length_convention']}", flush=True)
+        return
+
+    agree = length_convention(sampled["end"] - sampled["start"] + 1, sampled["length_aa"])
+    line = (
+        f"coordinate convention: {agree:.1%} of {len(sampled):,} genes in {len(drawn)} sampled "
+        f"genomes are exactly 3*(aa+1) — the 1-based-inclusive check"
+    )
+    if agree >= LENGTH_CONVENTION_FLOOR:
+        print(f"  {line}", flush=True)
+        return
+    omitted["length_convention"] = (
+        f"{line}, BELOW {LENGTH_CONVENTION_FLOOR:.0%}. Coordinates may not be 1-based inclusive, "
+        "in which case every block width and every gap length on the track is wrong and nothing "
+        "raises. Reported, not refused — a real cohort has genuine exceptions."
+    )
+    print(f"⚠ {omitted['length_convention']}", flush=True)
+
+
 def _load_source_frames(artifacts: CatalogueArtifacts, *, allow_missing_strand: bool = False) -> dict:
-    """Every source frame `export_payload.main` loads, by the same calls and in the same order."""
+    """Every source frame `export_payload.main` loads, by the same calls and in the same order.
+
+    ⚠ **One call now differs, deliberately, and this is the only place it is recorded.**
+    `load_gene_coords` is called here with `need_length=False` and there without it. The export runs
+    at probe scale, where reading `protein_sequence` costs ~1.3 s and buys the coordinate-convention
+    diagnostic; the ingest runs at 71,435 genomes, where the same column is 92.59 % of the store.
+    **No frame value changes** — the lean call returns the identical frame minus `length_aa`
+    (`assert_frame_equal` exact on 1,436,421 probe genes), nothing here reads that column, and the
+    convention check is kept on a sample by `_gate_length_convention`.
+    """
     import numpy
     import pandas
     from nuna.eval.assignments import gene_universe, load_assignments
@@ -179,8 +257,18 @@ def _load_source_frames(artifacts: CatalogueArtifacts, *, allow_missing_strand: 
         ["sample_id", "flat_index", "node"]
     ]
     products = load_bakta_products(processed, samples)
-    coords = load_gene_coords(processed, samples)
+    # ⭐ `need_length=False`, and it is the single biggest input saving in the whole ingest.
+    # `length_aa` is derived from `protein_sequence` — the whole amino-acid string of every protein —
+    # and **nothing in this repository reads it** (exact-word grep, 2026-10-29: zero hits outside the
+    # unrelated `protein_length_aa` column). Measured over all 280 probe genomes: `protein_sequence`
+    # is **92.59 %** of the `_meta` store's column bytes and the five columns this path does read are
+    # **5.50 %** — 18.2x less column data, 2.09x faster, and `assert_frame_equal` exact against the
+    # old frame on 1,436,421 genes once `length_aa` is dropped.
+    # ⚠ The one thing it costs is the coordinate-convention check, which is bought back on a sample
+    # immediately below rather than quietly retired.
+    coords = load_gene_coords(processed, samples, need_length=False)
     _gate_strand_balance(coords, omitted, allow_missing=allow_missing_strand)
+    _gate_length_convention(processed, samples, omitted)
     noncoding = load_bakta_noncoding(processed, samples)
 
     dbxrefs = load_bakta_dbxrefs(processed, samples)
