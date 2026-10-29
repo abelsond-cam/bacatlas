@@ -264,3 +264,79 @@ def exported_kp_payload():
     if not (NUNA_DATA_ROOT / "browser").is_dir():
         pytest.skip(f"the browser export mirror is not present at {NUNA_DATA_ROOT / 'browser'}")
     return json.loads(artifacts_for("kp").published_payload.read_text())
+
+
+# ── ⛔ silent gates ────────────────────────────────────────────────────────────────────────────
+#
+# **A check that skips has not passed, and a suite that prints `36 skipped` has not said which 36.**
+# This matters more the further the real work moves off this machine: a laptop reduced to a conduit
+# for a dump still runs the suite, and that suite can report green having checked the parity
+# oracles, the route costs and the column-meaning audit *not at all*. Two mechanisms here:
+#
+# * `require_oracle` turns an absent oracle into a FAILURE, not a skip. An oracle is the only
+#   independent witness a piece of code has; losing it silently is the whole failure mode.
+# * `pytest_terminal_summary` prints a CENSUS of every skip, grouped by reason, on every run. The
+#   21 files gating on `BACATLAS_DATABASE_URL` and the 9 on the artifact mirror then announce
+#   themselves without 30 edits, and a number that grows is visible the day it grows.
+
+#: ⭐ The explicit, typed opt-out. ⛔ Default OFF: a machine that genuinely cannot run an oracle
+#: says so out loud, once, rather than every suite everywhere quietly measuring less.
+ALLOW_UNORACLED = os.environ.get("BACATLAS_ALLOW_UNORACLED", "").strip().lower() in {"1", "true", "yes"}
+
+
+def require_oracle(condition: bool, what: str, *, supplies: str) -> None:
+    """Fail — not skip — when an independent oracle is unavailable, naming what it would have checked.
+
+    ``what`` is the thing that is missing, in the imperative ("node is not on PATH"); ``supplies``
+    is what the suite therefore did not check. Both appear in the message, because *not looked at*
+    and *no difference* are indistinguishable in a test report unless you make them different.
+    """
+    if condition:
+        return
+    message = (
+        f"ORACLE UNAVAILABLE: {what}. This test is the independent witness for {supplies}, so the "
+        "suite cannot report on it at all. Install what is missing, or set "
+        "BACATLAS_ALLOW_UNORACLED=1 to accept a suite that does not check it."
+    )
+    if ALLOW_UNORACLED:
+        pytest.skip(message)
+    pytest.fail(message, pytrace=False)
+
+
+def pytest_configure(config):  # noqa: ARG001
+    """⭐ Default `BACATLAS_ROOT_GFF` to the mirror, because the census showed what it was costing.
+
+    ⛔ **34 of this suite's 36 skips were the whole GFF-backed sequence path** — 22 API tests and 12
+    sequence-endpoint tests — on a machine that had the GFFs all along, simply because one variable
+    was unset. Nobody chose that; it is what `36 skipped` hides. Setting it here runs them, and
+    they pass.
+
+    ⚠ Only when the directory exists, and never over an explicit value: a machine without the
+    mirror still skips, and the census then NAMES the path it did not check rather than leaving a
+    reader to infer it from a number.
+    """
+    if os.environ.get("BACATLAS_ROOT_GFF"):
+        return
+    mirrored = NUNA_DATA_ROOT / "raw" / "gff"
+    if mirrored.is_dir():
+        os.environ["BACATLAS_ROOT_GFF"] = str(mirrored)
+        print(f"BACATLAS_ROOT_GFF defaulted to the artifact mirror at {mirrored}")
+
+
+def pytest_terminal_summary(terminalreporter, exitstatus, config):  # noqa: ARG001
+    """⭐ Every skip, grouped by reason and counted — printed on every run, pass or fail.
+
+    `-rs` would do this on request, and nobody requests it. The point is that the census is
+    unconditional: a reader sees *what was not checked* beside what was.
+    """
+    skipped = terminalreporter.stats.get("skipped", [])
+    if not skipped:
+        return
+    reasons: dict[str, int] = {}
+    for report in skipped:
+        # longrepr for a skip is (path, lineno, "Skipped: <reason>")
+        raw = report.longrepr[2] if isinstance(report.longrepr, tuple) else str(report.longrepr)
+        reasons[raw.removeprefix("Skipped: ").strip()] = reasons.get(raw.removeprefix("Skipped: ").strip(), 0) + 1
+    terminalreporter.write_sep("-", f"what this run did NOT check ({len(skipped)} skipped)")
+    for reason, count in sorted(reasons.items(), key=lambda kv: -kv[1]):
+        terminalreporter.write_line(f"  {count:4d}  {reason}")

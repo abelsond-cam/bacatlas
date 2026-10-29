@@ -236,6 +236,27 @@ it, rolls that genome back, and the run continues.
 
 They need the `bacatlas_ingest` database running; override with `BACATLAS_TEST_DATABASE_URL`.
 
+### ⛔ A skip is not a pass, and the run says which it was
+
+Every run ends with a **census of what it did NOT check** — each skip, grouped by reason and
+counted. `-rs` would print that on request; nobody requests it, so it is unconditional. Read it:
+the 21 files gating on `BACATLAS_DATABASE_URL` and the 9 on the artifact mirror all disappear into
+`36 skipped` otherwise, and a suite on a machine that holds none of them reports green having
+checked the parity oracles, the route costs and the column-meaning audit not at all.
+
+⭐ **The census paid for itself the first time it ran.** Of 36 skips, **34 were the whole
+GFF-backed sequence path** — 22 API tests and 12 sequence-endpoint tests — on a machine that had
+the GFFs all along, because `BACATLAS_ROOT_GFF` was unset. `conftest.pytest_configure` now
+defaults it to `<artifact mirror>/raw/gff` when that exists, says so, and never overrides an
+explicit value. 34 tests that had never run on this laptop now do.
+
+⭐ **An absent ORACLE is a failure, not a skip.** `conftest.require_oracle` refuses and names what
+the missing witness would have checked — `test_gene_blocks`' differential against the published
+`app.js` is the gene-block codec's *only* independent oracle, and it used to go green when `node`
+was not installed. ⚠ `BACATLAS_ALLOW_UNORACLED=1` turns those back into skips, which the census
+then names; it is default off so that a machine which genuinely cannot run an oracle says so once,
+rather than every suite everywhere quietly measuring less.
+
 ### ⚠ The `nuna` cross-check runs from nuna's venv, not this one
 
 `gff/` carries **pinned copies** of two rules that live in `nuna` — `open_text`'s gzip-by-magic-number

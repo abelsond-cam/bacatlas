@@ -51,7 +51,7 @@ from bacatlas_backend.gene_blocks import (
     read_loci,
     read_nseq,
 )
-from tests.conftest import PUBLISHED_SITE_CATALOGUE_DIR
+from tests.conftest import PUBLISHED_SITE_CATALOGUE_DIR, require_oracle
 
 SEQUENCE_DIR = PUBLISHED_SITE_CATALOGUE_DIR / "seq"
 DUMPER = Path(__file__).with_name("nseq_gene_table_dumper.js")
@@ -230,8 +230,13 @@ def test_a_file_that_names_another_sample_is_refused_when_a_name_is_expected():
     ⚠ Unasked, the key is read and compared to nothing, so a file published under the wrong name
     decodes perfectly and serves another genome's coordinates.
     """
-    if not SEQUENCE_DIR.is_dir():
-        pytest.skip(f"the committed .nseq files are not at {SEQUENCE_DIR}")
+    require_oracle(
+        SEQUENCE_DIR.is_dir(),
+        f"the committed .nseq files are not at {SEQUENCE_DIR}",
+        supplies="whether `expect_sample=` actually refuses a file published under another "
+                 "genome's name — unasked, such a file decodes perfectly and serves another "
+                 "genome's coordinates",
+    )
     one = sorted(SEQUENCE_DIR.glob("*.nseq"))[0]
 
     assert read_nseq(one, expect_sample=one.stem).sample == one.stem
@@ -276,17 +281,25 @@ def _digest(text: str) -> str:
 @pytest.fixture(scope="module")
 def page_side() -> dict:
     """What the published `app.js`'s own `decodeNseq` makes of all 200 committed genomes."""
+    # ⛔ FAIL, not skip. This is the codec's ONLY independent oracle — our decoder against the
+    # published `app.js`'s own `decodeNseq`, on all 200 committed genomes. A missing `node` used to
+    # report green, which is the exact shape of defect the comparison exists to catch: an opaque
+    # block can be wrong in five ways that all satisfy the length CHECK, and nothing else in the
+    # suite would see any of them.
+    supplies = (
+        "the gene-block codec's only independent oracle — our decoder against the published "
+        "app.js's own decodeNseq over all 200 committed genomes"
+    )
     node = shutil.which("node")
-    if not node:
-        pytest.skip("node is not on PATH — the page's own decoder cannot be run")
-    if not FROZEN_APP_JS.is_file():
-        pytest.skip(f"the nuna checkout's app.js is not at {FROZEN_APP_JS}")
-    if not SEQUENCE_DIR.is_dir():
-        pytest.skip(f"the committed .nseq files are not at {SEQUENCE_DIR}")
+    require_oracle(bool(node), "node is not on PATH, so the page's own decoder cannot be run",
+                   supplies=supplies)  # fmt: skip
+    require_oracle(FROZEN_APP_JS.is_file(), f"the nuna checkout's app.js is not at {FROZEN_APP_JS}",
+                   supplies=supplies)  # fmt: skip
+    require_oracle(SEQUENCE_DIR.is_dir(), f"the committed .nseq files are not at {SEQUENCE_DIR}",
+                   supplies=supplies)  # fmt: skip
 
     genomes = sorted(path.stem for path in SEQUENCE_DIR.glob("*.nseq"))
-    if not genomes:
-        pytest.skip(f"no .nseq files in {SEQUENCE_DIR}")
+    require_oracle(bool(genomes), f"no .nseq files in {SEQUENCE_DIR}", supplies=supplies)
     request = {
         "app_js": str(FROZEN_APP_JS),
         "genomes": [
