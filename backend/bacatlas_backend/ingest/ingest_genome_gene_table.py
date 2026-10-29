@@ -143,7 +143,7 @@ def ingest_one_genome(
     pathogen_species_ids: dict[str, int],
     species_key: str | None = None,
     write_functional_annotations: bool = True,
-    write_noncoding_features: bool = True,
+    write_noncoding_features: bool = False,
 ) -> GenomeIngestReport:
     """Load one genome's contigs, genes and labels. Raises before writing anything if it cannot.
 

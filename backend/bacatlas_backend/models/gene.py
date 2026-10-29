@@ -200,6 +200,17 @@ class GeneLocusMembership(Base):
 class GenomeNoncodingFeature(Base):
     """tRNA, rRNA, ncRNA, oriC, CRISPR — keyed `(genome, contig, index)`.
 
+    ⛔⛔ **NOTHING READS THIS TABLE, AND IT IS NO LONGER WRITTEN BY DEFAULT** (David, 2026-10-29;
+    traced the same day across both repos). There is no service, no route and no frontend field for
+    any column here — only the ingest that writes it and the reconcile that counts it. The page's
+    intergenic slot is drawn from `intergenic_gap`, whose length statistics come from GENE
+    adjacencies and whose named features come from the `_noncoding` **parquet** via
+    `catalogue_frames.load_bakta_noncoding`, never from this table. At 71,435 genomes it would be
+    the single largest table in the database (~5.8 GB of ~19.7 GB), so `--with-noncoding-features`
+    is now opt-in. ⚠ The table is kept in the schema only until D8's drop migration lands; do not
+    build on it, and if the IGR work needs a per-genome feature store, design one for that work
+    rather than reviving this.
+
     ⛔ **Deliberately carries no `flat_index`.** Admitting a non-coding row into that numbering would
     renumber every gene and shift every ±5 neighbourhood. It meets the gene table by coordinate
     containment only.

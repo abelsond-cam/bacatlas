@@ -254,7 +254,6 @@ def test_every_override_is_reachable_from_the_command_line(flag, attribute):
     "flag,attribute",
     [
         ("--no-functional-annotations", "no_functional_annotations"),
-        ("--no-noncoding-features", "no_noncoding_features"),
         ("--allow-missing-strand", "allow_missing_strand"),
     ],
 )
@@ -262,6 +261,19 @@ def test_every_omission_is_a_flag_that_must_be_TYPED(flag, attribute):
     """⭐ Each of these leaves a table out. Default off, so an absence is always a decision."""
     assert getattr(build_parser().parse_args([]), attribute) is False
     assert getattr(build_parser().parse_args([flag]), attribute) is True
+
+
+def test_the_noncoding_table_is_OPT_IN_because_nothing_reads_it():
+    """⛔ The polarity is inverted from the other two, and the inversion is the point.
+
+    `--no-functional-annotations` omits a table the page *would* read if it were cheap, so leaving it
+    out is a decision that has to be typed. `genome_noncoding_feature` has no reader at all — traced
+    2026-10-29 across both repos — so WRITING it is the decision, and at 71,435 genomes it is the
+    largest table in the database. A test rather than a comment, because the previous default was
+    justified in the help text by a renderer that does not exist.
+    """
+    assert build_parser().parse_args([]).with_noncoding_features is False
+    assert build_parser().parse_args(["--with-noncoding-features"]).with_noncoding_features is True
 
 
 # ── R2 · one unreadable parquet is a refusal, not an aborted run ──────────────────────────────

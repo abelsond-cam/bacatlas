@@ -67,13 +67,16 @@ def clean_slate(session):
     _wipe()
 
 
-def _load(session, artifacts, one_genome):
+def _load(session, artifacts, one_genome, *, write_noncoding=False):
+    """⚠ `write_noncoding` defaults to False because the LOADER does — `genome_noncoding_feature` has
+    no reader and became opt-in on 2026-10-29. A test that wants the table has to say so, which is
+    the same discipline the flag itself now imposes."""
     species_ids = ingest_pathogen_species(session)
     session.commit()
     sample_id, dataset_id = one_genome
     report = ingest_one_genome(
         session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
-        pathogen_species_ids=species_ids,
+        pathogen_species_ids=species_ids, write_noncoding_features=write_noncoding,
     )
     session.commit()
     return report
@@ -82,15 +85,29 @@ def _load(session, artifacts, one_genome):
 def test_the_counts_it_writes_are_the_counts_the_parquets_hold(session, artifacts, one_genome, clean_slate):
     """⛔ Reconciled against the SOURCE, not against the loader's own report."""
     sample_id, _ = one_genome
-    report = _load(session, artifacts, one_genome)
+    report = _load(session, artifacts, one_genome, write_noncoding=True)
 
     meta_rows = len(pandas.read_parquet(artifacts.per_genome(sample_id, "meta"), columns=["flat_index"]))
-    noncoding_rows = len(pandas.read_parquet(artifacts.per_genome(sample_id, "noncoding"), columns=["nc_index"]))
+    # ⚠ `start`, not `nc_index`: nuna narrowed the `_noncoding` schema to the six columns that have a
+    # reader on 2026-10-29, and `nc_index` was one of the four dropped. The sidecars in the mirror
+    # still carry it, so a test naming it would keep passing here and fail the day they are rebuilt.
+    noncoding_rows = len(pandas.read_parquet(artifacts.per_genome(sample_id, "noncoding"), columns=["start"]))
 
     assert report.genes_written == meta_rows
     assert report.functional_annotations_written == meta_rows
     assert report.noncoding_features_written == noncoding_rows
     assert session.execute(select(func.count()).select_from(Gene)).scalar_one() == meta_rows
+
+
+def test_the_noncoding_table_is_NOT_written_unless_it_is_asked_for(session, artifacts, one_genome, clean_slate):
+    """⭐ The same run, without the opt-in, writes the gene layer and none of the 422 non-coding rows.
+
+    ⛔ Zero here must be a DECISION, never a quiet failure of the load — so it is asserted beside a
+    non-zero gene count from the same report, which is what tells the two apart.
+    """
+    report = _load(session, artifacts, one_genome)
+    assert report.genes_written > 3_000, "the rest of the gene layer still loaded"
+    assert report.noncoding_features_written == 0
 
 
 def test_a_re_run_replaces_rather_than_doubles(session, artifacts, one_genome, clean_slate):
@@ -107,7 +124,7 @@ def test_a_re_run_replaces_rather_than_doubles(session, artifacts, one_genome, c
 
 
 def test_the_cost_does_not_scale_with_the_gene_count(session, engine, artifacts, one_genome, clean_slate):
-    """⛔ A ratio against a logical minimum: four tables, delete + COPY each, plus the upserts.
+    """⛔ A ratio against a logical minimum: three tables, delete + COPY each, plus the upserts.
 
     ⚠ The bound is a CONSTANT, not a multiple of anything — that is the whole assertion. A loader
     that issued one statement per gene would pass every correctness test in this file.
@@ -125,7 +142,10 @@ def test_the_cost_does_not_scale_with_the_gene_count(session, engine, artifacts,
 
     assert result.genes_written > 3_000
     report.assert_at_most(16, what=f"loading {sample_id} ({result.genes_written:,} genes)")
-    assert len([r for r in report.statements if r.category == "copy"]) == 4, report.statements
+    # ⚠ THREE by default, four with `--with-noncoding-features`. The count moved when that table
+    # became opt-in; what the test asserts is unchanged — a CONSTANT, not a multiple of the gene
+    # count — and both polarities are pinned so neither can start issuing a statement per gene.
+    assert len([r for r in report.statements if r.category == "copy"]) == 3, report.statements
 
 
 def test_the_symbol_column_holds_a_symbol_and_the_tag_column_holds_the_tag(

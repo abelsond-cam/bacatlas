@@ -161,7 +161,7 @@ def load_genome_layer(
     progress_every: int = 25,
     species_key: str | None = None,
     write_functional_annotations: bool = True,
-    write_noncoding_features: bool = True,
+    write_noncoding_features: bool = False,
 ) -> GenomeLayerReport:
     """Load every genome in the roster, one atomic transaction each.
 
@@ -465,11 +465,18 @@ def build_parser() -> argparse.ArgumentParser:
                              "in `locus_annotation_entry` are what the page reads; the per-gene "
                              "table is 372 M rows at 71,435 genomes and nothing renders it. Left "
                              "OUT deliberately and reported, never arriving empty")  # fmt: skip
-    parser.add_argument("--no-noncoding-features", action="store_true",
-                        help="do not write `genome_noncoding_feature`. \u26a0 It is the largest "
-                             "single table at 71,435 genomes (~5.8 GB, recomputed from "
-                             "`storing_the_gene_layer.md`'s @13,573 decomposition) and it renders "
-                             "a track \u2014 so this is a decision to take and state, not a default")  # fmt: skip
+    parser.add_argument("--with-noncoding-features", action="store_true",
+                        help="\u2b50 write `genome_noncoding_feature`, which is OFF by default. "
+                             "\u26d4 The earlier `--no-noncoding-features` said suppressing it was "
+                             "'a decision to take and state, not a default' because 'it renders a "
+                             "track'. That was wrong, and the polarity followed the error: traced "
+                             "2026-10-29, the table has NO reader \u2014 no service, no route, no "
+                             "frontend field \u2014 only the ingest that writes it and the reconcile "
+                             "that counts it. The track's intergenic slot is drawn from "
+                             "`intergenic_gap`, whose lengths come from gene adjacencies and whose "
+                             "features come from the `_noncoding` PARQUET, never from this table. "
+                             "It is also the largest single table at 71,435 genomes (~5.8 GB), so "
+                             "writing it is what now has to be asked for")  # fmt: skip
     parser.add_argument("--allow-missing-strand", action="store_true",
                         help="proceed when genomes have no `{BS}_strand.parquet`, recording the "
                              "shortfall in `omitted`. \u26d4 Refused by default: `load_gene_coords` "
@@ -524,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
                 session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
                 species_key=args.species_key,
                 write_functional_annotations=not args.no_functional_annotations,
-                write_noncoding_features=not args.no_noncoding_features,
+                write_noncoding_features=args.with_noncoding_features,
             )
             session.commit()
             print(report.render())
