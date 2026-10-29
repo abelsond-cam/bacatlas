@@ -558,3 +558,134 @@ def test_the_published_rosters_are_PAIR_FOR_PAIR_what_the_glob_produced(entry):
     assert not [sample_id for sample_id, dataset_id in after if dataset_id is None], (
         "every probe genome is located; an unlocated one would be refused and the load short"
     )
+
+
+# ── T3 · the categorical window knob, and the merge that would NULL a column rather than raise ──
+# ⭐ nuna measured the knob on its 100-genome probe: 132.8 → 16.4 B/row, 614.4 → 75.7 MB, **8.12×**,
+# with `assert_frame_equal` exact. That is why `build_catalogue_frames` can reach it. ⚠ It is default
+# OFF — it buys nothing at 280 genomes and costs ~1.5× the build — but the 71k ingest will want it, and
+# the thing standing between here and there is this file's own `_gene_memberships`.
+#
+# ⛔ **Its hazard does not raise.** `_gene_memberships` factorizes a MultiIndex over the window frame and
+# then LEFT-joins the result back onto the assignment on `(sample_id, flat_index)`. Under
+# `categorical=True` that join has a **categorical `flat_index` on one side and a plain `int64` on the
+# other**. pandas 2.3.3 matches them by value — but had it not, every row would still be returned, each
+# with a NULL `arrangement_rank`, which is a *documented legitimate value* (a gene alone on its contig
+# has no window). The table would be the right length, the column would be all nulls, and the only thing
+# that could tell the difference is a test that asserts the ranks are actually there.
+
+
+def _window_inputs():
+    """A cohort big enough that most genes have a full ±5 window and several share an arrangement."""
+    import pandas as pd
+
+    rows = [
+        {"sample_id": f"SAMEA{genome:07d}", "flat_index": index, "contig_idx": 0,
+         "start": 1_000 * index, "strand": "+" if index % 3 else "-", "node": f"n{index % 7}"}
+        for genome in (1, 2, 3) for index in range(14)
+    ]  # fmt: skip
+    assign_coords = pd.DataFrame(rows)
+    node_position = {n: i for i, n in enumerate(sorted(assign_coords["node"].unique()))}
+    sample_position = {s: i for i, s in enumerate(sorted(assign_coords["sample_id"].unique()))}
+    return assign_coords, node_position, sample_position
+
+
+def _memberships(categorical: bool):
+    import numpy
+    import pandas
+    from nuna.tl.locus_browser.export_payload import (
+        OFFSETS,
+        arrangements,
+        oriented_windows,
+    )
+
+    from bacatlas_backend.ingest import catalogue_frames
+
+    assign_coords, node_position, sample_position = _window_inputs()
+    windows = oriented_windows(assign_coords, node_position, radius=5, categorical=categorical)
+    slot_of = {offset: index for index, offset in enumerate(OFFSETS)}
+    arrangement_frame = arrangements(windows, slot_of, top=None, sample_pos=sample_position)
+    assign = assign_coords[["sample_id", "flat_index", "node"]]
+    got = catalogue_frames._gene_memberships(
+        assign, windows, arrangement_frame, slot_of, numpy, pandas
+    )
+    return got, windows
+
+
+def test_categorical_windows_give_the_IDENTICAL_gene_memberships():
+    """⛔ Same rows, same order, same ranks — the only claim a memory knob may make of this table."""
+    import pandas as pd
+
+    plain, plain_w = _memberships(categorical=False)
+    cat, cat_w = _memberships(categorical=True)
+    assert str(cat_w["sample_id"].dtype) == "category", "the fixture never reached the categorical path"
+    assert str(plain_w["sample_id"].dtype) != "category"
+
+    back = cat.copy()
+    for column in ("node", "sample_id", "flat_index"):
+        back[column] = back[column].astype(plain[column].dtype)
+    pd.testing.assert_frame_equal(plain, back)
+
+
+def test_the_arrangement_RANKS_ARE_ACTUALLY_THERE_not_merely_a_column_of_the_right_length():
+    """⛔ The assertion the identity test cannot make for itself.
+
+    If the categorical/int64 join silently matched nothing, BOTH paths' ranks would be null together
+    only if the plain path were broken too — but a reader comparing two frames would see them agree and
+    call it proved. So the rank column is asserted non-null on its own terms, in both paths: a NULL rank
+    is a *legitimate* value here (a gene with no window), which is exactly what makes an all-NULL column
+    indistinguishable from a correct one without this line.
+    """
+    for categorical in (False, True):
+        got, _ = _memberships(categorical=categorical)
+        placed = got["arrangement_rank"].notna().sum()
+        assert placed > 0, f"categorical={categorical}: every arrangement_rank is NULL — the join missed"
+        assert placed == len(got), (
+            f"categorical={categorical}: {len(got) - placed} of {len(got)} genes lost their rank; "
+            "every gene in this fixture has a full window, so none should be unplaced"
+        )
+
+
+def test_build_catalogue_frames_ACTUALLY_FORWARDS_the_knob_to_the_window_build():
+    """⛔ A switch nothing passes on is a switch that silently does nothing — the T1 lesson again.
+
+    ⚠ Asserted on the SOURCE, and the reason is worth stating rather than hiding: `build_catalogue_frames`
+    is called by **no test in this repository** — only by `ingest_locus_catalogue`, i.e. only inside a full
+    database ingest — so there is no harness in which to observe the call. Until there is, the source is
+    the only thing that can tell `categorical=categorical_windows` from a parameter that was added to the
+    signature and then dropped on the floor, because with the default OFF the two behave identically.
+    """
+    import inspect
+
+    from bacatlas_backend.ingest.catalogue_frames import build_catalogue_frames
+
+    source = inspect.getsource(build_catalogue_frames)
+    assert "categorical_windows: bool = False" in source or "categorical_windows" in str(
+        inspect.signature(build_catalogue_frames)
+    ), "the parameter is gone"
+    assert "categorical=categorical_windows" in source, (
+        "`oriented_windows` is called without the knob, so `categorical_windows=True` would do nothing"
+    )
+
+
+def test_gene_memberships_is_EXACTLY_ONE_ROW_PER_ASSIGNED_GENE_in_both_dtypes():
+    """⛔ The function's own documented contract — *"exactly one row per gene, always"* — asserted.
+
+    ⚠ **Added because a mutation survived both tests above, and the reason it survived is the lesson.**
+    Replace the `MultiIndex.factorize` with an enumeration of the index LEVELS — the categorical trap, and
+    a change someone might make believing it equivalent — and the intermediate gains a row per *possible*
+    (node, genome, gene) triple. Those extra rows then give `windowed` several rows per
+    `(sample_id, flat_index)`, and the LEFT join multiplies the output. Neither test above sees it: the
+    identity test compares the two dtypes against **each other**, and they break together; the rank test
+    scales with the row count. Only the contract catches it, and only stated against the ASSIGNMENT.
+    """
+    assign_coords, _, _ = _window_inputs()
+    n_genes = len(assign_coords)
+    for categorical in (False, True):
+        got, _ = _memberships(categorical=categorical)
+        assert len(got) == n_genes, (
+            f"categorical={categorical}: {len(got)} rows for {n_genes} assigned genes"
+        )
+        assert not got.duplicated(subset=["sample_id", "flat_index"]).any(), (
+            f"categorical={categorical}: a gene appears more than once"
+        )

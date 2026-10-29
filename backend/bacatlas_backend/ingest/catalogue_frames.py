@@ -456,6 +456,7 @@ def build_catalogue_frames(
     *,
     annotation_fold: GeneOntologyFold | None = None,
     allow_missing_strand: bool = False,
+    categorical_windows: bool = False,
 ) -> CatalogueFrames:
     """Assemble every table of one catalogue. The only entry point; everything else is a helper.
 
@@ -599,7 +600,24 @@ def build_catalogue_frames(
     gaps = gap_table(assign_coords, source["noncoding"]) if len(assign_coords) else None
     if gaps is not None and len(gaps):
         gaps = gaps[gaps["a"].isin(node_position) & gaps["b"].isin(node_position)]
-    windows = oriented_windows(assign_coords, node_position, radius=NEAR_SHELLS)
+    # ⭐ `categorical_windows` is nuna's memory knob, reachable from here because THIS is the call that
+    # has to survive 71,435 genomes. MEASURED by nuna on its 100-genome *E. coli* probe (489,146 genes →
+    # 4,625,590 window rows): **132.8 → 16.4 B/row, 614.4 → 75.7 MB, 8.12×**, `assert_frame_equal` exact.
+    # ⚠ **Default OFF, and deliberately.** It costs ~1.5× the build time, it buys nothing at the 280-genome
+    # probe scale this ingest runs at today, and the B/row figure does not transfer — a category code is as
+    # wide as the cardinality needs, so `sample_id` fits `int8` at 100 genomes and needs `int32` at 71,435.
+    # The switch exists so the frame can be measured BOTH WAYS at this call site before the 71k ingest
+    # chooses, rather than being flipped on an extrapolation.
+    # ⛔ Three hazards were probed on pandas 2.3.3 before this was wired, because each fails SILENTLY rather
+    # than raising: `_gene_memberships` merges the possibly-categorical `flat_index` against a plain `int64`
+    # (matches by value — a mismatch would NULL every `arrangement_rank`); `near_synteny_agreement` returns a
+    # CategoricalIndex that `combine_first` must align against the audit's object index (it coerces and
+    # aligns by value, even with unused categories left in the dtype); and the `MultiIndex.factorize` below
+    # returns observed gene keys, not the category product. The first is gated in this repo's tests, the
+    # third in nuna's.
+    windows = oriented_windows(
+        assign_coords, node_position, radius=NEAR_SHELLS, categorical=categorical_windows
+    )
     occupants = neighbour_counts(windows, top=TOP_NEIGHBOURS)
     slot_of = {offset: index for index, offset in enumerate(OFFSETS)}
     # ⛔ `top=None` keeps EVERY arrangement — the page's own default. At 4, a quarter of loci were
