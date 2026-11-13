@@ -66,13 +66,18 @@ def _memberships(rank_absent=math.nan) -> pd.DataFrame:
     * B: one gene at each locus; listed BEFORE A at `n1`, so a `present_genome_ids` that kept frame
       order instead of sorting would read `[B, A]`.
     * C: in the collection and in nothing at all.
+
+    ⛔ `n0` appears FIRST in the frame and is ordinal 1. A loader numbering nodes by first appearance
+    (what `pd.factorize` hands back) would give `n0` → 0 — measured: with `n1` first, that mutant
+    coincided with the reversed ordinals and survived. The frame order and the ordinal order must
+    differ from each other AND from the loci frame's row order for all three mutants to die.
     """
     return pd.DataFrame(
         {
-            "node": ["n1", "n0", "n0", "n1", "n0"],
-            "sample_id": [SAMPLE_B, SAMPLE_A, SAMPLE_A, SAMPLE_A, SAMPLE_B],
+            "node": ["n0", "n1", "n0", "n1", "n0"],
+            "sample_id": [SAMPLE_A, SAMPLE_B, SAMPLE_A, SAMPLE_A, SAMPLE_B],
             "flat_index": [0, 0, 1, 3, 2],
-            "arrangement_rank": [2.0, 0.0, 1.0, rank_absent, 0.0],
+            "arrangement_rank": [0.0, 2.0, 1.0, rank_absent, 0.0],
         }
     )
 
