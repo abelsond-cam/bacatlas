@@ -36,7 +36,6 @@ from collections.abc import Iterable, Sequence
 
 #: Bytes per gene in each block. A block is `stride * gene_count` bytes, exactly.
 GENE_SPAN_STRIDE = 16
-GENE_NAME_REF_STRIDE = 12
 INT32_VECTOR_STRIDE = 4
 
 #: `genome_genes.span_encoding`. **1 is nuna's `.nseq` gene-table layout** and is the only value
@@ -55,10 +54,7 @@ FLAG_PHASE_MASK = 0b11
 DEFINED_FLAG_BITS = FLAG_MINUS_STRAND | FLAG_FIVE_PRIME_PARTIAL | (FLAG_PHASE_MASK << FLAG_PHASE_SHIFT)
 
 #: Absence, per column. ⭐ Each is a value the real domain cannot take, so no separate NULL mask is
-#: needed: a term id is a positive identity column, a catalogue ordinal is a position, a rank counts
-#: from 0.
-ABSENT_TERM_ID = -1
-ABSENT_LOCUS_TAG_NUMBER = -1
+#: needed: a catalogue ordinal is a position, a rank counts from 0.
 UNASSIGNED_LOCUS_ORDINAL = -1
 NO_ARRANGEMENT_RANK = -1
 
@@ -344,107 +340,5 @@ class GeneSpanTable:
         if _IS_LITTLE_ENDIAN:
             return self.words.tobytes()
         swapped = array("I", self.words)
-        swapped.byteswap()
-        return swapped.tobytes()
-
-
-# ── gene_name_refs — 12 B/gene of references into `gene_text_term` ────────────────────────────
-def encode_gene_name_refs(
-    symbol_term_ids: Sequence[int],
-    product_term_ids: Sequence[int],
-    locus_tag_numbers: Sequence[int],
-) -> bytes:
-    """Three parallel columns → `gene_name_refs`, 12 B/gene, three little-endian `int32`.
-
-    ⚠ **All three words are signed, with `-1` meaning absent.** The design note had the third as
-    `uint32`; one row holding two signednesses is a decode trap for no gain — a locus-tag number is
-    a per-genome ordinal in the thousands, nowhere near `INT32_MAX`.
-    """
-    lengths = {
-        "symbol_term_ids": len(symbol_term_ids),
-        "product_term_ids": len(product_term_ids),
-        "locus_tag_numbers": len(locus_tag_numbers),
-    }
-    if len(set(lengths.values())) != 1:
-        raise GeneBlockError(f"gene_name_refs: the three columns have different lengths {lengths}")
-    rows: list[int] = []
-    for index in range(lengths["symbol_term_ids"]):
-        rows.extend((symbol_term_ids[index], product_term_ids[index], locus_tag_numbers[index]))
-    return _encode_vector(
-        "i", rows, name="gene_name_refs", low=INT32_MIN, high=INT32_MAX, fields_per_gene=3
-    )
-
-
-class GeneNameRefTable:
-    """`gene_name_refs` read in place — three `int32` per gene, `-1` for absent."""
-
-    __slots__ = ("gene_count", "values")
-
-    def __init__(self, block: bytes | memoryview, *, gene_count: int | None = None) -> None:
-        """Wrap a `gene_name_refs` block, checking its length against `gene_count` when given."""
-        self.values = _decode_vector(
-            "i", block, name="gene_name_refs", stride=GENE_NAME_REF_STRIDE, expected_count=gene_count
-        )
-        self.gene_count = len(self.values) // 3
-
-    def __len__(self) -> int:
-        """How many genes the block holds."""
-        return self.gene_count
-
-    def _value(self, flat_index: int, offset: int) -> int:
-        if not 0 <= flat_index < self.gene_count:
-            raise GeneBlockError(
-                f"gene_name_refs: flat_index {flat_index} is outside 0..{self.gene_count - 1}"
-            )
-        return self.values[3 * flat_index + offset]
-
-    def symbol_term_id(self, flat_index: int) -> int | None:
-        """The `gene_text_term` row for this gene's Bakta symbol, or `None`."""
-        found = self._value(flat_index, 0)
-        return None if found == ABSENT_TERM_ID else found
-
-    def product_term_id(self, flat_index: int) -> int | None:
-        """The `gene_text_term` row for this gene's Bakta product, or `None`."""
-        found = self._value(flat_index, 1)
-        return None if found == ABSENT_TERM_ID else found
-
-    def locus_tag_number(self, flat_index: int) -> int | None:
-        """The numeric half of the locus tag, or `None`; the prefix is one column per genome."""
-        found = self._value(flat_index, 2)
-        return None if found == ABSENT_LOCUS_TAG_NUMBER else found
-
-    def term_ids_for(self, flat_indexes: Iterable[int]) -> set[int]:
-        """The `gene_text_term` ids for JUST these genes — the `WHERE id = ANY(…)` a request needs.
-
-        ⭐ This, not `referenced_term_ids`, is what the Sequence tab wants: a locus holds a handful
-        of this genome's genes, so the bounded lookup is over ≤ 2 ids per displayed gene.
-
-        ⛔ Words 0 and 1 only. Word 2 is the locus-tag NUMBER, an ordinal within this genome and not
-        an id in any table; folding it in would send integers to `gene_text_term` that match
-        unrelated rows and return a product for a gene that has none.
-        """
-        found: set[int] = set()
-        for flat_index in flat_indexes:
-            found.add(self._value(flat_index, 0))
-            found.add(self._value(flat_index, 1))
-        found.discard(ABSENT_TERM_ID)
-        return found
-
-    def referenced_term_ids(self) -> set[int]:
-        """Every `gene_text_term` id in the WHOLE genome — for ingest and the column audit.
-
-        ⚠ Not a per-request lookup: a ~4,900-gene genome references on the order of thousands of
-        distinct products, so passing this to a `WHERE id = ANY(…)` would send thousands of ids to
-        answer a question about a handful of genes. Use `term_ids_for` on the serving path.
-        """
-        found = set(self.values[0::3]) | set(self.values[1::3])
-        found.discard(ABSENT_TERM_ID)
-        return found
-
-    def to_bytes(self) -> bytes:
-        """The block as it would be stored."""
-        if _IS_LITTLE_ENDIAN:
-            return self.values.tobytes()
-        swapped = array("i", self.values)
         swapped.byteswap()
         return swapped.tobytes()

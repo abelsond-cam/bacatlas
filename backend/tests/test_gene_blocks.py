@@ -29,21 +29,16 @@ from pathlib import Path
 import pytest
 
 from bacatlas_backend.gene_blocks import (
-    ABSENT_LOCUS_TAG_NUMBER,
-    ABSENT_TERM_ID,
     DEFINED_FLAG_BITS,
-    GENE_NAME_REF_STRIDE,
     GENE_SPAN_STRIDE,
     INT32_VECTOR_STRIDE,
     UNASSIGNED_LOCUS_ORDINAL,
     GeneBlockError,
-    GeneNameRefTable,
     GeneSpanTable,
     block_gene_count,
     byte_length,
     check_block_length,
     decode_int32_vector,
-    encode_gene_name_refs,
     encode_gene_spans,
     encode_int32_vector,
     pack_gene_flags,
@@ -147,28 +142,6 @@ def test_an_out_of_range_flat_index_is_refused_rather_than_read_from_the_end():
         table.start_position(1)
 
 
-def test_gene_name_refs_round_trip_with_absence_distinguished_from_zero():
-    """⚠ `0` is a legitimate locus-tag number and term id 0 would be a real row; `-1` is absence."""
-    block = encode_gene_name_refs([5, ABSENT_TERM_ID, 0], [7, 7, ABSENT_TERM_ID], [1, 2, ABSENT_LOCUS_TAG_NUMBER])
-
-    assert len(block) == 3 * GENE_NAME_REF_STRIDE
-    table = GeneNameRefTable(block, gene_count=3)
-    assert [table.symbol_term_id(j) for j in range(3)] == [5, None, 0]
-    assert [table.product_term_id(j) for j in range(3)] == [7, 7, None]
-    assert [table.locus_tag_number(j) for j in range(3)] == [1, 2, None]
-    assert table.to_bytes() == block
-
-
-def test_referenced_term_ids_excludes_the_locus_tag_number():
-    """⛔ Word 2 is an ordinal in this genome, not an id — it must not reach `gene_text_term`."""
-    table = GeneNameRefTable(encode_gene_name_refs([5], [7], [999_999]))
-    assert table.referenced_term_ids() == {5, 7}
-
-
-
-
-
-
 def test_int32_vectors_round_trip_and_keep_the_unassigned_sentinel():
     ordinals = [163, UNASSIGNED_LOCUS_ORDINAL, 889, 163]
     block = encode_int32_vector(ordinals, name="gene_locus_ordinals")
@@ -209,19 +182,6 @@ def test_a_buffers_length_is_measured_in_bytes_not_in_items():
     assert check_block_length(view, GENE_SPAN_STRIDE, gene_count, name="gene_spans") == gene_count
     # And the decode agrees with the check, which is the invariant that was broken.
     assert GeneSpanTable(view, gene_count=gene_count).gene_count == gene_count
-
-
-def test_term_ids_for_is_bounded_by_the_genes_asked_about():
-    """⭐ The serving path looks up a handful of genes, not the whole genome's vocabulary."""
-    table = GeneNameRefTable(
-        encode_gene_name_refs([5, 11, ABSENT_TERM_ID, 5], [7, 12, 13, ABSENT_TERM_ID], [1, 2, 3, 4])
-    )
-    assert table.term_ids_for([0]) == {5, 7}
-    assert table.term_ids_for([0, 3]) == {5, 7}
-    assert table.term_ids_for([2]) == {13}
-    assert table.term_ids_for([]) == set()
-    # The whole-genome view is a different question and stays available for ingest and the audit.
-    assert table.referenced_term_ids() == {5, 7, 11, 12, 13}
 
 
 def test_a_file_that_names_another_sample_is_refused_when_a_name_is_expected():
