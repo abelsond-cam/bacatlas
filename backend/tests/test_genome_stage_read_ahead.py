@@ -395,8 +395,14 @@ def test_the_contig_name_is_never_a_fragment_of_an_accession(sample, seqid, name
         ("SAMN12345678", None),
         ("SAMEA103923484", None),
         ("SAMD00012345", None),
-        ("GCF_000512165.1", None),  # not a stem: no tail, nothing to strip — NULL, and the gate names it
-        ("ERR123456", None),
+        # ⛔ already an accession: its own answer. 1,678 of the 71k cohort's 4,806 assembly-keyed genomes
+        # are named this way, and NULL here would have refused the whole catalogue at publish.
+        ("GCF_000512165.1", "GCF_000512165.1"),
+        ("GCA_003855335.1", "GCA_003855335.1"),
+        ("GCA_015719685.2", "GCA_015719685.2"),
+        ("ERR123456", None),  # neither a BioSample nor an accession — NULL, and the gate names it
+        ("GCA_003855335.1.fna", None),
+        ("GCA_", None),
     ],
 )
 def test_the_bare_accession_is_nunas_rule_and_NULL_where_that_rule_does_not_apply(sample, expected):

@@ -46,6 +46,7 @@ on the third route the species must be named, because that cohort's `_meta` file
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -741,21 +742,34 @@ def _upsert_genome(
     return genome.genome_id
 
 
-def bare_accession_for(sample_id: str) -> str | None:
-    """`GCF_000512165.1_ASM51216v1_genomic` → `GCF_000512165.1`; NULL for a BioSample id.
+#: What nuna's rule yields for a stem — an NCBI assembly accession, version optional — and therefore
+#: also what a sample id that is ALREADY an accession looks like. The only thing NCBI can be asked for.
+_ASSEMBLY_ACCESSION = re.compile(r"GC[AF]_\d+(?:\.\d+)?", re.IGNORECASE)
 
-    ⭐ nuna's `build_genome_set.bare_accession` and nothing else — the rule that anchors on the
-    ACCESSION, not on the `_ASM…` tail (`_INF156_genomic` and `_KSB2_2B_genomic` occur). That function
-    hands back anything it does not recognise unchanged; here an unrecognised assembly stem is NULL
-    instead, because a stem is not an accession and asking NCBI for one is a request that cannot be
-    answered — `verify_pangenome_is_servable` then names the genome rather than the page failing on it.
+
+def bare_accession_for(sample_id: str) -> str | None:
+    """`GCF_000512165.1_ASM51216v1_genomic` → `GCF_000512165.1`; `GCA_003855335.1` → itself; else NULL.
+
+    ⭐ nuna's `build_genome_set.bare_accession` — the rule that anchors on the ACCESSION, not on the
+    `_ASM…` tail (`_INF156_genomic` and `_KSB2_2B_genomic` occur). That function hands back anything
+    it does not recognise unchanged, so its answer is kept only where it IS an accession.
+
+    ⛔ **A sample id that is already a bare accession is its own answer, and this first wrote NULL
+    for it** — the test was "did the rule change the string", which is true of a stem with a tail and
+    false of an accession with none. Measured on the 71,435-genome cohort: of its 4,806
+    assembly-keyed genomes **1,678 are named by the bare accession** (`GCA_003855335.1`) and 3,128 by
+    accession + tail. All 1,678 would have been stored NULL, unservable by the NCBI station, and
+    `verify_pangenome_is_servable` would have refused the whole catalogue at publish — after the load.
+
+    An id that is neither a BioSample nor an accession (`ERR123456`) is NULL: asking NCBI for it is a
+    request that cannot be answered, and the publish gate names the genome instead of the page failing.
     """
     if _sample_identifier_kind(sample_id) is SampleIdentifierKind.BIOSAMPLE:
         return None
     from nuna.tl.stability.build_genome_set import bare_accession
 
     accession = bare_accession(sample_id)
-    return None if accession == sample_id else accession
+    return accession if _ASSEMBLY_ACCESSION.fullmatch(accession) else None
 
 
 def _contig_name(seqid: str, sample_id: str) -> str:
