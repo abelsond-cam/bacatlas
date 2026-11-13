@@ -45,11 +45,13 @@ on the third route the species must be named, because that cohort's `_meta` file
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.gene_blocks import (
@@ -74,6 +76,8 @@ from bacatlas_backend.ingest.staging_table_loader import replace_rows_for
 from bacatlas_backend.models.enumerations import SampleIdentifierKind
 from bacatlas_backend.models.genome import Genome, GenomeAssembly, GenomeContig
 from bacatlas_backend.models.genome_genes import GenomeGenes
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
+from bacatlas_backend.models.pangenome import Pangenome
 
 CONTIG_COLUMNS = ("genome_id", "seqid", "contig_index", "contig_name", "length_bases")
 
@@ -415,6 +419,9 @@ def ingest_one_genome(
         where=GenomeContig.__table__.c.genome_id == genome_id,
     )
 
+    _refuse_to_replace_a_gene_table_a_catalogue_reads(
+        session, sample_id=sample_id, genome_id=genome_id, gene_count=gene_count, gene_spans=gene_spans
+    )
     _, report.gene_spans_written = replace_rows_for(
         session, GenomeGenes.__table__, GENOME_GENES_COLUMNS,
         [(genome_id, gene_count, SPAN_ENCODING_NSEQ_GENE_TABLE, gene_spans)],
@@ -422,6 +429,66 @@ def ingest_one_genome(
     )
     report.gene_spans_source = source
     return report
+
+
+def _refuse_to_replace_a_gene_table_a_catalogue_reads(
+    session: Session, *, sample_id: str, genome_id: int, gene_count: int | None, gene_spans: bytes | None
+) -> None:
+    """Refuse to change — or delete — a gene table that a loaded catalogue addresses by position.
+
+    ⛔ **ONE GENOME, ONE GENE TABLE, and the schema cannot hold two.** `genome` is unique on
+    `sample_id` and `genome_genes` is keyed by the genome alone. A catalogue's
+    `genome_locus_assignment` block is positional: element *i* is the locus of gene *i* **of the
+    table it was built against**. Replace that table with another store's and every catalogue built
+    on the old one names the wrong gene at every position after the first difference — with every
+    length CHECK satisfied and nothing on the page looking wrong.
+
+    ⚠ **Measured, not hypothetical.** 63 genomes sit in both the 100-genome Kp probe and the
+    71,435-genome cohort, and the two stores' gene tables differ in **all 63** (SAMN03892119: 5,341
+    genes against 5,344 — one store keeps the internal-stop and selenoprotein genes). Loading the
+    second cohort's genome stage over the first would have overwritten 63 tables in silence.
+
+    ⭐ **Keyed to the cause, so it never blocks a legitimate reload.** The same bytes are an
+    idempotent re-run (a resumed load) and pass. A genome no catalogue reads is free to change. Only
+    the combination that breaks something is refused: *different bytes* under *a catalogue that
+    reads them by position*. The digest is taken in the database, so a resume does not pull every
+    stored block through the socket to compare it.
+
+    ``gene_spans=None`` is the named no-gene-table route, which DELETES the block: the same harm,
+    refused on the same terms.
+    """
+    held = session.execute(
+        select(GenomeGenes.gene_count, func.sha256(GenomeGenes.gene_spans)).where(GenomeGenes.genome_id == genome_id)
+    ).one_or_none()
+    if held is None:
+        return
+    held_count, held_digest = held
+    same_bytes = gene_spans is not None and bytes(held_digest) == hashlib.sha256(gene_spans).digest()
+    if same_bytes and held_count == gene_count:
+        return
+    readers = (
+        session.execute(
+            select(Pangenome.catalogue_key)
+            .join(GenomeLocusAssignment, GenomeLocusAssignment.pangenome_id == Pangenome.pangenome_id)
+            .where(GenomeLocusAssignment.genome_id == genome_id)
+            .order_by(Pangenome.catalogue_key)
+        )
+        .scalars()
+        .all()
+    )
+    if not readers:
+        return
+    if gene_spans is None:
+        offered = "no gene table (it is named as holding none)"
+    else:
+        offered = f"a different one ({gene_count:,} genes)"
+    raise GenomeIngestError(
+        f"{sample_id}: this genome already holds a gene table ({held_count:,} genes) and this load offers "
+        f"{offered}. ⛔ Refused: {len(readers)} loaded catalogue(s) address the stored table by position "
+        f"({', '.join(readers[:5])}{', …' if len(readers) > 5 else ''}), and a genome can hold only one. "
+        "Two cohorts whose stores annotate one assembly differently cannot share a database; to "
+        "change the table, remove those catalogues first and load them again afterwards."
+    )
 
 
 def _ingest_named_without_gene_table(
@@ -474,6 +541,9 @@ def _ingest_named_without_gene_table(
         # the strand is served only from a gene table, which this genome does not have.
         strand_is_observed=False,
         gene_table_omitted_reason=reason,
+    )
+    _refuse_to_replace_a_gene_table_a_catalogue_reads(
+        session, sample_id=sample_id, genome_id=genome_id, gene_count=None, gene_spans=None
     )
     for table in (GenomeGenes.__table__, GenomeContig.__table__):
         session.execute(table.delete().where(table.c.genome_id == genome_id))
