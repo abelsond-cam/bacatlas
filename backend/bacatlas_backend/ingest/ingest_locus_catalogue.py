@@ -57,6 +57,7 @@ from bacatlas_backend.ingest.derive_locus_ranking import (
 )
 from bacatlas_backend.ingest.ingest_genome_locus_counts import write_genome_locus_counts
 from bacatlas_backend.ingest.ingest_propagation_rates import write_propagation_rates
+from bacatlas_backend.ingest.phase_report import phase
 from bacatlas_backend.ingest.staging_table_loader import copy_rows
 from bacatlas_backend.models.enumerations import (
     GENE_ONTOLOGY_NAMESPACE_NAMES,
@@ -651,6 +652,7 @@ def ingest_locus_catalogue(
     )
     policy = _policy()
     derived = _derive_locus_columns(frames, load_pfam_name_table(), policy)
+    phase("load: derived locus columns")
 
     _delete_pangenome_layer(session, pangenome_id)
     report = CatalogueLoadReport(pangenome_id=pangenome_id, coverage=dict(frames.coverage))
@@ -680,6 +682,7 @@ def ingest_locus_catalogue(
         _locus_rows(frames, derived, pangenome_id, pathogen_species_id, genome_id_by_sample),
     )
     session.flush()
+    phase("load: locus rows")
 
     locus_id_by_label = {
         label: locus_id
@@ -693,12 +696,15 @@ def ingest_locus_catalogue(
 
     report.annotation_entries = _load_annotation_entries(session, frames, locus_id_by_label)
     report.uniref_crosstab_rows = _load_uniref_crosstab(session, frames, locus_id_by_label)
+    phase("load: annotation entries + crosstab")
     report.arrangements = _load_arrangements(
         session, frames, pangenome_id, locus_id_by_label, genome_id_by_ordinal
     )
+    phase("load: arrangements")
     report.offset_occupants = _load_offset_occupants(
         session, frames, pangenome_id, locus_id_by_label, locus_id_by_ordinal
     )
+    phase("load: offset occupants")
     # ⚠ `nseq_root` is being added to `CatalogueArtifacts` by the genome stage; until it lands the
     # attribute may not exist, and an artifact set without it means the `.loci` oracle is NOT looked
     # at — which the report says in those words rather than printing "0 of 0".
@@ -718,9 +724,11 @@ def ingest_locus_catalogue(
     report.loci_oracle_checked = written.loci_checked
     report.loci_oracle_absent = written.loci_absent
     report.loci_oracle_root = written.loci_root
+    phase("load: genome locus assignments")
     # ⭐ AFTER both the arrangements and the assignments: it counts the rows just written, so the
     # picker's "N loci" and the locus view cannot describe two different catalogues.
     report.genome_locus_counts = write_genome_locus_counts(session, pangenome_id)
+    phase("load: genome locus counts")
     report.propagation_rates = write_propagation_rates(
         session,
         pangenome_id=pangenome_id,
@@ -738,6 +746,7 @@ def ingest_locus_catalogue(
         report.similarity_rows,
         report.nearest_locus_rows,
     ) = _load_cluster_similarity(session, frames, pangenome_id, locus_id_by_label, derived)
+    phase("load: gaps + similarity")
 
     # ── the landing locus and the example chips ────────────────────────────────────────────────
     order = ranking(derived["interest_score"])

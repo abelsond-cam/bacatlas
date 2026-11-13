@@ -36,6 +36,7 @@ from bacatlas_backend.ingest.derive_locus_propagation import (
     propagation_verdicts,
 )
 from bacatlas_backend.ingest.ingest_genome_gene_table import scalar_or_none, split_set_value
+from bacatlas_backend.ingest.phase_report import phase
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
 
 #: The signed offsets, in display order. ⛔ `0` is absent — it is the focal gene.
@@ -578,9 +579,12 @@ def build_catalogue_frames(
             "position, so it is refused rather than absorbed."
         )
 
+    phase("start of the catalogue's frames")
     source = _load_source_frames(artifacts, allow_missing_strand=allow_missing_strand)
     omitted = source["omitted"]
+    phase("frames: sources read")
     audit = _load_audit_frames(artifacts, omitted)
+    phase("frames: audit tables read")
     samples, assign = source["samples"], source["assign"]
     n_genomes = len(samples)
     sample_position = {sample: index for index, sample in enumerate(samples)}
@@ -597,6 +601,7 @@ def build_catalogue_frames(
         assign, source["products"], source["dbxrefs"], source["pfam"], numpy
     )
     _release_merged_sources(source, pandas)
+    phase("frames: roster + annotation frame")
 
     # ── per-locus reductions ───────────────────────────────────────────────────────────────────
     named_counts = annotation.assign(_named=annotation["gene"].notna()).groupby("node")["_named"].sum()
@@ -646,6 +651,7 @@ def build_catalogue_frames(
     top_go = top_go_slim(annotation, go_fold, go_namespaces, TOP_GO)
     ec_annotated = annotation.groupby("node")["ec"].count()
     kegg_annotated = annotation.groupby("node")["kegg_ko"].count()
+    phase("frames: per-locus reductions")
 
     # ── the ±5 neighbourhood, built ONCE (10 rows per gene) ────────────────────────────────────
     assign_coords = source["coords"].merge(assign, on=["sample_id", "flat_index"], how="inner")
@@ -660,9 +666,11 @@ def build_catalogue_frames(
     median_length = by_node.median()
     length_iqr = by_node.quantile(0.75) - by_node.quantile(0.25)
 
+    phase("frames: coordinates joined")
     gaps = gap_table(assign_coords, source["noncoding"]) if len(assign_coords) else None
     if gaps is not None and len(gaps):
         gaps = gaps[gaps["a"].isin(node_position) & gaps["b"].isin(node_position)]
+    phase("frames: gap table")
     # ⛔ Dead from here: `coords` lives on inside `assign_coords`, `noncoding` only fed `gap_table`, the
     # length groupby holds a (node, nt) copy of every gene, and `labelled` — a filtered COPY of the whole
     # annotation frame (218 B/gene deep on the kp probe, ~82 GB at 374 M genes) — fed two counts at the top.
@@ -675,6 +683,7 @@ def build_catalogue_frames(
     )
     genes_with_coordinates = int(len(assign_coords))
     del assign_coords
+    phase("frames: window reduction")
 
     # ── the audit's own columns ────────────────────────────────────────────────────────────────
     evidence = audit["evidence"]
@@ -771,9 +780,11 @@ def build_catalogue_frames(
     # ── propagation: does each node's own call agree with itself? ──────────────────────────────
     annotation_measured = source["dbxrefs"] is not None
     node_keys = [str(node) for node in nodes]
+    phase("frames: the audit's columns")
     verdicts, claiming = _propagation_columns(
         annotation, node_keys, annotation_fold, annotation_measured
     )
+    phase("frames: propagation verdicts")
     for column, values in verdicts.items():
         loci[column] = values
     # ⛔ Genes carrying ANY GO term — NOT the sum of the three namespace counts above, which
@@ -812,6 +823,7 @@ def build_catalogue_frames(
         node_position,
         pandas,
     )
+    phase("frames: assembled")
 
     return CatalogueFrames(
         loci=loci,
