@@ -71,9 +71,9 @@ def test_a_nan_measurement_becomes_null_and_never_reaches_the_check(session, _se
          "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
          "display_name_source", "named_member_count", "context_observed_member_counts",
          "total_arrangement_count", "arrangement_member_gene_count",
-         "arrangement_member_genome_count", "interest_score"),
+         "arrangement_member_genome_count", "interest_score", "present_genome_ids"),
         [(_seed_ids["pangenome"], _seed_ids["species"], "0", 0, 99, 97,
-          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97, math.nan)],
+          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97, math.nan, [1])],
     )
     session.commit()
 
@@ -148,10 +148,10 @@ def test_a_numpy_float_is_adapted_on_a_measurement_column(session, _seed_ids):
          "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
          "display_name_source", "named_member_count", "context_observed_member_counts",
          "total_arrangement_count", "arrangement_member_gene_count",
-         "arrangement_member_genome_count", "interest_score"),
+         "arrangement_member_genome_count", "interest_score", "present_genome_ids"),
         [(_seed_ids["pangenome"], _seed_ids["species"], "0", 0, 99, 97,
           PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97,
-          numpy.float32(48.25))],
+          numpy.float32(48.25), [1])],
     )
     session.commit()
 
@@ -210,9 +210,9 @@ def test_a_locus_array_column_round_trips(session, _seed_ids):
          "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
          "display_name_source", "named_member_count", "context_observed_member_counts",
          "total_arrangement_count", "arrangement_member_gene_count",
-         "arrangement_member_genome_count"),
+         "arrangement_member_genome_count", "present_genome_ids"),
         [(_seed_ids["pangenome"], _seed_ids["species"], "0", 0, 99, 97,
-          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, counts, 4, 99, 97)],
+          PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, counts, 4, 99, 97, [1])],
     )
     session.commit()
 
