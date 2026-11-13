@@ -19,10 +19,18 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.gene_blocks import (
+    NO_ARRANGEMENT_RANK,
+    UNASSIGNED_LOCUS_ORDINAL,
+    GeneBlockError,
+    encode_int32_vector,
+    read_loci,
+)
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.catalogue_frames import (
     OFFSETS,
@@ -54,6 +62,8 @@ from bacatlas_backend.models.enumerations import (
     PropagationVerdict,
 )
 from bacatlas_backend.models.gene import GeneLocusMembership
+from bacatlas_backend.models.genome_genes import GenomeGenes
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
 from bacatlas_backend.models.intergenic_gap import IntergenicGap, IntergenicGapFeature
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry, LocusUnirefFamilyCrosstab
@@ -90,6 +100,15 @@ class CatalogueLoadReport:
     offset_occupants: int = 0
     gene_memberships: int = 0
     genes_without_a_window: int = 0
+    #: One `genome_locus_assignment` row per collection genome — the genome-grain twin of the
+    #: per-gene memberships above, written from the same frame in the same transaction.
+    genome_locus_assignments: int = 0
+    #: ⭐ The `.loci` oracle, as three numbers and never a percentage: how many genomes' encoded
+    #: ordinals were compared byte-for-byte against a `.loci` nuna published, how many had no such
+    #: file, and where the files were looked for (`None` = the oracle was not looked at at all).
+    loci_oracle_checked: int = 0
+    loci_oracle_absent: int = 0
+    loci_oracle_root: str | None = None
     genome_locus_counts: int = 0
     propagation_rates: int = 0
     intergenic_gaps: int = 0
@@ -115,6 +134,8 @@ class CatalogueLoadReport:
             f"  offset occupants        {self.offset_occupants:,}",
             f"  gene memberships        {self.gene_memberships:,}"
             + (f"  ({self.genes_without_a_window:,} with no window)" if self.genes_without_a_window else ""),
+            f"  genome assignments      {self.genome_locus_assignments:,} genomes  "
+            + self._loci_oracle_line(),
             f"  genome locus counts     {self.genome_locus_counts:,} genomes",
             # ⚠ The denominator is printed with it: a vocabulary that was never measured writes no
             # rows at all, and a bare count gives a reader nothing to notice that against.
@@ -134,6 +155,15 @@ class CatalogueLoadReport:
         for note in self.notes:
             lines.append(f"  NOTE {note}")
         return "\n".join(lines)
+
+    def _loci_oracle_line(self) -> str:
+        """*Not looked at* and *looked at, none found* are different findings, and both are said."""
+        if self.loci_oracle_root is None:
+            return "(.loci oracle NOT looked at: the artifacts name no nseq_root)"
+        return (
+            f"({self.loci_oracle_checked:,} checked byte-for-byte against a .loci, "
+            f"{self.loci_oracle_absent:,} with no .loci under {self.loci_oracle_root})"
+        )
 
 
 def _clean(value):
@@ -258,6 +288,7 @@ LOCUS_COLUMNS = (
     "catalogue_ordinal",
     "member_gene_count",
     "member_genome_count",
+    "present_genome_ids",
     "prevalence_band",
     "display_name",
     "display_name_source",
@@ -310,6 +341,83 @@ LOCUS_COLUMNS = (
 )
 
 
+def _present_genome_ids_by_node(frames: CatalogueFrames, genome_id_by_sample: dict) -> dict:
+    """`{node label: sorted distinct genome_ids with a member gene there}`, built in ONE pass.
+
+    ⭐ From the memberships frame — the same rows `gene_locus_membership` and
+    `genome_locus_assignment` are written from — so the three cannot disagree about which genomes
+    carry a locus. ⛔ Vectorised: the frame is 374 M rows at 71,435 genomes, so this factorises node
+    and sample once and takes the unique `(node, genome_id)` pairs with numpy; nothing here is per
+    row in Python. A per-locus scan inside `_locus_rows` would be quadratic on top.
+    """
+    import numpy as np
+
+    memberships = frames.gene_memberships
+    if memberships is None:
+        raise CatalogueFrameError(
+            "`present_genome_ids` cannot be built: the frames carry no gene memberships, and the "
+            "column is NOT NULL — a locus with no stated genomes would be a locus nothing can find."
+        )
+    if not len(memberships):
+        return {}
+    node_codes, node_uniques = _factorize(memberships["node"])
+    label_of_code = [str(value) for value in node_uniques]
+    genome_ids_of_code = _genome_ids_of_samples(memberships["sample_id"], genome_id_by_sample)
+    sample_codes = genome_ids_of_code["codes"]
+    genome_id_of_code = genome_ids_of_code["genome_ids"]
+    # One int64 per membership: `node_code * (max genome_id + 1) + genome_id`, so `np.unique` sorts
+    # by node first and by genome_id within a node — exactly the order the column wants.
+    genome_ids = genome_id_of_code[sample_codes]
+    base = int(genome_id_of_code.max()) + 1
+    pairs = np.unique(node_codes.astype(np.int64) * base + genome_ids.astype(np.int64))
+    pair_nodes = pairs // base
+    pair_genomes = pairs % base
+    boundaries = np.flatnonzero(np.diff(pair_nodes)) + 1
+    starts = np.concatenate(([0], boundaries))
+    ends = np.concatenate((boundaries, [len(pairs)]))
+    return {
+        label_of_code[int(pair_nodes[start])]: [int(value) for value in pair_genomes[start:end]]
+        for start, end in zip(starts, ends, strict=True)
+    }
+
+
+def _factorize(values):
+    """`(codes, uniques)` for a frame column of any dtype — pandas' C-speed hashing, never a loop."""
+    import pandas as pd
+
+    codes, uniques = pd.factorize(values, use_na_sentinel=True)
+    if (codes < 0).any():
+        raise CatalogueFrameError(
+            f"{int((codes < 0).sum()):,} membership rows carry a null in a key column "
+            "(`node` or `sample_id`); a gene with no locus or no genome has no row to be in."
+        )
+    return codes, list(uniques)
+
+
+def _genome_ids_of_samples(samples, genome_id_by_sample: dict) -> dict:
+    """Factorise `sample_id` and resolve each DISTINCT sample to its `genome_id` once.
+
+    ⛔ Refuses by name a sample that has no `genome` row rather than dropping its genes: every
+    membership is keyed by genome_id, so a missing one would silently empty that genome from every
+    locus it is in.
+    """
+    import numpy as np
+
+    codes, uniques = _factorize(samples)
+    missing = [str(sample) for sample in uniques if str(sample) not in genome_id_by_sample]
+    if missing:
+        raise KeyError(
+            f"{len(missing)} membership sample(s) have no `genome` row ({missing[:5]}). "
+            "Every membership is keyed by genome_id, so a missing one would silently drop that "
+            "genome's genes from every locus it is in."
+        )
+    return {
+        "codes": codes,
+        "samples": [str(sample) for sample in uniques],
+        "genome_ids": np.asarray([genome_id_by_sample[str(sample)] for sample in uniques], dtype=np.int64),
+    }
+
+
 def _locus_rows(
     frames: CatalogueFrames,
     derived: dict,
@@ -322,8 +430,14 @@ def _locus_rows(
     ⚠ `medoid_sample_id` is resolved to a `genome_id` HERE and not stored as an accession: the
     medoid is one real gene, and a column holding its genome as text would be a second, unjoinable
     spelling of a key the schema already has.
+
+    ⛔ `present_genome_ids` is asserted against `member_genome_count` on EVERY locus and the first
+    disagreement refuses the catalogue by node. The count comes from nuna's export and the array
+    from the memberships frame; they are two derivations of one fact, and a locus whose array is
+    shorter than its count would be a locus some of whose genomes nothing can find.
     """
     loci = frames.loci
+    present_by_node = _present_genome_ids_by_node(frames, genome_id_by_sample)
     # ⛔ **Built BY NAME and projected through `LOCUS_COLUMNS`, never as a positional tuple.**
     # `copy_rows` validates that every name exists on the table (`staging_table_loader.py:125`) and
     # nothing validates arity or order, so a value inserted at the wrong index shifts every later
@@ -333,13 +447,24 @@ def _locus_rows(
     # key-set assertion is checked ONCE rather than per locus.
     for index in range(len(loci)):
         row = loci.iloc[index]
+        label = str(row["node"])
+        member_genome_count = int(row["member_genome_count"])
+        present_genome_ids = present_by_node.get(label, [])
+        if len(present_genome_ids) != member_genome_count:
+            raise CatalogueFrameError(
+                f"locus {label!r}: the memberships name {len(present_genome_ids):,} distinct "
+                f"genome(s) but member_genome_count says {member_genome_count:,}. "
+                "`present_genome_ids` is what answers 'which genomes carry this locus', so the two "
+                "cannot differ."
+            )
         values = {
             "pangenome_id": pangenome_id,
             "pathogen_species_id": species_id,
-            "node_label": str(row["node"]),
+            "node_label": label,
             "catalogue_ordinal": int(row["catalogue_ordinal"]),
             "member_gene_count": int(row["member_gene_count"]),
-            "member_genome_count": int(row["member_genome_count"]),
+            "member_genome_count": member_genome_count,
+            "present_genome_ids": present_genome_ids,
             "prevalence_band": PrevalenceBand(str(row["prevalence_band"])),
             "display_name": derived["display_name"][index],
             "display_name_source": derived["display_name_source"][index],
@@ -454,6 +579,8 @@ def _delete_pangenome_layer(session: Session, pangenome_id: int) -> None:
         (PangenomeGenomeLocusCount, PangenomeGenomeLocusCount.pangenome_id),
         (PangenomePropagationRate, PangenomePropagationRate.pangenome_id),
         (GeneLocusMembership, GeneLocusMembership.pangenome_id),
+        # References pangenome and genome only, so its place in the order is free.
+        (GenomeLocusAssignment, GenomeLocusAssignment.pangenome_id),
         (IntergenicGapFeature, None),
         (IntergenicGap, IntergenicGap.pangenome_id),
         (LocusOffsetOccupant, LocusOffsetOccupant.pangenome_id),
@@ -515,14 +642,22 @@ def ingest_locus_catalogue(
     _delete_pangenome_layer(session, pangenome_id)
     report = CatalogueLoadReport(pangenome_id=pangenome_id, coverage=dict(frames.coverage))
 
+    # ⛔ Resolved ONCE and handed to both the locus rows and the memberships: `present_genome_ids`
+    # and `genome_locus_assignment` are two readings of one frame, and two lookups could differ.
+    genome_id_by_sample = _genome_ids_by_sample(session, frames.samples)
+    missing_genomes = [sample for sample in frames.samples if sample not in genome_id_by_sample]
+    if missing_genomes:
+        raise KeyError(
+            f"{len(missing_genomes)} of {len(frames.samples)} roster genomes have no `genome` row "
+            f"({missing_genomes[:5]}). Every membership is keyed by genome_id, so a missing one would "
+            "silently drop that genome's genes from every locus it is in."
+        )
+
     report.loci = copy_rows(
         session,
         Locus.__table__,
         LOCUS_COLUMNS,
-        _locus_rows(
-            frames, derived, pangenome_id, pathogen_species_id,
-            _genome_ids_by_sample(session, frames.samples),
-        ),
+        _locus_rows(frames, derived, pangenome_id, pathogen_species_id, genome_id_by_sample),
     )
     session.flush()
 
@@ -545,9 +680,25 @@ def ingest_locus_catalogue(
     report.offset_occupants = _load_offset_occupants(
         session, frames, pangenome_id, locus_id_by_label, locus_id_by_ordinal
     )
-    memberships, without_window = _load_gene_memberships(session, frames, pangenome_id, locus_id_by_label)
-    report.gene_memberships, report.genes_without_a_window = memberships, without_window
-    # ⭐ AFTER both the arrangements and the memberships: it counts the rows just written, so the
+    # ⚠ `nseq_root` is being added to `CatalogueArtifacts` by the genome stage; until it lands the
+    # attribute may not exist, and an artifact set without it means the `.loci` oracle is NOT looked
+    # at — which the report says in those words rather than printing "0 of 0".
+    loci_root = getattr(artifacts, "nseq_root", None)
+    written = _load_gene_memberships(
+        session,
+        frames,
+        pangenome_id,
+        locus_id_by_label,
+        genome_id_by_sample,
+        loci_root=Path(loci_root).expanduser() if loci_root is not None else None,
+    )
+    report.gene_memberships = written.memberships
+    report.genes_without_a_window = written.without_window
+    report.genome_locus_assignments = written.assignments
+    report.loci_oracle_checked = written.loci_checked
+    report.loci_oracle_absent = written.loci_absent
+    report.loci_oracle_root = written.loci_root
+    # ⭐ AFTER both the arrangements and the assignments: it counts the rows just written, so the
     # picker's "N loci" and the locus view cannot describe two different catalogues.
     report.genome_locus_counts = write_genome_locus_counts(session, pangenome_id)
     report.propagation_rates = write_propagation_rates(
@@ -798,46 +949,292 @@ def _load_offset_occupants(
     return copy_rows(session, LocusOffsetOccupant.__table__, columns, rows())
 
 
-def _load_gene_memberships(session, frames, pangenome_id, locus_id_by_label) -> tuple[int, int]:
-    """One row per gene — `(written, without a window)`.
+@dataclass
+class GeneMembershipsWritten:
+    """What `_load_gene_memberships` wrote and what it checked, each as a count a reader can size."""
+
+    memberships: int = 0
+    without_window: int = 0
+    assignments: int = 0
+    loci_checked: int = 0
+    loci_absent: int = 0
+    loci_root: str | None = None
+
+
+ASSIGNMENT_COLUMNS = (
+    "pangenome_id",
+    "genome_id",
+    "gene_count",
+    "placed_gene_count",
+    "distinct_locus_count",
+    "gene_locus_ordinals",
+    "gene_arrangement_ranks",
+)
+
+
+def _load_gene_memberships(
+    session,
+    frames,
+    pangenome_id,
+    locus_id_by_label,
+    genome_id_by_sample,
+    *,
+    loci_root: Path | None = None,
+) -> GeneMembershipsWritten:
+    """The per-gene memberships AND the per-genome assignment blocks, from ONE frame.
 
     ⚠ **A gene with no window still gets a row.** *"This genome has no gene at this locus"* and
     *"this genome has a gene here with no recorded neighbourhood"* are different sentences on the
     page, and only a row can carry the second. ⭐ The second is counted here from the frame's own
     `arrangement_rank`, which is why dropping `locus_arrangement_id` did not cost the distinction:
     the column was never what carried it to anybody.
+
+    ⭐ **`genome_locus_assignment` is written beside `gene_locus_membership`, not instead of it**
+    (the dual-write period; another stage drops the per-gene table). Both come from the same frame
+    in the same transaction, so they cannot describe two catalogues. Every genome of the collection
+    gets an assignment row — one with no membership at all gets `gene_count` entries of `-1` and
+    two zero counts, because the picker lists every genome and a missing row is a genome it cannot
+    offer. ⛔ `gene_count` is read from `genome_genes`, never inferred from the memberships: the
+    block is indexed by `flat_index` and a length guessed from the highest index seen would be short
+    by exactly the unassigned tail.
+
+    ⛔ **The catalogue ordinal has ONE source**, `frames.loci["catalogue_ordinal"]` — the same column
+    `_locus_rows` writes to `locus.catalogue_ordinal` — so a `.loci` written by nuna and the block
+    written here index the same numbering by construction.
+
+    ⭐ **The `.loci` oracle.** Where `loci_root` is given and `<sample>.loci` exists, the encoded
+    ordinals are compared byte-for-byte against nuna's file and the first mismatch refuses the
+    catalogue naming the sample and the index. The counts of checked and absent genomes travel in
+    the return value: a report that said only "checked" could mean 0 of 71,435.
+
+    ⚠ **Vectorised, because the frame is 374 M rows at 71,435 genomes.** Node and sample are
+    factorised once (C-speed hashing), the rows are sorted by genome once (an integer argsort), and
+    each genome's block is built by numpy fancy indexing on its slice. The only Python loop is one
+    iteration per GENOME; the per-gene COPY into `gene_locus_membership` streams the same arrays.
     """
+    import numpy as np
+
     memberships = frames.gene_memberships
-    if memberships is None or not len(memberships):
-        return 0, 0
-    genome_id_by_sample = _genome_ids_by_sample(session, frames.samples)
-    missing = [sample for sample in frames.samples if sample not in genome_id_by_sample]
-    if missing:
-        raise KeyError(
-            f"{len(missing)} of {len(frames.samples)} roster genomes have no `genome` row "
-            f"({missing[:5]}). Every membership is keyed by genome_id, so a missing one would "
-            "silently drop that genome's genes from every locus it is in."
-        )
+    if memberships is None:
+        return GeneMembershipsWritten()
+    genome_ids_in_collection = [genome_id_by_sample[sample] for sample in frames.samples]
+    gene_count_by_genome = _gene_counts_by_genome(session, genome_ids_in_collection, frames.samples)
 
-    columns = ("pangenome_id", "genome_id", "flat_index", "locus_id")
-    without_window = 0
+    # ── the frame as four aligned arrays ──────────────────────────────────────────────────────
+    ordinals = _catalogue_ordinals_of(memberships["node"], frames.loci)
+    resolved = _genome_ids_of_samples(memberships["sample_id"], genome_id_by_sample)
+    sample_codes, sample_of_code = resolved["codes"], resolved["samples"]
+    genome_id_of_code = resolved["genome_ids"]
+    flat_indexes = np.asarray(memberships["flat_index"].to_numpy(), dtype=np.int64)
+    ranks, without_window = _arrangement_ranks_of(memberships["arrangement_rank"])
+    locus_id_of_ordinal = _locus_ids_by_ordinal(frames.loci, locus_id_by_label)
 
-    def rows():
-        nonlocal without_window
-        for row in memberships.itertuples(index=False):
-            rank = row.arrangement_rank
-            missing = rank is None or (isinstance(rank, float) and math.isnan(rank))
-            if missing:
-                without_window += 1
+    written = GeneMembershipsWritten(
+        without_window=without_window,
+        loci_root=None if loci_root is None else str(loci_root),
+    )
+
+    # ── the per-genome blocks FIRST: one slice per genome after one sort ──────────────────────
+    # ⛔ Before the per-gene COPY, deliberately. Building the blocks is where a flat_index past the
+    # end, a repeated one, or a `.loci` that disagrees is refused BY NAME; the per-gene table's
+    # primary key would catch the repeat too, but as a bare IntegrityError after minutes of COPY.
+    order = np.argsort(sample_codes, kind="stable")
+    sorted_codes = sample_codes[order]
+    starts = np.searchsorted(sorted_codes, np.arange(len(sample_of_code)), side="left")
+    ends = np.searchsorted(sorted_codes, np.arange(len(sample_of_code)), side="right")
+    slice_of_sample = {
+        sample_of_code[code]: (int(starts[code]), int(ends[code])) for code in range(len(sample_of_code))
+    }
+
+    def assignment_rows():
+        for sample, genome_id in zip(frames.samples, genome_ids_in_collection, strict=True):
+            gene_count = gene_count_by_genome[genome_id]
+            start, end = slice_of_sample.get(sample, (0, 0))
+            rows = order[start:end]
+            block = _assignment_block(
+                sample,
+                gene_count,
+                flat_indexes[rows],
+                ordinals[rows],
+                ranks[rows],
+            )
+            if loci_root is not None:
+                oracle = loci_root / f"{sample}.loci"
+                if oracle.is_file():
+                    _refuse_unless_loci_agree(oracle, sample, gene_count, block["ordinals"])
+                    written.loci_checked += 1
+                else:
+                    written.loci_absent += 1
             yield (
                 pangenome_id,
-                genome_id_by_sample[str(row.sample_id)],
-                int(row.flat_index),
-                locus_id_by_label[str(row.node)],
+                genome_id,
+                gene_count,
+                block["placed_gene_count"],
+                block["distinct_locus_count"],
+                encode_int32_vector(block["ordinals"], name=f"{sample} gene_locus_ordinals"),
+                encode_int32_vector(block["ranks"], name=f"{sample} gene_arrangement_ranks"),
             )
 
-    written = copy_rows(session, GeneLocusMembership.__table__, columns, rows())
-    return written, without_window
+    written.assignments = copy_rows(
+        session, GenomeLocusAssignment.__table__, ASSIGNMENT_COLUMNS, assignment_rows()
+    )
+
+    # ── the per-gene table, streamed from the same arrays in frame order ──────────────────────
+    membership_columns = ("pangenome_id", "genome_id", "flat_index", "locus_id")
+    genome_ids = genome_id_of_code[sample_codes]
+    locus_ids = locus_id_of_ordinal[ordinals]
+
+    def membership_rows():
+        for genome_id, flat_index, locus_id in zip(
+            genome_ids.tolist(), flat_indexes.tolist(), locus_ids.tolist(), strict=True
+        ):
+            yield (pangenome_id, genome_id, flat_index, locus_id)
+
+    written.memberships = copy_rows(
+        session, GeneLocusMembership.__table__, membership_columns, membership_rows()
+    )
+    return written
+
+
+def _gene_counts_by_genome(session, genome_ids: list, samples: list) -> dict:
+    """`{genome_id: genome_genes.gene_count}` for every collection genome — refusing by name on a gap.
+
+    ⛔ The genome stage writes `genome_genes`; a genome it has not reached has no block length, and
+    inferring one from the memberships would silently shorten the block by its unassigned tail.
+    """
+    found = dict(
+        session.execute(
+            select(GenomeGenes.genome_id, GenomeGenes.gene_count).where(GenomeGenes.genome_id.in_(genome_ids))
+        ).all()
+    )
+    missing = [sample for sample, genome_id in zip(samples, genome_ids, strict=True) if genome_id not in found]
+    if missing:
+        raise KeyError(
+            f"{len(missing)} of {len(samples)} collection genomes have no `genome_genes` row "
+            f"({missing[:5]}). `genome_locus_assignment.gene_count` must equal it, so the genome "
+            "stage has to have written the block before the pangenome stage can index it."
+        )
+    return found
+
+
+def _catalogue_ordinals_of(nodes, loci):
+    """Each membership's catalogue ordinal, from `frames.loci` — the ONE numbering `_locus_rows` writes."""
+    import numpy as np
+
+    ordinal_by_label = {
+        str(label): int(ordinal)
+        for label, ordinal in zip(loci["node"], loci["catalogue_ordinal"], strict=True)
+    }
+    codes, uniques = _factorize(nodes)
+    unknown = [str(label) for label in uniques if str(label) not in ordinal_by_label]
+    if unknown:
+        raise CatalogueFrameError(
+            f"{len(unknown):,} membership node(s) are not in the locus frame ({unknown[:5]}); "
+            "a gene assigned to a locus the catalogue does not hold has no ordinal to carry."
+        )
+    ordinal_of_code = np.asarray([ordinal_by_label[str(label)] for label in uniques], dtype=np.int64)
+    return ordinal_of_code[codes]
+
+
+def _locus_ids_by_ordinal(loci, locus_id_by_label):
+    """`locus_id` indexed by catalogue ordinal, as an array, so a 374 M-row lookup is one `take`."""
+    import numpy as np
+
+    ids = np.full(int(max(loci["catalogue_ordinal"])) + 1 if len(loci) else 0, -1, dtype=np.int64)
+    for label, ordinal in zip(loci["node"], loci["catalogue_ordinal"], strict=True):
+        ids[int(ordinal)] = locus_id_by_label[str(label)]
+    return ids
+
+
+def _arrangement_ranks_of(ranks):
+    """`arrangement_rank` as int32 with `NO_ARRANGEMENT_RANK` where the frame holds NaN/None.
+
+    Returns `(ranks, how many had none)`. ⚠ A rank that is neither absent nor a non-negative whole
+    number is refused: the column is a position in `locus_arrangement`, and `int()` of 1.5 is 1.
+    """
+    import numpy as np
+    import pandas as pd
+
+    values = pd.to_numeric(ranks, errors="raise").to_numpy(dtype="float64", na_value=np.nan)
+    absent = np.isnan(values)
+    present = values[~absent]
+    if len(present) and ((present < 0) | (present != np.floor(present))).any():
+        bad = present[(present < 0) | (present != np.floor(present))][:5]
+        raise CatalogueFrameError(
+            f"arrangement_rank holds values that are not non-negative whole numbers ({bad.tolist()}); "
+            "a rank is a position in `locus_arrangement` and cannot be rounded into one."
+        )
+    out = np.where(absent, NO_ARRANGEMENT_RANK, values).astype(np.int32)
+    return out, int(absent.sum())
+
+
+def _assignment_block(sample: str, gene_count: int, flat_indexes, ordinals, ranks) -> dict:
+    """One genome's two int32 vectors and its two counts, from its slice of the memberships.
+
+    ⛔ Refuses by name a `flat_index` outside `[0, gene_count)` — which would either raise an index
+    error a long way from the genome or, negative, silently write the LAST gene — and a repeated one,
+    which would let one membership overwrite another with nothing to say so.
+    """
+    import numpy as np
+
+    if len(flat_indexes):
+        lowest, highest = int(flat_indexes.min()), int(flat_indexes.max())
+        if lowest < 0 or highest >= gene_count:
+            offender = lowest if lowest < 0 else highest
+            raise CatalogueFrameError(
+                f"{sample}: membership flat_index {offender} is outside [0, {gene_count}) — "
+                f"`genome_genes.gene_count` says this genome has {gene_count:,} genes, so either the "
+                "genome stage and the catalogue describe different annotations or the index is not "
+                "a flat_index."
+            )
+        distinct_indexes, counts = np.unique(flat_indexes, return_counts=True)
+        if (counts > 1).any():
+            repeated = int(distinct_indexes[counts > 1][0])
+            raise CatalogueFrameError(
+                f"{sample}: flat_index {repeated} has {int(counts[counts > 1][0])} membership rows; a gene "
+                "is in exactly one locus, and a second row would silently overwrite the first."
+            )
+    ordinal_vector = np.full(gene_count, UNASSIGNED_LOCUS_ORDINAL, dtype=np.int32)
+    rank_vector = np.full(gene_count, NO_ARRANGEMENT_RANK, dtype=np.int32)
+    ordinal_vector[flat_indexes] = ordinals
+    rank_vector[flat_indexes] = ranks
+    placed = ordinal_vector != UNASSIGNED_LOCUS_ORDINAL
+    return {
+        "ordinals": ordinal_vector,
+        "ranks": rank_vector,
+        "placed_gene_count": int(placed.sum()),
+        "distinct_locus_count": int(len(np.unique(ordinal_vector[placed]))),
+    }
+
+
+def _refuse_unless_loci_agree(path: Path, sample: str, gene_count: int, ordinals) -> None:
+    """Compare the block against nuna's `.loci` for this genome and name the first difference.
+
+    ⛔ Byte-for-byte via `read_loci`, which already refuses a file whose length is not
+    `gene_count * 4` — that refusal is re-raised naming the sample, because the file's own name
+    says nothing about which `genome_genes` row it was measured against.
+    """
+    import numpy as np
+
+    try:
+        published = read_loci(path, gene_count=gene_count)
+    except GeneBlockError as error:
+        raise CatalogueFrameError(
+            f"{sample}: the published {path.name} does not hold {gene_count:,} genes "
+            f"(`genome_genes.gene_count`): {error}"
+        ) from error
+    # `read_loci` returns a native-endian `array("i")`; numpy reads its buffer without a copy.
+    expected = np.frombuffer(published, dtype=np.int32)
+    differing = np.flatnonzero(expected != ordinals)
+    if len(differing):
+        first = int(differing[0])
+        raise CatalogueFrameError(
+            f"{sample}: gene_locus_ordinals disagrees with the published {path.name} at "
+            f"{len(differing):,} of {gene_count:,} genes, first at flat_index {first} "
+            f"(ours {int(ordinals[first])}, the file's {int(expected[first])}). The block and the "
+            "file are two encodings of one assignment, so this catalogue was not built from the "
+            "frame the file was."
+        )
 
 
 def _genome_ids_by_sample(session, samples: list[str]) -> dict:

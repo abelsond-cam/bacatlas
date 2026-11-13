@@ -27,6 +27,8 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.models.enumerations import EmbeddingRepresentation
 from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
+from bacatlas_backend.models.genome_genes import GenomeGenes
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_arrangement import LocusArrangement
 from bacatlas_backend.models.locus_offset_occupant import LocusOffsetOccupant
@@ -224,6 +226,95 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
         uncounted == 0 and stray == 0,
         f"{uncounted:,} collection genomes have no row and {stray:,} rows name a genome outside the "
         "collection — the anchor picker would drop or invent them",
+    )
+
+    # ── the genome-grain gene layer ────────────────────────────────────────────────────────────
+    # ⭐ `genome_locus_assignment` is what the Sequence tab reads a genome's loci from, and
+    # `locus.present_genome_ids` is what answers "which genomes carry this locus". Each check below is
+    # a cross-table equality no CHECK constraint can express, so the gate is the only place it is said.
+    assigned = select(GenomeLocusAssignment.genome_id).where(
+        GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id
+    )
+    unassigned, stray_assignments = session.execute(
+        select(
+            select(func.count())
+            .select_from(GenomeCollectionMembership)
+            .where(
+                GenomeCollectionMembership.genome_collection_id == pangenome.genome_collection_id,
+                ~exists(
+                    assigned.where(GenomeLocusAssignment.genome_id == GenomeCollectionMembership.genome_id)
+                ),
+            )
+            .scalar_subquery(),
+            select(func.count())
+            .select_from(GenomeLocusAssignment)
+            .where(
+                GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id,
+                ~exists(members.where(GenomeCollectionMembership.genome_id == GenomeLocusAssignment.genome_id)),
+            )
+            .scalar_subquery(),
+        )
+    ).one()
+    check(
+        "every collection genome has a locus assignment row",
+        unassigned == 0 and stray_assignments == 0,
+        f"{unassigned:,} collection genomes have no genome_locus_assignment row and "
+        f"{stray_assignments:,} rows name a genome outside the collection — a genome's loci could "
+        "not be looked up, or would be looked up for a genome this catalogue never saw",
+    )
+
+    # ⛔ The two blocks are indexed by the same `flat_index` as `genome_genes.gene_spans`, so their
+    # lengths must agree — ONE outer-join aggregate, counting a missing `genome_genes` row as a
+    # disagreement rather than as nothing to compare.
+    disagreeing, without_genes = session.execute(
+        select(
+            func.count().filter(GenomeGenes.gene_count.is_distinct_from(GenomeLocusAssignment.gene_count)),
+            func.count().filter(GenomeGenes.genome_id.is_(None)),
+        )
+        .select_from(GenomeLocusAssignment)
+        .outerjoin(GenomeGenes, GenomeGenes.genome_id == GenomeLocusAssignment.genome_id)
+        .where(GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id)
+    ).one()
+    check(
+        "every assignment's gene_count equals genome_genes.gene_count",
+        disagreeing == 0,
+        f"{disagreeing:,} assignment rows disagree with genome_genes.gene_count ({without_genes:,} of "
+        "them have no genome_genes row at all) — the ordinals would index a block of another length",
+    )
+
+    # ⭐ Every placed gene is a member of exactly one locus, so the two sums are one number counted
+    # from two tables; both are stated, because "they differ" names nothing a reader can act on.
+    placed_total = session.execute(
+        select(func.coalesce(func.sum(GenomeLocusAssignment.placed_gene_count), 0)).where(
+            GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id
+        )
+    ).scalar_one()
+    member_total = session.execute(
+        select(func.coalesce(func.sum(Locus.member_gene_count), 0)).where(
+            Locus.pangenome_id == pangenome.pangenome_id
+        )
+    ).scalar_one()
+    check(
+        "the placed genes add up to the loci's member genes",
+        placed_total == member_total and placed_total > 0,
+        f"sum(genome_locus_assignment.placed_gene_count) = {placed_total:,} against "
+        f"sum(locus.member_gene_count) = {member_total:,}",
+    )
+
+    # ⛔ `present_genome_ids` is the array `member_genome_count` summarises; a locus whose array is
+    # shorter would be one some of whose genomes cannot be found. One aggregate over the loci.
+    short_or_long = session.execute(
+        select(func.count())
+        .select_from(Locus)
+        .where(
+            Locus.pangenome_id == pangenome.pangenome_id,
+            func.cardinality(Locus.present_genome_ids) != Locus.member_genome_count,
+        )
+    ).scalar_one()
+    check(
+        "every locus lists exactly member_genome_count present genomes",
+        short_or_long == 0,
+        f"{short_or_long:,} loci have cardinality(present_genome_ids) != member_genome_count",
     )
 
     # ⛔ The cohort is what the picker SHOWS, and `--publish` is one of the two doors into it.

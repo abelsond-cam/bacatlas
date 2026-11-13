@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
+from bacatlas_backend.gene_blocks import encode_int32_vector
 from bacatlas_backend.ingest.ingest_genome_locus_counts import (
     GENOME_LOCUS_COUNT_SELECT,
     write_genome_locus_counts,
@@ -29,6 +30,8 @@ from bacatlas_backend.models.enumerations import SampleIdentifierKind
 from bacatlas_backend.models.gene import Gene, GeneLocusMembership
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
+from bacatlas_backend.models.genome_genes import GenomeGenes
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_arrangement import LocusArrangement
 from bacatlas_backend.models.pangenome import Pangenome
@@ -282,10 +285,18 @@ def small_catalogue(session, seeded):
                 collection_genome_ordinal=ordinal,
             )
         )
-    loci = [make_locus(seeded, ordinal=index, label=str(index)) for index in (0, 1)]
+    a, b = genome_a.genome_id, genome_b.genome_id
+    # ⚠ The counts are the TRUE ones for the genes below, so the publish gate's cross-table sums
+    # (placed genes vs member genes, present genomes vs member_genome_count) hold on this fixture.
+    loci = [
+        make_locus(
+            seeded, ordinal=index, label=str(index),
+            member_gene_count=member_genes, member_genome_count=2, present_genome_ids=[a, b],
+        )
+        for index, member_genes in ((0, 3), (1, 2))
+    ]
     session.add_all(loci)
     session.flush()
-    a, b = genome_a.genome_id, genome_b.genome_id
     arrangements = [
         LocusArrangement(
             locus_id=loci[0].locus_id, pangenome_id=pangenome.pangenome_id, rank_within_locus=0,
@@ -332,8 +343,90 @@ def small_catalogue(session, seeded):
                 locus_id=locus.locus_id,
             )
         )
+    # ⭐ The genome-grain twin of the rows above — `locus_count` is read from
+    # `distinct_locus_count` now, and the publish gate checks `gene_count` against `genome_genes`.
+    # A: three genes over loci 0, 0, 1 → placed 3, distinct 2. B: 0, 1 → 2, 2. C: nothing.
+    blocks = {
+        a: ([0, 0, 1], 3, 2),
+        b: ([0, 1], 2, 2),
+        genome_c.genome_id: ([], 0, 0),
+    }
+    for genome_id, (ordinals, placed, distinct) in blocks.items():
+        session.add(
+            GenomeGenes(genome_id=genome_id, gene_count=len(ordinals), gene_spans=b"\x00" * (16 * len(ordinals)))
+        )
+        session.add(
+            GenomeLocusAssignment(
+                pangenome_id=pangenome.pangenome_id, genome_id=genome_id, gene_count=len(ordinals),
+                placed_gene_count=placed, distinct_locus_count=distinct,
+                gene_locus_ordinals=encode_int32_vector(ordinals),
+                gene_arrangement_ranks=encode_int32_vector([-1] * len(ordinals)),
+            )
+        )
     session.flush()
     return pangenome, {"a": a, "b": b, "c": genome_c.genome_id}
+
+
+#: ⛔ The ORIGINAL `locus_count` definition — `count(DISTINCT locus_id)` over the per-gene table —
+#: kept here verbatim as the reference the assignment-based SELECT is proved against. The migration
+#: `d79a80412308` carries the same copy for its backfill.
+MEMBERSHIP_LOCUS_COUNT_SELECT = """
+    SELECT member.genome_id,
+           coalesce(present.locus_count, 0) AS locus_count
+      FROM pangenome p
+      JOIN genome_collection_membership member
+        ON member.genome_collection_id = p.genome_collection_id
+      LEFT JOIN (SELECT genome_id, count(DISTINCT locus_id) AS locus_count
+                   FROM gene_locus_membership
+                  WHERE pangenome_id = :pangenome_id
+                  GROUP BY genome_id) present
+        ON present.genome_id = member.genome_id
+     WHERE p.pangenome_id = :pangenome_id
+"""
+
+
+def test_the_assignment_based_locus_count_equals_the_membership_aggregate_genome_for_genome(
+    session, small_catalogue
+):
+    """⭐ The two definitions must agree on EVERY genome while both tables are written, or the
+    picker's count silently changed meaning when its source did. Coverage is asserted first: three
+    genomes on both sides, non-empty, before a single difference is reported."""
+    pangenome, genome = small_catalogue
+    parameters = {"pangenome_id": pangenome.pangenome_id}
+    from_memberships = {
+        row.genome_id: row.locus_count
+        for row in session.execute(text(MEMBERSHIP_LOCUS_COUNT_SELECT), parameters)
+    }
+    from_assignments = {
+        row.genome_id: row.locus_count
+        for row in session.execute(text(GENOME_LOCUS_COUNT_SELECT), parameters)
+    }
+    assert set(from_memberships) == set(from_assignments) == set(genome.values())
+    assert len(from_memberships) == 3
+    assert from_assignments == from_memberships
+    # And the values are the ones the fixture promises — ρ > 1 counted once, C a zero and not a gap.
+    assert from_assignments == {genome["a"]: 2, genome["b"]: 2, genome["c"]: 0}
+
+
+def test_a_genome_whose_assignment_row_is_missing_counts_ZERO_loci_not_a_missing_row(session, small_catalogue):
+    """The join is OUTER: an inner join would write two rows and the picker would lose C silently.
+
+    ⚠ C, not A: `ck_pangenome_genome_locus_count__arranged_within_present` refuses a genome that is
+    arranged somewhere but assigned nowhere, which is the schema saying that state is not data.
+    """
+    pangenome, genome = small_catalogue
+    session.execute(
+        GenomeLocusAssignment.__table__.delete().where(GenomeLocusAssignment.genome_id == genome["c"])
+    )
+    written = write_genome_locus_counts(session, pangenome.pangenome_id)
+    assert written == 3
+    stored = session.execute(
+        select(PangenomeGenomeLocusCount.locus_count, PangenomeGenomeLocusCount.arrangement_locus_count).where(
+            PangenomeGenomeLocusCount.pangenome_id == pangenome.pangenome_id,
+            PangenomeGenomeLocusCount.genome_id == genome["c"],
+        )
+    ).one()
+    assert tuple(stored) == (0, 0)
 
 
 def test_the_ingest_counts_DISTINCT_loci_so_rho_above_one_is_counted_once(session, small_catalogue):
@@ -374,4 +467,77 @@ def test_the_publish_gate_REFUSES_a_collection_genome_with_no_count_row(session,
     assert any(
         failure.startswith("every collection genome has a locus count row: 1 collection genomes")
         for failure in failed
+    ), failed
+
+
+# ── the publish gate on the genome-grain layer ────────────────────────────────────────────────
+ASSIGNMENT_CHECKS = (
+    "every collection genome has a locus assignment row",
+    "every assignment's gene_count equals genome_genes.gene_count",
+    "the placed genes add up to the loci's member genes",
+    "every locus lists exactly member_genome_count present genomes",
+)
+
+
+def _gate(session, pangenome):
+    from bacatlas_backend.ingest.publish_pangenome import verify_pangenome_is_servable
+
+    return verify_pangenome_is_servable(session, pangenome)
+
+
+def test_the_publish_gate_NAMES_all_four_assignment_checks_and_they_pass_on_a_consistent_fixture(
+    session, small_catalogue
+):
+    pangenome, _genome = small_catalogue
+    passed, failed = _gate(session, pangenome)
+    for name in ASSIGNMENT_CHECKS:
+        assert name in passed, (name, failed)
+
+
+def test_the_gate_REFUSES_a_collection_genome_with_no_assignment_row(session, small_catalogue):
+    pangenome, genome = small_catalogue
+    session.execute(
+        GenomeLocusAssignment.__table__.delete().where(GenomeLocusAssignment.genome_id == genome["c"])
+    )
+    _passed, failed = _gate(session, pangenome)
+    assert any(
+        f.startswith("every collection genome has a locus assignment row: 1 collection genomes have no")
+        for f in failed
+    ), failed
+
+
+def test_the_gate_REFUSES_a_gene_count_that_disagrees_with_genome_genes(session, small_catalogue):
+    pangenome, genome = small_catalogue
+    # The genome stage re-annotated A with one more gene; the assignment block is now too short.
+    session.execute(
+        GenomeGenes.__table__.update().where(GenomeGenes.genome_id == genome["a"]).values(
+            gene_count=4, gene_spans=b"\x00" * 64
+        )
+    )
+    _passed, failed = _gate(session, pangenome)
+    assert any(
+        f.startswith("every assignment's gene_count equals genome_genes.gene_count: 1 assignment rows disagree")
+        for f in failed
+    ), failed
+
+
+def test_the_gate_REFUSES_when_the_placed_genes_do_not_add_up_and_STATES_both_numbers(session, small_catalogue):
+    pangenome, _genome = small_catalogue
+    session.execute(Locus.__table__.update().where(Locus.catalogue_ordinal == 0).values(member_gene_count=4))
+    _passed, failed = _gate(session, pangenome)
+    assert any(
+        "sum(genome_locus_assignment.placed_gene_count) = 5 against sum(locus.member_gene_count) = 6" in f
+        for f in failed
+    ), failed
+
+
+def test_the_gate_REFUSES_a_locus_whose_present_genomes_are_not_member_genome_count(session, small_catalogue):
+    pangenome, genome = small_catalogue
+    session.execute(
+        Locus.__table__.update().where(Locus.catalogue_ordinal == 1).values(present_genome_ids=[genome["a"]])
+    )
+    _passed, failed = _gate(session, pangenome)
+    assert any(
+        f.startswith("every locus lists exactly member_genome_count present genomes: 1 loci have")
+        for f in failed
     ), failed
