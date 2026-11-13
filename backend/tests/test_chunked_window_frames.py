@@ -217,3 +217,173 @@ def test_the_probe_window_frames_are_identical_with_a_genome_per_chunk(monkeypat
     monkeypatch.setenv("BACATLAS_WINDOW_CHUNK_GENES", "1")
     got = _window_frames(assign, assign_coords, node_position, sample_position)
     _assert_window_frames_identical(got, want)
+
+
+# ── the whole catalogue, end to end: the window phase AND the release of dead source frames ──────
+# ⛔ `_window_frames` alone is not the change. `build_catalogue_frames` also drops `products`, `pfam`,
+# `dbxrefs` (to an empty frame), `coords` and `noncoding` part-way through, and a release that touched a frame
+# something later still reads changes the database with no error: `source["dbxrefs"] = None` turns
+# `annotation_measured` False and NULLs every `propagation_verdict_*` and `go_annotated_member_count_any`, and
+# nothing above calls the function end to end. So the OLD build is reconstructed here from the new one by
+# undoing exactly the two things that changed — the source dict ignores every reassignment or deletion of a
+# frame it was loaded with (the old build held all of them to the return), and the window phase is the
+# unchunked oracle above — and every field of `CatalogueFrames` is compared with the real thing.
+class _NeverReleased(dict):
+    """The loaded source frames as the old build held them: to the end. A release is a no-op here."""
+
+    def __setitem__(self, key, value):
+        if key not in self:  # a key the loader did not write is not a release; let it through
+            super().__setitem__(key, value)
+
+    def __delitem__(self, key):
+        pass
+
+    def pop(self, key, *default):
+        return self[key] if key in self else (default[0] if default else super().pop(key))
+
+
+def _go_fold():
+    """The fold the ingest is run with, built from nuna's vendored reference — as `ingest` builds it."""
+    from nuna.tl.locus_browser.vendor_go import go_reference, slim_ancestry, slim_of
+
+    from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
+
+    reference, namespaces = go_reference(), {"molecular_function": 0, "biological_process": 1, "cellular_component": 2}
+    folded, ancestors = slim_of(reference), slim_ancestry()
+    classes = set().union(*folded.values()) | set(ancestors)
+    return GeneOntologyFold(
+        slim_of=folded,
+        ancestors=ancestors,
+        namespace_of={
+            c: namespaces[reference[c][1]] for c in classes if c in reference and reference[c][1] in namespaces
+        },
+    )
+
+
+def _same_cell(mine, theirs, where):
+    """One object-column cell: same Python type all the way down, and the same value."""
+    assert type(mine) is type(theirs), f"{where}: {type(mine).__name__} vs {type(theirs).__name__}"
+    if isinstance(theirs, np.ndarray):
+        assert mine.dtype == theirs.dtype and mine.shape == theirs.shape and np.array_equal(mine, theirs), where
+    elif isinstance(theirs, (list, tuple)):
+        assert len(mine) == len(theirs), where
+        for index, (a, b) in enumerate(zip(mine, theirs, strict=True)):
+            _same_cell(a, b, f"{where}[{index}]")
+    elif isinstance(theirs, float) and theirs != theirs:
+        assert mine != mine, where
+    else:
+        assert mine == theirs, f"{where}: {mine!r} vs {theirs!r}"
+
+
+def _assert_catalogue_identical(got, want, where, compared):
+    """Recursive and exact; every node it reaches is appended to `compared`, so coverage can be asserted."""
+    assert type(got) is type(want), f"{where}: {type(got).__name__} vs {type(want).__name__}"
+    if isinstance(want, pd.DataFrame):
+        assert list(got.columns) == list(want.columns), f"{where}: columns differ"
+        assert len(got) == len(want), f"{where}: {len(got)} rows vs {len(want)}"
+        objects = [c for c in want.columns if want[c].dtype == object]
+        arrays = [c for c in objects if any(isinstance(v, np.ndarray) for v in want[c])]  # every row, not row 0
+        pd.testing.assert_frame_equal(
+            got.drop(columns=arrays), want.drop(columns=arrays), check_exact=True, check_dtype=True,
+            check_index_type=True, check_column_type=True,
+        )  # fmt: skip
+        for column in objects:  # `assert_frame_equal` does not compare the TYPE of an object cell
+            for row, (mine, theirs) in enumerate(zip(got[column], want[column], strict=True)):
+                _same_cell(mine, theirs, f"{where}.{column}[{row}]")
+        compared.append((where, len(want), len(want.columns)))
+    elif isinstance(want, pd.Series):
+        pd.testing.assert_series_equal(got, want, check_exact=True, check_dtype=True, check_index_type=True)
+        compared.append((where, len(want), 1))
+    elif isinstance(want, dict):
+        assert list(got) == list(want), f"{where}: keys {list(got)} vs {list(want)}"
+        for key in want:
+            _assert_catalogue_identical(got[key], want[key], f"{where}.{key}", compared)
+        compared.append((where, len(want), 0))
+    elif isinstance(want, (list, tuple)):
+        assert len(got) == len(want), where
+        for index, (mine, theirs) in enumerate(zip(got, want, strict=True)):
+            _assert_catalogue_identical(mine, theirs, f"{where}[{index}]", compared)
+        compared.append((where, len(want), 0))
+    else:
+        _same_cell(got, want, where)
+        compared.append((where, 1, 0))
+
+
+def _build(species_key, monkeypatch, *, old: bool, drop_dbxrefs: bool, chunk_genes: str = "1"):
+    loader = catalogue_frames._load_source_frames
+
+    def load(*args, **kwargs):
+        source = loader(*args, **kwargs)
+        if drop_dbxrefs:  # the loader's own way of saying the dbxref store was absent
+            source["dbxrefs"] = None
+        return _NeverReleased(source) if old else source
+
+    with monkeypatch.context() as patch:
+        patch.setattr(catalogue_frames, "_load_source_frames", load)
+        patch.setenv("BACATLAS_WINDOW_CHUNK_GENES", chunk_genes)
+        if old:
+            patch.setattr(catalogue_frames, "_window_frames", _unchunked_window_frames)
+        return catalogue_frames.build_catalogue_frames(artifacts_for(species_key), annotation_fold=_go_fold())
+
+
+@requires_artifacts
+@pytest.mark.parametrize(
+    ("species_key", "drop_dbxrefs", "chunk_genes"),
+    [("kp", False, "1"), ("ecoli", False, "50000"), ("kp", True, "50000")],
+    ids=["kp-genome_per_chunk", "ecoli-several_genomes_per_chunk", "kp-no_dbxref_store"],
+)
+def test_the_whole_catalogue_is_the_old_builds_exactly(monkeypatch, species_key, drop_dbxrefs, chunk_genes):
+    """Every field of `CatalogueFrames`, against the old build reconstructed above — with the dbxref store
+    present (the release must NOT withdraw a verdict) and absent (it must not invent one)."""
+    import dataclasses
+
+    want = _build(species_key, monkeypatch, old=True, drop_dbxrefs=drop_dbxrefs)
+    got = _build(species_key, monkeypatch, old=False, drop_dbxrefs=drop_dbxrefs, chunk_genes=chunk_genes)
+
+    # Coverage first: the fixture reaches what a wrong release would change, and every frame has rows.
+    verdicts = [c for c in want.loci.columns if c.startswith("propagation_verdict_")]
+    assert len(verdicts) == 4, verdicts
+    if drop_dbxrefs:
+        assert want.loci[verdicts].isna().all().all(), "no store, yet the old build measured a verdict"
+    else:
+        assert want.loci[verdicts].notna().any().all(), "a verdict column the old build left NULL — nothing to lose"
+        assert want.loci["go_annotated_member_count_any"].sum() > 0
+    assert want.loci["median_gene_length_nt"].sum() > 0 and want.gaps is not None and len(want.gaps)
+    names = [f.name for f in dataclasses.fields(want)]
+    frames = [n for n in names if isinstance(getattr(want, n), pd.DataFrame)]
+    # With no dbxref store there is no UniRef50 label, so the cross-tab is empty in the old build too — its
+    # columns and dtypes are still compared; every other frame must have rows.
+    may_be_empty = {"uniref_crosstab"} if drop_dbxrefs else set()
+    empty = {n for n in frames if not len(getattr(want, n))}
+    assert len(frames) == 7 and empty <= may_be_empty, f"empty frames compare nothing: {sorted(empty)}"
+
+    compared: list = []
+    for name in names:
+        _assert_catalogue_identical(getattr(got, name), getattr(want, name), name, compared)
+    assert {where for where, *_ in compared} >= set(names), "a field of CatalogueFrames was never compared"
+
+
+def test_the_never_released_source_really_ignores_a_release():
+    """The oracle's own guard: if `_NeverReleased` let a release through, the comparison above would be new
+    against new and pass by construction."""
+    frame = pd.DataFrame({"a": [1]})
+    source = _NeverReleased({"dbxrefs": frame, "products": frame})
+    catalogue_frames._release_merged_sources(source, pd)
+    source["coords"] = source["noncoding"] = None
+    del source["products"]
+    assert source["dbxrefs"] is frame and source["products"] is frame
+    assert source["coords"] is None and source["noncoding"] is None  # new keys pass through
+
+
+@pytest.mark.parametrize("present", [True, False])
+def test_releasing_the_merged_sources_keeps_whether_the_dbxref_store_was_present(present):
+    """Synthetic, so it runs without the artifact mirror: `annotation_measured` reads `dbxrefs is not None`."""
+    dbxrefs = pd.DataFrame({"sample_id": ["A"], "flat_index": [0], "go": ["GO:1"]}) if present else None
+    source = {"products": pd.DataFrame({"x": [1]}), "pfam": pd.DataFrame({"y": [1]}), "dbxrefs": dbxrefs}
+    catalogue_frames._release_merged_sources(source, pd)
+    assert source["products"] is None and source["pfam"] is None
+    if present:
+        assert isinstance(source["dbxrefs"], pd.DataFrame) and source["dbxrefs"] is not dbxrefs
+        assert list(source["dbxrefs"].columns) == ["sample_id", "flat_index", "go"] and not len(source["dbxrefs"])
+    else:
+        assert source["dbxrefs"] is None
