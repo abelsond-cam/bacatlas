@@ -113,13 +113,13 @@ class ProjectedGenePlacement(Base):
 
     __tablename__ = "projected_gene_placement"
     __table_args__ = (
-        # The FK to the gene's own coordinates, composite because `gene` is keyed (genome, flat_index).
-        ForeignKeyConstraint(
-            ["genome_id", "flat_index"],
-            ["gene.genome_id", "gene.flat_index"],
-            ondelete="CASCADE",
-            name="fk_projected_gene_placement__gene",
-        ),
+        # ⛔ No foreign key onto the gene's coordinates any more (migration `9e8f7a6b5c4d`, 2026-11-13).
+        # The gene layer is one row per genome — `genome_genes.gene_spans`, a block indexed by
+        # `flat_index` — so there is no `(genome_id, flat_index)` row for a constraint to point at.
+        # The guarantee it gave (every placed gene is one of THIS genome's genes) now lives in
+        # `ingest_projected_genomes._check_the_genes_are_this_genomes`, which refuses a `flat_index`
+        # outside `[0, genome_genes.gene_count)`. A check in a loader is not a constraint in a schema —
+        # `storing_the_gene_layer.md` §6 item 3 records that cost as chosen, not overlooked.
         ForeignKeyConstraint(
             ["pangenome_id", "genome_id"],
             ["projected_genome.pangenome_id", "projected_genome.genome_id"],

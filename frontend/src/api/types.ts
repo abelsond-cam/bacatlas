@@ -908,11 +908,11 @@ export interface GeneSequence {
   readonly gff_phase: number;
   readonly is_five_prime_partial: boolean;
   readonly length_nt: number;
-  readonly protein_length_aa: number | null;
-  readonly gene_symbol: string | null;
-  readonly product: string | null;
-  /** ⚠ Genome-private (`AAOCBP_22210`) and never a gene NAME. */
-  readonly locus_tag: string | null;
+  /**
+   * ⚠ `protein_length_aa`, `gene_symbol`, `product` and `locus_tag` left this type on 2026-11-13
+   * (response shape 5): the gene layer is one row per genome and nothing here rendered them. The
+   * protein length is `protein_sequence.length`; symbol and product are locus rollups.
+   */
   readonly coding_sequence: string;
   readonly protein_sequence: string;
   /**

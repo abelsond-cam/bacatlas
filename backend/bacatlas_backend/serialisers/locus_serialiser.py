@@ -465,14 +465,12 @@ def serialise_locus_detail(detail: LocusDetail, names: ReferenceNames | None = N
 def serialise_gene_sequence(row) -> dict:
     """One gene copy for the Sequence tab — where it is, what it reads, and what is missing.
 
-    ⭐ **The stored protein length travels beside the sliced one.** `protein_length_aa` is a column
-    written at ingest from the same coordinates; sending both lets a reader (and a test) see them
-    agree rather than taking one on trust. They are separate fields for that reason and must not be
-    collapsed into one.
-
-    ⚠ `stored_gc_percent` travelled the same way until 2026-10-26 and went with its column — no
-    client ever read it. `gc_percent` here is computed from the sliced bases, which is what the page
-    has always shown.
+    ⚠ **Four fields left on 2026-11-13 with the gene-grain tables** — `protein_length_aa`,
+    `gene_symbol`, `product` and `locus_tag` — and `RESPONSE_SHAPE_VERSION` went to 5 with them. No
+    client rendered any of the four (David, 2026-10-26 / 2026-10-29; the frontend's only readers were
+    `types.ts` and a test fixture): the protein length is `len(protein_sequence)`, and the symbol and
+    product are LOCUS rollups. `stored_gc_percent` went the same way on 2026-10-26; `gc_percent`
+    here is computed from the sliced bases, which is what the page has always shown.
 
     ⛔ **Truncation is reported per flank, not implied by a short string.** These are draft
     assemblies — mean contig 14.4 kb, about 14 genes — so a gene within 100 bp of a contig end is
@@ -498,11 +496,6 @@ def serialise_gene_sequence(row) -> dict:
         "is_five_prime_partial": row.is_five_prime_partial,
         # Inclusive of the stop codon, so the protein is `length_nt / 3 - 1` residues.
         "length_nt": row.length_nt,
-        "protein_length_aa": row.stored_protein_length_aa,
-        "gene_symbol": row.bakta_gene_symbol,
-        "product": row.bakta_product,
-        # ⚠ Genome-private (`AAOCBP_22210`) and never a gene NAME.
-        "locus_tag": row.locus_tag,
         "coding_sequence": sequence.coding_sequence,
         "protein_sequence": sequence.protein_sequence,
         # ⛔ In the GENE's reading direction, not the contig's. On a minus-strand gene the upstream

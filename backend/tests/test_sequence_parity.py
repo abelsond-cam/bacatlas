@@ -50,6 +50,7 @@ from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import NamedTuple
 
 import pytest
 from sqlalchemy import create_engine, select, text
@@ -255,15 +256,13 @@ def species_setup(request):
             "the locus ORDER differs between the database and the page — every `.loci` index would name a "
             "different locus"
         )
-        genomes = session.execute(
-            text(
-                "SELECT g.sample_id, g.genome_id FROM genome g WHERE EXISTS (SELECT 1 FROM gene_locus_membership m "
-                "WHERE m.genome_id = g.genome_id AND m.pangenome_id = :p) ORDER BY g.sample_id"
-            ),
-            {"p": pangenome.pangenome_id},
-        ).all()
+        # ⭐ The genome-grain tables: a genome is in the catalogue when it has an assignment row, and the
+        # pangenome's gene count is the genes those rows PLACED — the same count the per-gene membership
+        # table used to give, read from the row that replaced it.
+        genomes = _catalogue_genomes(session, pangenome.pangenome_id)
         gene_count = session.execute(
-            text("SELECT count(*) FROM gene_locus_membership WHERE pangenome_id = :p"), {"p": pangenome.pangenome_id}
+            text("SELECT coalesce(sum(placed_gene_count), 0) FROM genome_locus_assignment WHERE pangenome_id = :p"),
+            {"p": pangenome.pangenome_id},
         ).scalar_one()
         whole_genomes = _whole_genomes(session, pangenome.pangenome_id)
 
@@ -291,39 +290,58 @@ def species_setup(request):
     }
 
 
+def _catalogue_genomes(session, pangenome_id: int) -> list[tuple[str, int]]:
+    """`(sample_id, genome_id)` of every genome this pangenome placed, by sample id."""
+    return [
+        (str(sample_id), int(genome_id))
+        for sample_id, genome_id in session.execute(
+            text(
+                "SELECT g.sample_id, g.genome_id FROM genome g "
+                "JOIN genome_locus_assignment a ON a.genome_id = g.genome_id "
+                "WHERE a.pangenome_id = :p ORDER BY g.sample_id"
+            ),
+            {"p": pangenome_id},
+        )
+    ]
+
+
+class _GenomeStress(NamedTuple):
+    sample_id: str
+    copy_pairs: int
+    edge: int
+    renamed: int
+    contigs: int
+
+
 def _whole_genomes(session, pangenome_id: int) -> tuple[str, ...]:
     """The genomes default mode renders WHOLE, one per thing that stresses the tab — the most ρ > 1
     loci, the most genes within a flank of a contig end, the most genes on a contig whose name is not
     its index + 1, and the fewest contigs. Deterministic: ties go to the higher sample id. Distinct,
-    so a genome that wins twice is rendered once."""
-    rows = session.execute(
-        text(
-            """
-            WITH genes AS (
-                SELECT g.genome_id, gm.sample_id, gene.start_position, gene.end_position, c.length_bases,
-                       c.contig_index, c.contig_name
-                FROM gene_locus_membership g
-                JOIN gene ON gene.genome_id = g.genome_id AND gene.flat_index = g.flat_index
-                JOIN genome gm ON gm.genome_id = g.genome_id
-                JOIN genome_contig c ON c.genome_id = gene.genome_id AND c.contig_index = gene.contig_index
-                WHERE g.pangenome_id = :p
-            ), copies AS (
-                SELECT genome_id, count(*) AS pairs FROM (
-                    SELECT genome_id, locus_id FROM gene_locus_membership WHERE pangenome_id = :p
-                    GROUP BY genome_id, locus_id HAVING count(*) > 1
-                ) AS multi GROUP BY genome_id
+    so a genome that wins twice is rendered once.
+
+    ⚠ Computed over the decoded blocks, one genome at a time, since the gene layer stopped being a
+    table a `GROUP BY` could run over. Only PLACED genes count, as the membership join used to ensure.
+    """
+    rows = []
+    for sample_id, genome_id in _catalogue_genomes(session, pangenome_id):
+        placed = [
+            row for row in genome_gene_rows(session, genome_id=genome_id, pangenome_id=pangenome_id)
+            if row.node_label is not None
+        ]
+        copies = Counter(row.node_label for row in placed)
+        rows.append(
+            _GenomeStress(
+                sample_id=sample_id,
+                copy_pairs=sum(1 for count in copies.values() if count > 1),
+                edge=sum(
+                    1
+                    for row in placed
+                    if row.start_position <= FLANK_LENGTH or row.end_position + FLANK_LENGTH > row.length_bases
+                ),
+                renamed=sum(1 for row in placed if row.contig_name != f"contig{row.contig_index + 1:05d}"),
+                contigs=len({row.contig_index for row in placed}),
             )
-            SELECT genes.sample_id,
-                   coalesce(max(copies.pairs), 0) AS copy_pairs,
-                   count(*) FILTER (WHERE start_position <= :flank OR end_position + :flank > length_bases) AS edge,
-                   count(*) FILTER (WHERE contig_name <> 'contig' || lpad((contig_index + 1)::text, 5, '0')) AS renamed,
-                   count(DISTINCT contig_index) AS contigs
-            FROM genes LEFT JOIN copies ON copies.genome_id = genes.genome_id
-            GROUP BY genes.sample_id
-            """
-        ),
-        {"p": pangenome_id, "flank": FLANK_LENGTH},
-    ).all()
+        )
     chosen = [
         max(rows, key=lambda r: (r.copy_pairs, r.sample_id)).sample_id,
         max(rows, key=lambda r: (r.edge, r.sample_id)).sample_id,

@@ -12,8 +12,10 @@ entirely ordinary:
    against itself — a perfect score meaning nothing.
 2. **A row count that is not the genome's gene count.** A partial file would place three quarters of
    a genome and say nothing about the rest.
-3. **A missing or duplicated `flat_index`.** `flat_index` is positional and shared with the embedding
-   `.npy` and every parquet; a gap means the file is not describing this genome's genes.
+3. **A duplicated `flat_index`, or one outside `[0, genome_genes.gene_count)`.** `flat_index` is
+   positional and shared with the embedding `.npy` and every parquet; a value the genome does not
+   have means the file is not describing this genome's genes. ⛔ Since 2026-11-13 this check is the
+   ONLY thing that enforces it — the composite foreign key onto `gene` went with the per-gene table.
 4. **A locus label this pangenome does not have.** Labels are model-private, so a label from another
    model resolves to a *different* locus rather than to nothing.
 5. **A placement computed against a different assignment** — `assignment_sha256` must equal
@@ -133,24 +135,41 @@ def _refuse_a_collection_genome(session: Session, pangenome_id: int, genome_id: 
 
 
 def _check_the_genes_are_this_genomes(session: Session, genome_id: int, frame: pd.DataFrame, sample_id: str) -> int:
-    """Row count, uniqueness and range of `flat_index` against the `gene` table. Returns the gene count."""
+    """Uniqueness and range of `flat_index` against `genome_genes.gene_count`. Returns the gene count.
+
+    ⛔ **This check IS the referential integrity now.** `projected_gene_placement` used to carry a
+    composite foreign key onto `gene (genome_id, flat_index)`; the gene layer is one row per genome
+    (`genome_genes.gene_spans`, a block indexed by `flat_index`), so there is no row for a constraint
+    to reference and migration `9e8f7a6b5c4d` dropped it. A `flat_index` is one of this genome's
+    genes exactly when it is in `[0, gene_count)` — `flat_index` is a dense positional offset, so the
+    half-open range is the whole membership test, not an approximation of it.
+
+    ⛔ **No `genome_genes` row is a refusal, not a count of zero.** `count(*)` over an absent genome
+    used to return 0 and then refuse every placement as unknown — a true verdict with a misleading
+    reason. The genome layer being unloaded is named as such.
+    """
     gene_count = session.execute(
-        text("SELECT count(*) FROM gene WHERE genome_id = :genome_id"), {"genome_id": genome_id}
-    ).scalar_one()
+        text("SELECT gene_count FROM genome_genes WHERE genome_id = :genome_id"), {"genome_id": genome_id}
+    ).scalar_one_or_none()
+    if gene_count is None:
+        raise ProjectionRefused(
+            f"{sample_id} has no genome_genes row, so its gene count is unknown and no placement can be "
+            "checked against it. The genome layer is loaded separately and is not a model artifact."
+        )
+    gene_count = int(gene_count)
     if frame["flat_index"].duplicated().any():
         repeated = frame.loc[frame["flat_index"].duplicated(), "flat_index"].head(5).tolist()
         raise ProjectionRefused(f"{sample_id}: flat_index repeats (e.g. {repeated}); it is positional and unique")
-    known = session.execute(
-        text("SELECT flat_index FROM gene WHERE genome_id = :genome_id"), {"genome_id": genome_id}
-    ).scalars()
-    unknown = sorted(set(frame["flat_index"].astype(int)) - set(int(value) for value in known))
+    placed = [int(value) for value in frame["flat_index"]]
+    unknown = sorted(value for value in placed if not 0 <= value < gene_count)
     if unknown:
         raise ProjectionRefused(
             f"{sample_id}: {len(unknown)} placed genes have a flat_index this genome does not have "
-            f"(e.g. {unknown[:5]}). flat_index is a positional row offset shared with the embedding "
-            "store and every parquet — a mismatch means the file describes a different gene set."
+            f"(e.g. {unknown[:5]}; the genome has {gene_count} genes, so 0..{gene_count - 1}). "
+            "flat_index is a positional row offset shared with the embedding store and every parquet — "
+            "a mismatch means the file describes a different gene set."
         )
-    return int(gene_count)
+    return gene_count
 
 
 def _slot_codes(row: pd.Series) -> list[int] | None:

@@ -41,7 +41,11 @@ from bacatlas_backend.models.pathogen_species import PathogenSpecies
 #: ⛔ A LITERAL, deliberately not imported. Importing the constant is what makes the existing
 #: assertion vacuous. This number has to be edited by hand when a shape moves, and that edit is
 #: the whole mechanism.
-EXPECTED_RESPONSE_SHAPE_VERSION = 4
+#: 5 (2026-11-13): the gene-sequence response lost `protein_length_aa`, `gene_symbol`, `product` and
+#: `locus_tag` with the per-gene table. Its key set is pinned in `test_gene_sequence_endpoint`
+#: (`test_the_response_has_NONE_of_the_four_retired_fields_and_the_shape_version_is_5`), which runs
+#: on the probe database rather than a loaded one.
+EXPECTED_RESPONSE_SHAPE_VERSION = 5
 
 #: Key paths whose CHILDREN are data rather than shape — walked to, never walked into.
 #: ⚠ Each is a map whose keys are values: band names, metric names, anchor source groups. Walking

@@ -34,6 +34,9 @@ from dataclasses import dataclass, field
 from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from pathlib import Path
+from typing import NamedTuple
+
+from bacatlas_backend.gene_blocks import UNASSIGNED_LOCUS_ORDINAL, GeneSpanTable, decode_int32_vector
 
 #: How many examples of each kind of difference a report keeps. The COUNT is always exact.
 EXAMPLES_KEPT = 3
@@ -444,17 +447,102 @@ def _short(value) -> str:
 
 
 # ── the database side of the gene table ───────────────────────────────────────────────────────
-_GENE_TABLE_SQL = """
-SELECT g.flat_index, g.start_position, g.end_position, g.contig_index, g.strand, g.gff_phase,
-       g.is_five_prime_partial, c.seqid, c.contig_name, c.length_bases, l.node_label, l.catalogue_ordinal
-FROM gene g
-JOIN genome_contig c ON c.genome_id = g.genome_id AND c.contig_index = g.contig_index
-LEFT JOIN gene_locus_membership m
-       ON m.genome_id = g.genome_id AND m.flat_index = g.flat_index AND m.pangenome_id = :pangenome_id
-LEFT JOIN locus l ON l.locus_id = m.locus_id
-WHERE g.genome_id = :genome_id
-ORDER BY g.flat_index
+class GeneTableRow(NamedTuple):
+    """One gene of one genome as the database describes it — decoded from the genome-grain blocks.
+
+    The shape `compare_gene_table` and `sample_labels` read, in `flat_index` order. `node_label` and
+    `catalogue_ordinal` are `None` where this pangenome did not place the gene.
+    """
+
+    flat_index: int
+    start_position: int
+    end_position: int
+    contig_index: int
+    strand: str
+    gff_phase: int
+    is_five_prime_partial: bool
+    seqid: str
+    contig_name: str
+    length_bases: int
+    node_label: str | None
+    catalogue_ordinal: int | None
+
+
+#: The genome's two blocks. ⚠ `genome_locus_assignment` is an OUTER join: a genome the pangenome never
+#: placed still has a gene table, and every row of it is then unassigned.
+_GENOME_BLOCKS_SQL = """
+SELECT gg.gene_count, gg.gene_spans, a.gene_locus_ordinals
+FROM genome_genes gg
+LEFT JOIN genome_locus_assignment a ON a.genome_id = gg.genome_id AND a.pangenome_id = :pangenome_id
+WHERE gg.genome_id = :genome_id
 """
+_CONTIG_MAP_SQL = """
+SELECT contig_index, seqid, contig_name, length_bases FROM genome_contig WHERE genome_id = :genome_id
+"""
+#: Only the ordinals this genome uses, so the lookup is O(this genome's loci) rather than O(catalogue).
+_LABELS_SQL = """
+SELECT catalogue_ordinal, node_label FROM locus
+WHERE pangenome_id = :pangenome_id AND catalogue_ordinal = ANY(:ordinals)
+"""
+
+
+def decode_gene_table_rows(
+    *,
+    gene_count: int,
+    gene_spans: bytes,
+    gene_locus_ordinals: bytes | None,
+    contigs_by_index: dict[int, tuple[str, str, int]],
+    label_by_ordinal: dict[int, str],
+) -> list[GeneTableRow]:
+    """The blocks → one row per gene, through the SAME codec the service uses.
+
+    ⚠ Sharing the service's decoder is deliberate and it is not circular. The page side of every
+    comparison decodes the committed `.nseq` + `.loci` with `app.js`'s own code, so what has to be
+    independent is the two SIDES — and `gene_spans` being byte-identical to the `.nseq` gene table
+    is exactly what lets the page's decoder and this one check each other. A second hand-written
+    reader here would be a third opinion of one author's, not a second witness.
+
+    ⛔ A contig the map lacks, or an ordinal the catalogue lacks, is REFUSED by name. Returning a row
+    with `None` in its place would compare equal to the page's `None` on an unplaced gene and hide a
+    broken map as agreement.
+    """
+    spans = GeneSpanTable(gene_spans, gene_count=gene_count)
+    if gene_locus_ordinals is None:
+        ordinals = [UNASSIGNED_LOCUS_ORDINAL] * gene_count
+    else:
+        ordinals = decode_int32_vector(gene_locus_ordinals, name="gene_locus_ordinals", expected_count=gene_count)
+    rows: list[GeneTableRow] = []
+    for flat_index in range(gene_count):
+        contig_index = spans.contig_index(flat_index)
+        if contig_index not in contigs_by_index:
+            raise LookupError(
+                f"gene {flat_index} sits on contig_index {contig_index}, which has no genome_contig row"
+            )
+        seqid, contig_name, length_bases = contigs_by_index[contig_index]
+        ordinal = ordinals[flat_index]
+        if ordinal == UNASSIGNED_LOCUS_ORDINAL:
+            node_label, catalogue_ordinal = None, None
+        elif ordinal in label_by_ordinal:
+            node_label, catalogue_ordinal = label_by_ordinal[ordinal], ordinal
+        else:
+            raise LookupError(f"gene {flat_index} is assigned catalogue_ordinal {ordinal}, which this pangenome lacks")
+        rows.append(
+            GeneTableRow(
+                flat_index=flat_index,
+                start_position=spans.start_position(flat_index),
+                end_position=spans.end_position(flat_index),
+                contig_index=contig_index,
+                strand=spans.strand(flat_index),
+                gff_phase=spans.gff_phase(flat_index),
+                is_five_prime_partial=spans.is_five_prime_partial(flat_index),
+                seqid=seqid,
+                contig_name=contig_name,
+                length_bases=length_bases,
+                node_label=node_label,
+                catalogue_ordinal=catalogue_ordinal,
+            )
+        )
+    return rows
 
 
 def compare_gene_table(report: GenomeReport, page_genome: dict, rows) -> None:
@@ -522,13 +610,12 @@ def sample_labels(rows, flank_length: int, sample_id: str) -> list[str]:
     return list(chosen)
 
 
+#: ⭐ `locus.present_genome_ids` is the one per-locus array the gene-layer redesign kept, precisely so
+#: that "which genomes carry locus L" — and its negation here — still has a SQL answer.
 _ABSENT_LOCI_SQL = """
 SELECT l.node_label FROM locus l
 WHERE l.pangenome_id = :pangenome_id
-  AND NOT EXISTS (
-      SELECT 1 FROM gene_locus_membership m
-      WHERE m.locus_id = l.locus_id AND m.genome_id = :genome_id AND m.pangenome_id = :pangenome_id
-  )
+  AND NOT (l.present_genome_ids @> ARRAY[CAST(:genome_id AS integer)])
 ORDER BY l.member_genome_count DESC, l.catalogue_ordinal
 LIMIT :limit
 """
@@ -584,11 +671,49 @@ def _engine(url: str):
     return create_engine(url, future=True, pool_size=1, max_overflow=0)
 
 
-def genome_gene_rows(session, *, genome_id: int, pangenome_id: int):
-    """Every gene of one genome, with its contig and its locus in this pangenome (NULL if none)."""
+def genome_gene_rows(session, *, genome_id: int, pangenome_id: int) -> list[GeneTableRow]:
+    """Every gene of one genome, with its contig and its locus in this pangenome (`None` if none).
+
+    Three bounded statements — the two blocks, the contig map, the labels of the ordinals used — and
+    one decode. ⚠ A genome with no `genome_genes` row is refused, not returned empty: an empty gene
+    table would compare equal to nothing and report the genome as covered.
+    """
     from sqlalchemy import text
 
-    return session.execute(text(_GENE_TABLE_SQL), {"genome_id": genome_id, "pangenome_id": pangenome_id}).all()
+    blocks = session.execute(
+        text(_GENOME_BLOCKS_SQL), {"genome_id": genome_id, "pangenome_id": pangenome_id}
+    ).one_or_none()
+    if blocks is None:
+        raise LookupError(f"genome {genome_id} has no genome_genes row — its gene table was never loaded")
+    contigs_by_index = {
+        int(row.contig_index): (str(row.seqid), str(row.contig_name), int(row.length_bases))
+        for row in session.execute(text(_CONTIG_MAP_SQL), {"genome_id": genome_id})
+    }
+    label_by_ordinal: dict[int, str] = {}
+    if blocks.gene_locus_ordinals is not None:
+        used = sorted(
+            {
+                int(ordinal)
+                for ordinal in decode_int32_vector(
+                    blocks.gene_locus_ordinals, name="gene_locus_ordinals", expected_count=blocks.gene_count
+                )
+                if ordinal != UNASSIGNED_LOCUS_ORDINAL
+            }
+        )
+        if used:
+            label_by_ordinal = {
+                int(ordinal): str(label)
+                for ordinal, label in session.execute(
+                    text(_LABELS_SQL), {"pangenome_id": pangenome_id, "ordinals": used}
+                )
+            }
+    return decode_gene_table_rows(
+        gene_count=int(blocks.gene_count),
+        gene_spans=blocks.gene_spans,
+        gene_locus_ordinals=blocks.gene_locus_ordinals,
+        contigs_by_index=contigs_by_index,
+        label_by_ordinal=label_by_ordinal,
+    )
 
 
 def absent_labels(session, *, genome_id: int, pangenome_id: int, limit: int = ABSENT_LOCI_PER_GENOME) -> list[str]:

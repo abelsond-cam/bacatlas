@@ -128,6 +128,23 @@ def test_the_residual_lists_are_two_statements(application):
     report.assert_at_most(1 + SPECIES_RESOLUTION, what="the footer's residual lists, at the route")
 
 
+#: ⭐ The Sequence tab: the species resolution, the genome-in-collection lookup and the locus lookup —
+#: each a NAMED 404 when it misses — then the view's ONE statement: `genome` ⋈ its two gene-layer
+#: blocks ⋈ the locus, carrying the genome's contig map. The blocks are decoded in Python, so the
+#: count is O(1) in the catalogue; `test_gene_sequence_endpoint` holds the same budget on the probe
+#: database, where it actually runs on every machine.
+SEQUENCE_TAB = SPECIES_RESOLUTION + 2 + 1
+
+
+def test_the_SEQUENCE_tab_is_four_statements_and_reads_no_gene_grain_table(application):
+    if not os.environ.get("BACATLAS_ROOT_GFF"):
+        pytest.skip("BACATLAS_ROOT_GFF is not set — the sequence route slices the original GFFs")
+    report = _measure(application, "/api/v1/species/ecoli/genomes/SAMEA103923484/loci/2811/sequence")
+    report.assert_at_most(SEQUENCE_TAB, what="the Sequence tab, at the route")
+    # ⛔ And none of them touches a one-row-per-gene table: the coordinates come from `genome_genes`.
+    assert _gene_grain_reads(report) == []
+
+
 @pytest.mark.parametrize(
     "query",
     [{"limit": 1}, {"limit": 1000}, {"q": "samea22", "limit": 1000}, {"q": "NOT-A-GENOME"}],

@@ -17,10 +17,11 @@ import json
 import pytest
 from sqlalchemy import text
 
+from bacatlas_backend.gene_blocks import encode_gene_spans, pack_gene_flags
 from bacatlas_backend.ingest.ingest_projected_genomes import ProjectionRefused, load_projection
-from bacatlas_backend.models.gene import Gene
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
+from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.locus_arrangement import LocusArrangement
 from bacatlas_backend.models.projected_genome import ProjectedGenePlacement, ProjectedGenome
 from bacatlas_backend.services.locus_detail_service import load_locus_detail
@@ -76,20 +77,18 @@ def catalogue(session, seeded):
     )
     session.add(outsider)
     session.flush()
-    for flat_index in range(3):
-        session.add(
-            Gene(
-                genome_id=outsider.genome_id,
-                flat_index=flat_index,
-                pathogen_species_id=seeded["species"].pathogen_species_id,
-                contig_index=0,
-                start_position=100 * flat_index + 1,
-                end_position=100 * flat_index + 90,
-                strand="+",
-                strand_is_observed=True,
-                length_nt=90,
-            )
+    # ⭐ The outsider's three genes as ONE `genome_genes` row — the gene layer is a block per genome,
+    # and `gene_count` is what the projection loader checks every placed `flat_index` against.
+    plus = pack_gene_flags(is_minus_strand=False, is_five_prime_partial=False, gff_phase=0)
+    session.add(
+        GenomeGenes(
+            genome_id=outsider.genome_id,
+            gene_count=3,
+            gene_spans=encode_gene_spans(
+                [100 * j + 1 for j in range(3)], [100 * j + 90 for j in range(3)], [0, 0, 0], [plus] * 3
+            ),
         )
+    )
     session.flush()
     return {"locus": locus, "other": other, "common": common, "rare": rare, "outsider": outsider}
 
@@ -184,6 +183,31 @@ def test_a_flat_index_this_genome_does_not_have_is_refused(session, seeded, cata
     """`flat_index` is positional and shared with the embedding store — a gap means another gene set."""
     write_placements(tmp_path, [{"flat_index": 77, "locus_label": "2811"}])
     with pytest.raises(ProjectionRefused, match="flat_index this genome does not have"):
+        load_projection(session, pangenome_id=seeded["pangenome"].pangenome_id, projection_root=tmp_path)
+
+
+@pytest.mark.parametrize("flat_index", [3, -1])
+def test_the_range_check_is_HALF_OPEN_at_gene_count_and_closed_at_zero(
+    session, seeded, catalogue, tmp_path, flat_index
+):
+    """⛔ The boundary the dropped foreign key used to hold. The genome has genes 0, 1, 2 — so `3`
+    (`== gene_count`) and `-1` are both outside, and a `<=` or a missing lower bound would let one in.
+    Each is tested alone, because a file holding both would be refused for the first and say nothing
+    about the second."""
+    write_placements(tmp_path, [{"flat_index": flat_index, "locus_label": "2811"}])
+    with pytest.raises(ProjectionRefused, match="flat_index this genome does not have"):
+        load_projection(session, pangenome_id=seeded["pangenome"].pangenome_id, projection_root=tmp_path)
+
+
+def test_a_genome_with_NO_genome_genes_row_is_refused_by_NAME_not_as_an_empty_gene_set(
+    session, seeded, catalogue, tmp_path
+):
+    """⛔ `count(*)` over an absent genome returned 0 and then called every placement unknown — a true
+    verdict with a misleading reason. The unloaded genome layer is named as such."""
+    session.query(GenomeGenes).filter(GenomeGenes.genome_id == catalogue["outsider"].genome_id).delete()
+    session.flush()
+    write_placements(tmp_path, [{"flat_index": 0, "locus_label": "2811"}])
+    with pytest.raises(ProjectionRefused, match="no genome_genes row"):
         load_projection(session, pangenome_id=seeded["pangenome"].pangenome_id, projection_root=tmp_path)
 
 
@@ -332,8 +356,13 @@ def _catalogue_counts(session, seeded) -> dict:
             text("SELECT count(*) AS n FROM genome_collection_membership WHERE genome_collection_id = :c"),
             {"c": seeded["collection"].genome_collection_id},
         ).mappings().one(),
-        "memberships": session.execute(
-            text("SELECT count(*) AS n FROM gene_locus_membership WHERE pangenome_id = :p"),
+        # ⚠ The gene→locus edge at the genome grain: rows and placed genes of `genome_locus_assignment`,
+        # not `gene_locus_membership`, which the gene-layer redesign is retiring.
+        "assignments": session.execute(
+            text(
+                "SELECT count(*) AS n, coalesce(sum(placed_gene_count), 0) AS placed "
+                "FROM genome_locus_assignment WHERE pangenome_id = :p"
+            ),
             {"p": pangenome_id},
         ).mappings().one(),
     }

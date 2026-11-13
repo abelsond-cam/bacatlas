@@ -104,7 +104,9 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     `exclusivity_form` and gains `model_label` + `cohort`; and the shell loses its top-level
 #:     `model`, `steps` and `provenance_rows`. Enumerated rather than summarised, because the two
 #:     entries above name their exact field and a reader diffing a cached body needs the list.
-RESPONSE_SHAPE_VERSION = 4
+#: 5 — `protein_length_aa`, `gene_symbol`, `product` and `locus_tag` REMOVED from the gene-sequence
+#:     response (2026-11-13), as the gene layer moved to one row per genome and nothing rendered them.
+RESPONSE_SHAPE_VERSION = 5
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
