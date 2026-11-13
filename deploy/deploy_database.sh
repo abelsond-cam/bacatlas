@@ -211,19 +211,66 @@ for key in $species; do
   genome=$(get "$api/species/$key/genomes?limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
   [ -n "$genome" ] && pass "$key: genome list answers ($genome first)" || fail "$key: genome list"
 
+  # ⛔ **The sequence checks pick a genome from the SOURCE GROUP each station serves.** The 71,435-genome
+  # catalogue holds two populations — BioSample-keyed AllTheBacteria assemblies and RefSeq/GenBank stems
+  # that only NCBI can serve — and the first genome in the list may be either. A check labelled
+  # "AllTheBacteria" that took it blind could pass by reading NCBI, or 503 on a stem with NCBI off: a
+  # gate running a configuration its label does not name. `source_group` is the API's own derivation.
+  atb_genome=$(get "$api/species/$key/genomes?source_group=atb&limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
+  ncbi_genome=""
+  for group in ncbi_complete ncbi_draft; do
+    [ -n "$ncbi_genome" ] && break
+    ncbi_genome=$(get "$api/species/$key/genomes?source_group=$group&limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
+  done
+
+  # One locus, one genome, through the published port. ⚠ A 200 with NO genes is the answer "this genome
+  # has no gene here" — and the provider is never asked for such a genome, so the FETCH was not
+  # exercised. That is said, not passed off as a read: silence is not success.
+  check_sequence() {  # <source label> <sample_id>
+    local source_name="$1" probe="$2" code genes
+    code=$(status "$api/species/$key/genomes/$probe/loci/$landing/sequence")
+    if [ "$code" != "200" ]; then
+      fail "$key: sequence endpoint $code for $probe from $source_name — GFF readable by uid 10001, or $source_name reachable?"
+      return
+    fi
+    genes=$(get "$api/species/$key/genomes/$probe/loci/$landing/sequence" | json 'len(d["genes"])' 2>/dev/null || true)
+    if [ "${genes:-0}" -gt 0 ] 2>/dev/null; then
+      pass "$key: sequence read from $source_name ($probe, $genes gene(s) at $landing)"
+    else
+      pass "$key: sequence endpoint 200 for $probe, but it has no gene at $landing — the $source_name fetch was NOT exercised"
+    fi
+  }
+
   # ⛔ **Gated on EITHER source, and it says which.** This was gated on the GFF tree alone, so the
   # moment the tree was cleared to serve sequence from AllTheBacteria the check vanished — the drill
   # went on returning 0 while the one test that proves sequence works stopped running, precisely
   # when sequence had moved to a remote source and needed testing most. A check that silently skips
   # reports nothing, which is the same defect the removed sprite checks had in the other direction.
-  if { [ -n "${BACATLAS_HOST_GFF_DIR:-}" ] || [ -n "${BACATLAS_ATB_STREAMING:-}" ]; } && [ -n "$genome" ]; then
+  if [ -n "${BACATLAS_HOST_GFF_DIR:-}" ] || [ -n "${BACATLAS_ATB_STREAMING:-}" ]; then
     if [ -n "${BACATLAS_HOST_GFF_DIR:-}" ]; then source_name="the GFF tree"; else source_name="AllTheBacteria"; fi
-    code=$(status "$api/species/$key/genomes/$genome/loci/$landing/sequence")
-    [ "$code" = "200" ] && pass "$key: sequence read from $source_name" \
-      || fail "$key: sequence endpoint $code from $source_name — GFF readable by uid 10001, or ATB reachable?"
+    if [ -n "$atb_genome" ]; then
+      check_sequence "$source_name" "$atb_genome"
+    else
+      pass "$key: no BioSample-keyed genome in the catalogue — $source_name not exercised"
+    fi
   else
     # ⚠ Not silence: a stack serving no sequence at all is a legitimate configuration and must say so.
-    pass "$key: sequence not configured (no GFF tree, no streaming) — endpoint not exercised"
+    pass "$key: sequence not configured (no GFF tree, no ATB streaming) — AllTheBacteria not exercised"
+  fi
+
+  # ⭐ The fourth station: a RefSeq/GenBank-keyed genome, whose bases only NCBI can supply.
+  if [ -n "${BACATLAS_NCBI_STREAMING:-}" ]; then
+    if [ -n "$ncbi_genome" ]; then
+      check_sequence "NCBI" "$ncbi_genome"
+    else
+      pass "$key: no NCBI-keyed genome in the catalogue — NCBI streaming not exercised"
+    fi
+  elif [ -n "$ncbi_genome" ]; then
+    # ⚠ Named: this catalogue HAS genomes only NCBI can serve, and the station is off. Their Sequence
+    # tab answers a named 503 — a legitimate configuration, but one the operator should see stated.
+    pass "$key: NCBI streaming off, and $ncbi_genome is NCBI-keyed — its sequence is not served"
+  else
+    pass "$key: NCBI streaming off and no NCBI-keyed genome in the catalogue — nothing to exercise"
   fi
 done
 

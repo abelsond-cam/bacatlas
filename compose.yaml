@@ -86,6 +86,20 @@ services:
       BACATLAS_ATB_CACHE_BUDGET_BYTES: ${BACATLAS_ATB_CACHE_BUDGET_BYTES:-}
       BACATLAS_ATB_MAX_CONCURRENT_FETCHES: ${BACATLAS_ATB_MAX_CONCURRENT_FETCHES:-}
       BACATLAS_ATB_TIMEOUT_SECONDS: ${BACATLAS_ATB_TIMEOUT_SECONDS:-}
+      # ⭐ Fetch a RefSeq/GenBank assembly from NCBI Datasets for a genome keyed by an assembly stem
+      # (`GCF_…`/`GCA_…` — the long-read slice, whose bases are not on this server). Serves ONLY those
+      # genomes; BioSample-keyed ones still go to AllTheBacteria above. Unset = off.
+      BACATLAS_NCBI_STREAMING: ${BACATLAS_NCBI_STREAMING:-}
+      # ⛔ A SUBDIRECTORY of the same named volume, tied to its own flag: a separate directory so the
+      # two caches' byte budgets never evict each other, one volume so there is one thing to size.
+      BACATLAS_NCBI_CACHE_DIR: ${BACATLAS_NCBI_STREAMING:+/srv/bacatlas/seqcache/ncbi}
+      BACATLAS_NCBI_BASE_URL: ${BACATLAS_NCBI_BASE_URL:-}
+      BACATLAS_NCBI_CACHE_BUDGET_BYTES: ${BACATLAS_NCBI_CACHE_BUDGET_BYTES:-}
+      BACATLAS_NCBI_MAX_CONCURRENT_FETCHES: ${BACATLAS_NCBI_MAX_CONCURRENT_FETCHES:-}
+      BACATLAS_NCBI_TIMEOUT_SECONDS: ${BACATLAS_NCBI_TIMEOUT_SECONDS:-}
+      # NCBI's anonymous limit is 3/s; 10/s with an API key. The key is a credential: `.env` only.
+      BACATLAS_NCBI_REQUESTS_PER_SECOND: ${BACATLAS_NCBI_REQUESTS_PER_SECOND:-}
+      BACATLAS_NCBI_API_KEY: ${BACATLAS_NCBI_API_KEY:-}
       WEB_CONCURRENCY: ${BACATLAS_API_WORKERS:-4}
     volumes:
       # Read-only: the service never writes, and a bind mount is the one way it could write to the host.
@@ -93,7 +107,8 @@ services:
       # ⚠ A NAMED volume, not a bind: the cache is the one thing this service writes, it is
       # disposable (every entry is re-fetchable in ~0.24 s), and a named volume keeps it off the
       # host tree where nothing should be surprised by it. Seeded from the image, so it carries
-      # uid 10001 — see the Dockerfile.
+      # uid 10001 — see the Dockerfile. The NCBI cache is its `ncbi/` subdirectory, created by the
+      # store at start-up (the parent is writable by uid 10001, so no image change was needed).
       - atb_cache:/srv/bacatlas/seqcache
     healthcheck:
       # `/health` answers 503 when the database is unreachable, which `urlopen` raises on.
@@ -133,6 +148,7 @@ services:
 
 volumes:
   pgdata:
-  #: Fetched AllTheBacteria assemblies. ⚠ Disposable — `docker volume rm` costs a re-fetch and
-  #: nothing else, which is also how you force the next request to go to ATB for real.
+  #: Fetched AllTheBacteria assemblies, and under `ncbi/` the fetched NCBI ones. ⚠ Disposable —
+  #: `docker volume rm` costs a re-fetch and nothing else, which is also how you force the next
+  #: request to go to ATB or NCBI for real.
   atb_cache:

@@ -13,6 +13,7 @@ import logging
 from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.sequence_source.atb_assembly_store import AtbAssemblyStore, AtbStoreSettings
 from bacatlas_backend.sequence_source.contig_sequence_provider import ContigSequenceProvider
+from bacatlas_backend.sequence_source.ncbi_assembly_store import NcbiAssemblyStore, NcbiStoreSettings
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +25,7 @@ SEQUENCE_PROVIDER_KEY = "bacatlas_sequence_provider"
 
 
 def build_sequence_provider(configuration: Configuration) -> ContigSequenceProvider:
-    """The held → cached → ATB chain, wired from configuration.
+    """The held → cached → ATB | NCBI chain, wired from configuration.
 
     ⚠ **A provider is always built, even with no GFF root and no streaming.** It then raises a named
     failure on every request, which the endpoint already turns into a 503 naming the missing
@@ -50,7 +51,36 @@ def build_sequence_provider(configuration: Configuration) -> ContigSequenceProvi
             "assembly streaming ENABLED (cache: %s)",
             configuration.atb_cache_directory or "disabled — every miss re-fetches",
         )
+    ncbi_store: NcbiAssemblyStore | None = None
+    if configuration.ncbi_streaming_enabled:
+        ncbi_defaults = NcbiStoreSettings()
+        # ⚠ `requests_per_second` ≤ 0 raises here (ValueError from the token bucket) — at start-up,
+        # which is where a knob that would otherwise stall every fetch forever should fail.
+        ncbi_store = NcbiAssemblyStore(
+            NcbiStoreSettings(
+                base_url=configuration.ncbi_base_url or ncbi_defaults.base_url,
+                cache_directory=configuration.ncbi_cache_directory,
+                timeout_seconds=configuration.ncbi_timeout_seconds or ncbi_defaults.timeout_seconds,
+                max_concurrent_fetches=(
+                    configuration.ncbi_max_concurrent_fetches or ncbi_defaults.max_concurrent_fetches
+                ),
+                cache_budget_bytes=(configuration.ncbi_cache_budget_bytes or ncbi_defaults.cache_budget_bytes),
+                requests_per_second=(
+                    configuration.ncbi_requests_per_second
+                    if configuration.ncbi_requests_per_second is not None
+                    else ncbi_defaults.requests_per_second
+                ),
+                api_key=configuration.ncbi_api_key,
+            )
+        )
+        logger.info(
+            "NCBI assembly streaming ENABLED (cache: %s; %s/s; api key %s)",
+            configuration.ncbi_cache_directory or "disabled — every miss re-fetches",
+            configuration.ncbi_requests_per_second or ncbi_defaults.requests_per_second,
+            "set" if configuration.ncbi_api_key else "not set",
+        )
     return ContigSequenceProvider(
         gff_root=configuration.artifact_roots.get("gff"),
         atb_store=store,
+        ncbi_store=ncbi_store,
     )

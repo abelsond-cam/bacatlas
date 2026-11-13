@@ -151,6 +151,8 @@ def _genome_at_locus(session: Session, *, pangenome_id: int, node_label: str, sa
         select(
             Genome.genome_id,
             Genome.bakrep_dataset_id,
+            Genome.sample_id_kind,
+            Genome.bare_accession,
             Genome.strand_is_observed,
             GenomeGenes.gene_count,
             GenomeGenes.span_encoding,
@@ -256,9 +258,19 @@ def load_gene_sequences(
 
     # ⚠ `bakrep_dataset_id` being absent is no longer fatal — it means only that this genome has no
     # HELD copy, which a streamed one never does. The provider decides whether that is readable.
+    # ⭐ The key KIND picks the remote station (ATB for a BioSample, NCBI for an assembly stem), and the
+    # genome's contig names let the provider re-key an NCBI assembly (`NZ_CP…` ↔ `CP…`) into the
+    # namespace the lookup below uses — so that lookup is the same for every source. ⚠ ALL of the
+    # genome's contigs, not just this locus's: the `NZ_` rule is proved on the whole map, as nuna did.
     try:
         sequences = sequence_provider.contig_sequences(
-            GenomeSequenceRequest(sample_id=sample_id, bakrep_dataset_id=found.bakrep_dataset_id)
+            GenomeSequenceRequest(
+                sample_id=sample_id,
+                bakrep_dataset_id=found.bakrep_dataset_id,
+                sample_id_kind=found.sample_id_kind,
+                bare_accession=found.bare_accession,
+                wanted_seqids=frozenset(seqid for seqid, _ in contigs.values()),
+            )
         )
     except SequenceSourceUnavailable as error:
         raise SequenceUnavailable(str(error), is_retryable=error.is_retryable) from error

@@ -91,6 +91,23 @@ class Configuration:
     atb_max_concurrent_fetches: int | None = None
     atb_cache_budget_bytes: int | None = None
 
+    #: ⭐ **Fetch a RefSeq/GenBank assembly from NCBI Datasets when the genome is keyed by an assembly
+    #: stem** (`genome.sample_id_kind = assembly_stem`) — the 4,806 long-read genomes of the Klebsiella
+    #: cohort, whose bases are not on the server. Off by default, additive when on, and it serves ONLY
+    #: those genomes: a BioSample id is nothing to NCBI, so the ATB flag above still governs the rest.
+    ncbi_streaming_enabled: bool = False
+    #: ⛔ A SEPARATE directory from the ATB cache (a subdirectory of it on the instance), so the two
+    #: budgets never evict each other. `None` disables the disk cache; right for a test, wrong for a server.
+    ncbi_cache_directory: Path | None = None
+    ncbi_base_url: str | None = None
+    ncbi_timeout_seconds: float | None = None
+    ncbi_max_concurrent_fetches: int | None = None
+    ncbi_cache_budget_bytes: int | None = None
+    #: NCBI's anonymous limit is 3/s, 10/s with a key. The store defaults to 3; raise it only with a key.
+    ncbi_requests_per_second: float | None = None
+    #: ⚠ A credential. Read from the environment only, never logged, and sent as the `api-key` header.
+    ncbi_api_key: str | None = None
+
     @classmethod
     def from_environment(cls) -> Configuration:
         """Build from ``BACATLAS_*`` variables. Raises on anything missing or unreadable."""
@@ -100,6 +117,7 @@ class Configuration:
             if raw:
                 roots[key] = Path(raw).expanduser()
         cache_directory = os.environ.get("BACATLAS_ATB_CACHE_DIR")
+        ncbi_cache_directory = os.environ.get("BACATLAS_NCBI_CACHE_DIR")
         return cls(
             database_url=_require("BACATLAS_DATABASE_URL"),
             artifact_roots=roots,
@@ -111,6 +129,14 @@ class Configuration:
             atb_timeout_seconds=_optional_float("BACATLAS_ATB_TIMEOUT_SECONDS"),
             atb_max_concurrent_fetches=_optional_int("BACATLAS_ATB_MAX_CONCURRENT_FETCHES"),
             atb_cache_budget_bytes=_optional_int("BACATLAS_ATB_CACHE_BUDGET_BYTES"),
+            ncbi_streaming_enabled=_flag("BACATLAS_NCBI_STREAMING"),
+            ncbi_cache_directory=Path(ncbi_cache_directory).expanduser() if ncbi_cache_directory else None,
+            ncbi_base_url=os.environ.get("BACATLAS_NCBI_BASE_URL") or None,
+            ncbi_timeout_seconds=_optional_float("BACATLAS_NCBI_TIMEOUT_SECONDS"),
+            ncbi_max_concurrent_fetches=_optional_int("BACATLAS_NCBI_MAX_CONCURRENT_FETCHES"),
+            ncbi_cache_budget_bytes=_optional_int("BACATLAS_NCBI_CACHE_BUDGET_BYTES"),
+            ncbi_requests_per_second=_optional_float("BACATLAS_NCBI_REQUESTS_PER_SECOND"),
+            ncbi_api_key=os.environ.get("BACATLAS_NCBI_API_KEY") or None,
         )
 
     def resolve_artifact(self, root_key: str, relative_path: str) -> Path:

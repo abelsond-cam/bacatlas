@@ -24,6 +24,7 @@ import pytest
 from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.gff.fasta_reader import read_fasta_block
 from bacatlas_backend.gff.gff_cds_parser import parse_genome_annotation
+from bacatlas_backend.models.enumerations import SampleIdentifierKind
 from bacatlas_backend.sequence_source.atb_assembly_store import (
     AssemblyUnavailable,
     AtbAssemblyStore,
@@ -253,6 +254,266 @@ def test_an_unparseable_tuning_value_RAISES_rather_than_falling_back(monkeypatch
     monkeypatch.setenv("BACATLAS_ATB_MAX_CONCURRENT_FETCHES", "four")
     with pytest.raises(RuntimeError, match="not an integer"):
         Configuration.from_environment()
+
+
+# ── ⭐ the fourth station: NCBI for RefSeq/GenBank-keyed genomes, and NEVER for BioSample ones ─────
+STEM = "GCF_000512165.1_ASM51216v1_genomic"
+BARE = "GCF_000512165.1"
+#: The namespace split as the live API returns it: `NZ_`-prefixed headers against GenBank-style seqids.
+NCBI_HEADERS = {"NZ_CP003999.1": "ACGTACGT", "NZ_CP003996.1": "TTTTCCCC"}
+
+
+def _ncbi_request(**overrides) -> GenomeSequenceRequest:
+    fields = dict(
+        sample_id=STEM,
+        bakrep_dataset_id=None,
+        sample_id_kind=SampleIdentifierKind.ASSEMBLY_STEM,
+        bare_accession=BARE,
+        wanted_seqids=frozenset({"CP003999.1", "CP003996.1"}),
+    )
+    fields.update(overrides)
+    return GenomeSequenceRequest(**fields)
+
+
+def test_an_NCBI_keyed_genome_is_fetched_from_NCBI_by_its_BARE_accession_and_ATB_is_never_asked(tmp_path):
+    """⛔ The bucket holds no stem under any name (0 of 5,389 found, 2026-10-29), so asking it costs a
+    request and a 404 the negative cache would remember. The kind decides, and only NCBI is asked."""
+    atb = _StubStore({HELD_SEQID: STREAMED_BASES})
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=atb, ncbi_store=ncbi)
+
+    sequences = provider.contig_sequences(_ncbi_request())
+
+    assert ncbi.calls == [BARE], "NCBI must be asked for the bare accession, not the stem"
+    assert atb.calls == []
+    assert sequences == {"CP003999.1": "ACGTACGT", "CP003996.1": "TTTTCCCC"}
+
+
+def test_a_BioSample_genome_is_fetched_from_ATB_and_NCBI_is_never_asked(tmp_path):
+    atb = _StubStore({HELD_SEQID: STREAMED_BASES})
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=atb, ncbi_store=ncbi)
+
+    sequences = provider.contig_sequences(
+        GenomeSequenceRequest(
+            sample_id="SAMN04393397",
+            bakrep_dataset_id=None,
+            sample_id_kind=SampleIdentifierKind.BIOSAMPLE,
+            wanted_seqids=frozenset({HELD_SEQID}),
+        )
+    )
+
+    assert atb.calls == ["SAMN04393397"]
+    assert ncbi.calls == []
+    assert sequences[HELD_SEQID] == STREAMED_BASES
+
+
+def test_a_request_that_does_not_say_its_kind_behaves_as_before_NCBI_existed(tmp_path):
+    """⚠ Every caller built before this station leaves the kind unset; they must keep going to ATB."""
+    atb = _StubStore({HELD_SEQID: STREAMED_BASES})
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=atb, ncbi_store=ncbi)
+
+    provider.contig_sequences(GenomeSequenceRequest(sample_id="SAMN04393397", bakrep_dataset_id=None))
+
+    assert atb.calls == ["SAMN04393397"]
+    assert ncbi.calls == []
+
+
+def test_an_NCBI_keyed_genome_with_NCBI_OFF_names_the_setting_and_does_NOT_fall_through_to_ATB(tmp_path):
+    atb = _StubStore({HELD_SEQID: STREAMED_BASES})
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=atb, ncbi_store=None)
+
+    with pytest.raises(SequenceSourceUnavailable) as raised:
+        provider.contig_sequences(_ncbi_request())
+    assert "BACATLAS_NCBI_STREAMING" in str(raised.value)
+    assert raised.value.is_retryable is False
+    assert atb.calls == [], "a stem was sent to AllTheBacteria"
+
+
+def test_an_NCBI_keyed_genome_with_NO_bare_accession_is_refused_by_name(tmp_path):
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=ncbi)
+
+    with pytest.raises(SequenceSourceUnavailable, match="no bare accession") as raised:
+        provider.contig_sequences(_ncbi_request(bare_accession=None))
+    assert raised.value.is_retryable is False
+    assert ncbi.calls == []
+
+
+def test_a_HELD_copy_wins_for_an_NCBI_keyed_genome_too(tmp_path):
+    _write_held_gff(tmp_path, "N043", STEM, seqid="CP003999.1", bases=HELD_BASES)
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=ncbi)
+
+    sequences = provider.contig_sequences(
+        _ncbi_request(bakrep_dataset_id="N043", wanted_seqids=frozenset({"CP003999.1"}))
+    )
+
+    assert sequences == {"CP003999.1": HELD_BASES}
+    assert ncbi.calls == []
+
+
+# ── the namespace: an NCBI assembly answers as `NZ_…`, the coordinates say `CP…` ───────────────────
+def test_an_NCBI_assembly_is_RE_KEYED_to_the_contig_names_the_coordinates_use(tmp_path):
+    """⭐ The whole reason `wanted_seqids` is on the request: the service's `sequences.get(row.seqid)`
+    must hit for `CP003999.1` although NCBI wrote `NZ_CP003999.1`."""
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=_StubStore(NCBI_HEADERS))
+
+    sequences = provider.contig_sequences(_ncbi_request(wanted_seqids=frozenset({"CP003999.1"})))
+
+    assert sequences == {"CP003999.1": "ACGTACGT"}
+
+
+def test_an_NCBI_assembly_whose_names_match_EXACTLY_is_returned_as_is(tmp_path):
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=_StubStore(NCBI_HEADERS))
+
+    sequences = provider.contig_sequences(_ncbi_request(wanted_seqids=frozenset({"NZ_CP003996.1"})))
+
+    assert sequences == {"NZ_CP003996.1": "TTTTCCCC"}
+
+
+def test_an_UNRESOLVABLE_contig_name_is_a_PERMANENT_failure_that_names_it(tmp_path):
+    """⛔ Never retryable (the same assembly comes back tomorrow) and never read as a missing file."""
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=_StubStore(NCBI_HEADERS))
+
+    with pytest.raises(SequenceSourceUnavailable) as raised:
+        provider.contig_sequences(_ncbi_request(wanted_seqids=frozenset({"CP003999.1", "contig00007"})))
+    assert "'contig00007'" in str(raised.value)
+    assert STEM in str(raised.value)
+    assert raised.value.is_retryable is False
+
+
+def test_the_parsed_cache_holds_the_assembly_as_NCBI_keyed_it_and_re_keys_PER_CALL(tmp_path):
+    """⚠ A reader walks loci within one genome; each locus names different contigs. One fetch, and every
+    call gets its own names back."""
+    ncbi = _StubStore(NCBI_HEADERS)
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=ncbi)
+
+    first = provider.contig_sequences(_ncbi_request(wanted_seqids=frozenset({"CP003999.1"})))
+    second = provider.contig_sequences(_ncbi_request(wanted_seqids=frozenset({"CP003996.1"})))
+    everything = provider.contig_sequences(_ncbi_request(wanted_seqids=None))
+
+    assert ncbi.calls == [BARE]
+    assert first == {"CP003999.1": "ACGTACGT"}
+    assert second == {"CP003996.1": "TTTTCCCC"}
+    assert everything == NCBI_HEADERS
+
+
+def test_a_BioSample_genome_is_NOT_re_keyed_even_when_the_request_names_seqids(tmp_path):
+    """⚠ The held GFF and the ATB object write the same first token (280/280 measured), so the service's
+    own "contig … is not in the assembly" lookup stays the one that speaks for them — unchanged."""
+    atb = _StubStore({HELD_SEQID: STREAMED_BASES, "SAMN04393397.contig00002": "GGGG"})
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=atb, ncbi_store=None)
+
+    sequences = provider.contig_sequences(
+        GenomeSequenceRequest(
+            sample_id="SAMN04393397",
+            bakrep_dataset_id=None,
+            sample_id_kind=SampleIdentifierKind.BIOSAMPLE,
+            wanted_seqids=frozenset({"nothing.like.this"}),
+        )
+    )
+
+    assert set(sequences) == {HELD_SEQID, "SAMN04393397.contig00002"}
+
+
+def test_the_NCBI_failures_RETRYABILITY_survives_the_hand_off(tmp_path):
+    ncbi = _StubStore(error=AssemblyUnavailable("NCBI rate-limited this server", is_retryable=True))
+    provider = ContigSequenceProvider(gff_root=tmp_path, atb_store=None, ncbi_store=ncbi)
+
+    with pytest.raises(SequenceSourceUnavailable) as raised:
+        provider.contig_sequences(_ncbi_request())
+    assert raised.value.is_retryable is True
+
+
+# ── NCBI configuration, with the same discipline as the ATB knobs ─────────────────────────────────
+def test_NCBI_streaming_is_OFF_unless_configured_and_the_stations_say_so():
+    provider = build_sequence_provider(Configuration(database_url="postgresql://x/y"))
+    assert provider.streams_ncbi is False
+    assert provider.stations == ()
+
+
+def test_NCBI_streaming_is_ON_when_configured_and_ATB_stays_as_it_was(tmp_path):
+    provider = build_sequence_provider(
+        Configuration(
+            database_url="postgresql://x/y",
+            ncbi_streaming_enabled=True,
+            ncbi_cache_directory=tmp_path / "ncbi",
+        )
+    )
+    assert provider.streams_ncbi is True
+    assert provider.streams_atb is False
+    assert provider.can_stream is True
+    assert provider.stations == ("ncbi_datasets",)
+    assert (tmp_path / "ncbi").is_dir(), "the cache directory is created at start-up"
+
+
+def test_both_stations_report_in_chain_order(tmp_path):
+    provider = build_sequence_provider(
+        Configuration(
+            database_url="postgresql://x/y",
+            artifact_roots={"gff": tmp_path},
+            atb_streaming_enabled=True,
+            ncbi_streaming_enabled=True,
+        )
+    )
+    assert provider.stations == ("held_annotation_tree", "allthebacteria", "ncbi_datasets")
+
+
+@pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on"])
+def test_the_NCBI_flag_accepts_the_same_words_every_other_flag_does(monkeypatch, value):
+    monkeypatch.setenv("BACATLAS_DATABASE_URL", "postgresql://x/y")
+    monkeypatch.setenv("BACATLAS_NCBI_STREAMING", value)
+    assert Configuration.from_environment().ncbi_streaming_enabled is True
+
+
+def test_the_NCBI_knobs_are_read_from_the_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("BACATLAS_DATABASE_URL", "postgresql://x/y")
+    monkeypatch.setenv("BACATLAS_NCBI_STREAMING", "1")
+    monkeypatch.setenv("BACATLAS_NCBI_CACHE_DIR", str(tmp_path / "ncbi"))
+    monkeypatch.setenv("BACATLAS_NCBI_BASE_URL", "https://example.test/v2")
+    monkeypatch.setenv("BACATLAS_NCBI_TIMEOUT_SECONDS", "12.5")
+    monkeypatch.setenv("BACATLAS_NCBI_MAX_CONCURRENT_FETCHES", "2")
+    monkeypatch.setenv("BACATLAS_NCBI_CACHE_BUDGET_BYTES", "1024")
+    monkeypatch.setenv("BACATLAS_NCBI_REQUESTS_PER_SECOND", "10")
+    monkeypatch.setenv("BACATLAS_NCBI_API_KEY", "s3cret")
+
+    configuration = Configuration.from_environment()
+
+    assert configuration.ncbi_cache_directory == tmp_path / "ncbi"
+    assert configuration.ncbi_base_url == "https://example.test/v2"
+    assert configuration.ncbi_timeout_seconds == 12.5
+    assert configuration.ncbi_max_concurrent_fetches == 2
+    assert configuration.ncbi_cache_budget_bytes == 1024
+    assert configuration.ncbi_requests_per_second == 10.0
+    assert configuration.ncbi_api_key == "s3cret"
+    provider = build_sequence_provider(configuration)
+    assert provider.streams_ncbi is True
+
+
+@pytest.mark.parametrize(
+    ("name", "value", "expected"),
+    [
+        ("BACATLAS_NCBI_REQUESTS_PER_SECOND", "fast", "not a number"),
+        ("BACATLAS_NCBI_TIMEOUT_SECONDS", "soon", "not a number"),
+        ("BACATLAS_NCBI_CACHE_BUDGET_BYTES", "big", "not an integer"),
+        ("BACATLAS_NCBI_MAX_CONCURRENT_FETCHES", "four", "not an integer"),
+    ],
+)
+def test_an_unparseable_NCBI_knob_RAISES_at_start_up(monkeypatch, name, value, expected):
+    """⛔ The same rule as the ATB knobs: a typo must not masquerade as a setting that was never made."""
+    monkeypatch.setenv("BACATLAS_DATABASE_URL", "postgresql://x/y")
+    monkeypatch.setenv(name, value)
+    with pytest.raises(RuntimeError, match=expected):
+        Configuration.from_environment()
+
+
+def test_a_non_positive_NCBI_rate_fails_at_start_up_not_on_the_first_fetch():
+    with pytest.raises(ValueError, match="requests_per_second"):
+        build_sequence_provider(
+            Configuration(database_url="postgresql://x/y", ncbi_streaming_enabled=True, ncbi_requests_per_second=0.0)
+        )
 
 
 # ── ⭐ the measured claim, against the real bucket ──────────────────────────────────────────────

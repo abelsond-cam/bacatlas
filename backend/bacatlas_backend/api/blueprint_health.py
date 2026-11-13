@@ -8,6 +8,8 @@ says which of those failed rather than returning a bare 503.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from flask import Blueprint, current_app, jsonify
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -64,16 +66,26 @@ def _sequence_source_report() -> dict[str, object]:
     configuration = current_app.config["BACATLAS"]
     provider = current_app.extensions.get(SEQUENCE_PROVIDER_KEY)
     gff_root = configuration.artifact_roots.get("gff")
-    cached: object = "no cache directory configured"
-    if configuration.atb_cache_directory is not None:
-        try:
-            cached = sum(1 for _ in configuration.atb_cache_directory.glob("*.fa.gz"))
-        except OSError as error:
-            cached = f"unreadable: {type(error).__name__}"
     return {
         # ⚠ "held tree present" is about CONFIGURATION, not about any one genome: a genome absent
         # from a configured tree still streams. It answers "could a local file have served this?"
         "held_annotation_tree": str(gff_root) if gff_root else None,
-        "assembly_streaming": bool(provider is not None and provider.can_stream),
-        "cached_assemblies": cached,
+        # ⚠ Kept meaning ATB, as it always has, so a reader of an older report is not misled.
+        "assembly_streaming": bool(provider is not None and provider.streams_atb),
+        "cached_assemblies": _cached_count(configuration.atb_cache_directory, "*.fa.gz"),
+        # ⭐ The fourth station: RefSeq/GenBank-keyed genomes from NCBI Datasets, cached separately.
+        "ncbi_streaming": bool(provider is not None and provider.streams_ncbi),
+        "cached_ncbi_assemblies": _cached_count(configuration.ncbi_cache_directory, "*.zip"),
+        # Every configured source, in chain order — so nobody has to infer the chain from three flags.
+        "stations": list(provider.stations) if provider is not None else [],
     }
+
+
+def _cached_count(directory: Path | None, pattern: str) -> object:
+    """How many cached objects a store's directory holds — a number that moves only when a fetch happens."""
+    if directory is None:
+        return "no cache directory configured"
+    try:
+        return sum(1 for _ in directory.glob(pattern))
+    except OSError as error:
+        return f"unreadable: {type(error).__name__}"
