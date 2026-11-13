@@ -500,6 +500,38 @@ def test_reconcile_counts_the_gene_spans_blocks_beside_the_rest(session, artifac
     ]
 
 
+@pytest.mark.parametrize("species_key", [None, "ecoli"])
+def test_the_gff_routes_take_every_read_from_the_prefetch(
+    session, artifacts, one_sequenced_genome, clean_slate, monkeypatch, species_key
+):
+    """⛔ The prefetch's key must be the consumer's on BOTH GFF routes, with and without a named species.
+
+    The `_meta` columns differ by route and by ``species_key`` (`protein_sequence`, `species`), and a
+    key that drifts by one column still loads the right rows — from a read on the serial SQL thread.
+    So this counts the requests, the misses and the thread, on a dual genome and a GFF-only one.
+    """
+    from tests.test_genome_stage_read_ahead import witness_reads
+
+    dual, _ = one_sequenced_genome
+    gff_only = next(
+        path.parent.name for path in sorted(artifacts.annotation_root.glob("*/*/*.bakta.gff3.gz"))
+        if not (SEQUENCE_DIR / f"{path.parent.name}.nseq").is_file()
+    )
+    located = CatalogueArtifacts(
+        data_root=DATA_ROOT, set_key="ecoli", model_label=MODEL_LABEL, run_id=RUN_ID, nseq_root=SEQUENCE_DIR
+    )
+    seen = witness_reads(monkeypatch)
+    report = load_genome_layer(
+        session, located, only={dual, gff_only}, progress_every=0, species_key=species_key, read_workers=4
+    )
+
+    assert (report.genomes_loaded, report.genomes_refused) == (2, 0), report.refusals
+    assert report.gene_spans_routes == {"nseq+encoded_checked": 1, "encoded": 1, "nseq": 0}
+    assert seen["taken"] == seen["loaded"] == {"meta": 2, "nseq": 1}
+    assert seen["missed"] == []
+    assert seen["loaded_on_sql_thread"] == []
+
+
 # ── the fourth route: a modelled genome NAMED as holding no gene table ────────────────────────
 def _named(session, artifacts, sample_id, *, species_key, bakrep_dataset_id=None, nseq_path=None):
     species_ids = ingest_pathogen_species(session)

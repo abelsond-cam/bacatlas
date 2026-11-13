@@ -23,6 +23,8 @@ import json
 import os
 import pathlib
 import struct
+import threading
+from collections import Counter
 
 import numpy as np
 import pandas
@@ -30,6 +32,7 @@ import pytest
 from sqlalchemy import func, select, text
 
 from bacatlas_backend.ingest import artifact_locator
+from bacatlas_backend.ingest import ingest_genome_gene_table as gene_table
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.genome_gene_alignment import GeneAlignmentError
 from bacatlas_backend.ingest.ingest_command_line import (
@@ -40,6 +43,7 @@ from bacatlas_backend.ingest.ingest_command_line import (
 )
 from bacatlas_backend.ingest.ingest_genome_gene_table import (
     GenomeIngestError,
+    PrefetchedReads,
     _contig_name,
     bare_accession_for,
     ingest_one_genome,
@@ -241,6 +245,67 @@ def test_no_meta_is_stat_ed_per_genome_and_no_nseq_path_is_stat_ed_at_all(sessio
     session.commit()
     assert report.genomes_loaded == 60
     assert calls == {"is_file": 0, "nseq_stat": 0, "scans": 1}
+    _reset(session)
+
+
+def witness_reads(monkeypatch) -> dict:
+    """Record every `_meta` / `.nseq` read: what the consumer took, what it found prefetched, and on which thread.
+
+    ⚠ **The rows cannot see a prefetch that misses.** `PrefetchedReads.take` falls through to the loader
+    when the key it is asked for was not prefetched — by design, so a drift costs a read and never a wrong
+    frame — and the genome loads exactly as before, only with its reads back on the serial SQL thread:
+    the ~2.6–4.4 h the pool exists to remove, invisible to every row comparison. This is the witness for it.
+    ``taken`` counts the consumer's requests by kind, ``missed`` lists each that fell through, ``loaded``
+    counts the loaders' runs by kind, and ``loaded_on_sql_thread`` those run on the calling thread.
+    """
+    seen: dict = {"taken": Counter(), "missed": [], "loaded": Counter(), "loaded_on_sql_thread": []}
+    sql_thread = threading.current_thread()
+    real_take = PrefetchedReads.take
+
+    def take(self, key, loader, *args):
+        seen["taken"][key[0]] += 1
+        if key not in self._results:
+            seen["missed"].append(key)
+        return real_take(self, key, loader, *args)
+
+    monkeypatch.setattr(PrefetchedReads, "take", take)
+    for kind, name in (("meta", "_load_meta"), ("nseq", "_load_nseq")):
+        real = getattr(gene_table, name)
+
+        def load(*args, _kind=kind, _real=real):
+            seen["loaded"][_kind] += 1
+            if threading.current_thread() is sql_thread:
+                seen["loaded_on_sql_thread"].append((_kind, args))
+            return _real(*args)
+
+        monkeypatch.setattr(gene_table, name, load)
+    return seen
+
+
+@pytest.mark.parametrize("workers", [0, 1, 4])
+def test_every_read_is_TAKEN_from_the_prefetch_and_none_runs_on_the_sql_thread(session, tree, monkeypatch, workers):
+    """⛔ The speed-up's own gate: no request falls through to the loader, and with a pool none reads serially.
+
+    Counts, not "some": 64 `_meta` requests (every roster genome but NEITHER, refused before a read; the
+    corrupt and short `_meta` included — their stored errors are taken, not re-read) and 61 `.nseq`
+    requests (those 64 less the two bad `_meta` and NAMED, which reads only `flat_index`). Each file is
+    loaded exactly once — 63 `.nseq`, because the pool also reads the two whose genome the bad `_meta` then
+    refuses, which is a read on a worker and nothing on the SQL thread — so a miss shows twice: in
+    ``missed`` and as a load beyond these counts.
+    """
+    _reset(session)
+    seen = witness_reads(monkeypatch)
+    report = load_genome_layer(session, _artifacts(tree), species_key="kp",
+                               genomes_without_gene_table=frozenset({NAMED}), progress_every=0, read_workers=workers)
+    session.commit()
+    assert report.genomes_loaded == 60
+    assert seen["taken"] == {"meta": 64, "nseq": 61}
+    assert seen["missed"] == []
+    assert seen["loaded"] == {"meta": 64, "nseq": 63}
+    if workers > 1:
+        assert seen["loaded_on_sql_thread"] == []
+    else:  # inline by design: the same reads, on the caller's thread
+        assert len(seen["loaded_on_sql_thread"]) == 64 + 63
     _reset(session)
 
 
