@@ -26,7 +26,7 @@ from sqlalchemy import case, exists, func, select, update
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.gene_blocks import GENE_SPAN_STRIDE
-from bacatlas_backend.models.enumerations import EmbeddingRepresentation
+from bacatlas_backend.models.enumerations import EmbeddingRepresentation, SampleIdentifierKind
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
 from bacatlas_backend.models.genome_genes import GenomeGenes
@@ -313,6 +313,33 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
             f"the gene_spans block total ({genes_counted:,} genes) was NOT compared: "
             f"pangenome.gene_count is {pangenome.gene_count!r}"
         )
+
+    # ⛔ An assembly-stem genome's bases come from NCBI, which is asked for its BARE ACCESSION and
+    # nothing else, and `ContigSequenceProvider` refuses a NULL there as "an ingest fault". No ingest
+    # route wrote the column until 2026-11-13, so a whole cohort's stems (4,806 of the 71,435) would
+    # have loaded with a Sequence tab that could never show a base, and nothing here asked. ONE
+    # aggregate over the collection; the sample ids ride along, empty whenever the check passes.
+    stems, stems_without_accession = session.execute(
+        select(
+            func.count(),
+            func.array_agg(Genome.sample_id).filter(Genome.bare_accession.is_(None)),
+        )
+        .select_from(GenomeCollectionMembership)
+        .join(Genome, Genome.genome_id == GenomeCollectionMembership.genome_id)
+        .where(
+            GenomeCollectionMembership.genome_collection_id == pangenome.genome_collection_id,
+            Genome.sample_id_kind == SampleIdentifierKind.ASSEMBLY_STEM,
+        )
+    ).one()
+    stems_without_accession = sorted(stems_without_accession or [])
+    check(
+        f"every assembly-stem genome has a bare accession for the NCBI station — {stems:,} assembly "
+        "stems in the collection",
+        not stems_without_accession,
+        f"{len(stems_without_accession):,} of {stems:,} assembly-stem genomes have no bare_accession, so "
+        f"NCBI cannot be asked for their bases and their Sequence tab can never load: "
+        f"{stems_without_accession[:10]}",
+    )
 
     # ── the genome-grain gene layer ────────────────────────────────────────────────────────────
     # ⭐ `genome_locus_assignment` is what the Sequence tab reads a genome's loci from, and

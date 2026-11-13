@@ -29,12 +29,74 @@ supplied, so one look is enough.
 from __future__ import annotations
 
 import os
+from collections import deque
+from collections.abc import Callable, Iterable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import islice
 from pathlib import Path
+from typing import TypeVar
 
 #: The two representations, in the payload's tab order — Bacformer first, because it is the axis
 #: the method is about.
 REPRESENTATIONS = ("bacformer", "esm")
+
+#: ⭐ How many reader threads each per-genome I/O pass runs, and how far ahead of the serial consumer
+#: they may get (per thread). On Lustre a cold `stat` or `open` is ~28–48 ms of pure latency and the
+#: GIL is released for all of it, so a few dozen threads turn ~4 h of serial waiting into minutes —
+#: while the window keeps what is held in memory to a few dozen genomes' inputs, never the cohort's.
+DEFAULT_READ_WORKERS = 16
+READ_AHEAD_PER_WORKER = 4
+
+_Item = TypeVar("_Item")
+_Read = TypeVar("_Read")
+
+
+def listed_files(directory: Path, suffix: str) -> frozenset[str]:
+    """The stems of every regular file in ``directory`` whose name ends in ``suffix`` — ONE scan.
+
+    ⛔ **The replacement for a per-genome `is_file()`, and it answers the same question.** A cold
+    `stat` on Lustre is ~28–48 ms, and the 71,435-genome cohort asked it once per genome per tree:
+    33–57 min each time, for an answer one `readdir` gives in about a second. ⚠ An entry counts only
+    where `DirEntry.is_file()` says so — which follows a symlink exactly as `Path.is_file()` does — so
+    a directory or a dangling link of that name is absent here, as it was there. An absent directory
+    is an empty set, as `is_file()` was `False` for every path under it.
+    """
+    try:
+        with os.scandir(directory) as entries:
+            return frozenset(
+                entry.name[: -len(suffix)]
+                for entry in entries
+                if entry.name.endswith(suffix) and entry.is_file()
+            )
+    except (FileNotFoundError, NotADirectoryError):
+        return frozenset()
+
+
+def read_ahead_in_order(
+    items: Iterable[_Item], read: Callable[[_Item], _Read], workers: int
+) -> Iterator[tuple[_Item, _Read]]:
+    """`(item, read(item))` for every item, IN THE ORDER GIVEN, with the reads run ahead on a thread pool.
+
+    ⭐ The consumer stays serial — it is the SQL loop, or a COPY generator — and sees exactly the
+    sequence it would have computed itself; only the waiting moves off its thread. ⛔ The order is
+    the input's, never completion order: a genome's rows and every id the database assigns follow it.
+    ``read`` must not raise for a per-item failure — it captures it, so that failure surfaces when the
+    consumer reaches THAT item, as it did when the consumer read the file itself. ``workers <= 1``
+    runs every read inline, in order, on the caller's thread: the same values with no pool.
+    """
+    if workers <= 1:
+        for item in items:
+            yield item, read(item)
+        return
+    iterator = iter(items)
+    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="bacatlas-read") as pool:
+        pending = deque((item, pool.submit(read, item)) for item in islice(iterator, workers * READ_AHEAD_PER_WORKER))
+        while pending:
+            item, future = pending.popleft()
+            for following in islice(iterator, 1):
+                pending.append((following, pool.submit(read, following)))
+            yield item, future.result()
 
 
 class MissingArtifacts(FileNotFoundError):
@@ -278,6 +340,14 @@ class CatalogueArtifacts:
     def per_genome(self, sample_id: str, kind: str) -> Path:
         """`kind` ∈ `meta | product | strand | dbxref | noncoding`."""
         return self.per_genome_root / f"{sample_id}_{kind}.parquet"
+
+    def per_genome_present(self, kind: str) -> frozenset[str]:
+        """Which genomes have a `{BS}_{kind}.parquet` (a regular file) — ONE scan of `per_genome_root`.
+
+        ⛔ Never a per-genome `is_file()`: see `listed_files`. The directory holds five kinds per genome,
+        ~357k entries at 71,435 genomes, and the scan reads their names and `d_type`s, not their inodes.
+        """
+        return listed_files(self.per_genome_root, f"_{kind}.parquet")
 
     def genome_annotation(self, sample_id: str, bakrep_dataset_id: str) -> Path:
         """The gzipped Bakta GFF — annotation AND, in its `##FASTA` block, the bases."""

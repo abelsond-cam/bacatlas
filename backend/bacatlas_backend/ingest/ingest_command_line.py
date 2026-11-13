@@ -24,7 +24,7 @@ from sqlalchemy import ARRAY, Integer, any_, create_engine, func, literal, selec
 from sqlalchemy.orm import Session
 
 import bacatlas_backend.models  # noqa: F401  (registers every table on the metadata)
-from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+from bacatlas_backend.ingest.artifact_locator import DEFAULT_READ_WORKERS, CatalogueArtifacts, read_ahead_in_order
 from bacatlas_backend.ingest.genome_gene_alignment import GeneAlignmentError
 from bacatlas_backend.ingest.ingest_genome_collection_roster import (
     genome_id_by_ordinal,
@@ -35,6 +35,7 @@ from bacatlas_backend.ingest.ingest_genome_gene_table import (
     GENE_SPANS_SOURCES,
     GenomeIngestError,
     ingest_one_genome,
+    read_genome_inputs,
 )
 from bacatlas_backend.ingest.ingest_locus_catalogue import ingest_locus_catalogue
 from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for, ingest_pangenome_run
@@ -57,6 +58,29 @@ NSEQ_GATE_REFUSED_REASON = (
 
 class GeneTableListRefused(ValueError):
     """`--genomes-without-gene-table` names something the data root contradicts — the list is wrong."""
+
+
+class GenomeMetaMissing(ValueError):
+    """Roster genomes with no `_meta` parquet — the RUN is refused, by name, before a genome is written."""
+
+
+def refuse_unless_every_genome_has_meta(
+    genomes: list[tuple[str, str | None]], meta_present: frozenset[str], per_genome_root: Path
+) -> None:
+    """⛔ Every roster genome — a named one included — needs its `_meta` parquet, so ask ONCE, up front.
+
+    The parquet is what every route checks its coordinates against and what a named genome's gene
+    count is read from. It used to be asked per genome, as a cold `is_file()` inside the serial loop,
+    and a gap surfaced as one refusal hours in. Now it is one scan of the directory and a refusal of
+    the whole run in seconds, naming the genomes — a cohort missing a `_meta` is a mirror that is
+    wrong, not a genome that is.
+    """
+    missing = [sample_id for sample_id, _ in genomes if sample_id not in meta_present]
+    if missing:
+        raise GenomeMetaMissing(
+            f"{len(missing):,} of {len(genomes):,} roster genome(s) have no `_meta.parquet` under "
+            f"{per_genome_root}: {missing[:10]}. Every route reads it, so nothing is loaded."
+        )
 
 
 def read_genomes_without_gene_table(path: Path) -> frozenset[str]:
@@ -223,7 +247,18 @@ def discover_genomes(artifacts: CatalogueArtifacts) -> list[tuple[str, str | Non
     dataset id is the GFF's; whether a `.nseq` exists is a separate fact the loader resolves from
     the same listing, so one pair still means one thing.
     """
+    return _discover_genomes(artifacts)[0]
+
+
+def _discover_genomes(artifacts: CatalogueArtifacts) -> tuple[list[tuple[str, str | None]], int]:
+    """`discover_genomes`, and how many of its genomes are the universe's — from ONE read of the universe.
+
+    ⚠ The genome stage used to read the universe's 374 M-row `sample_id` column a second time only to
+    count its genomes (~10 s and ~13 GB transient at 71,435 genomes). The count is `len(roster)` as it
+    stands before the trees' extras are appended, so it is taken there.
+    """
     roster, _ = read_genome_vocabulary(artifacts)
+    universe_count = len(roster)
     index = annotation_index(artifacts)
     present = artifacts.nseq_present()
     in_universe = set(roster)
@@ -235,7 +270,7 @@ def discover_genomes(artifacts: CatalogueArtifacts) -> list[tuple[str, str | Non
             "genome. A roster of zero loads zero genomes and reports success, which is "
             "indistinguishable from a cohort that has none — so it is refused here instead."
         )
-    return [(sample_id, index.get(sample_id)) for sample_id in roster]
+    return [(sample_id, index.get(sample_id)) for sample_id in roster], universe_count
 
 
 def load_genome_layer(
@@ -247,6 +282,7 @@ def load_genome_layer(
     progress_every: int = 25,
     species_key: str | None = None,
     genomes_without_gene_table: frozenset[str] | None = None,
+    read_workers: int = DEFAULT_READ_WORKERS,
 ) -> GenomeLayerReport:
     """Load every genome in the roster, one atomic transaction each.
 
@@ -257,6 +293,12 @@ def load_genome_layer(
     nuna's `.nseq` acceptance gate refused them. Each is loaded as a `genome` row with no block; the
     list is checked against the whole roster first and raises `GeneTableListRefused` — before any
     genome is written — if it names a genome the roster lacks or one this data root holds a table for.
+
+    ⭐ ``read_workers`` threads read each genome's files (the `_meta` columns, the `.nseq` gene table)
+    ahead of the loop, which stays serial and takes them in ROSTER ORDER — so the rows written, their
+    order and every id are what a serial read gives; only the Lustre latency moves off the SQL thread.
+    ``read_workers <= 1`` reads inline. Every roster genome's `_meta` is established first by ONE scan
+    (`GenomeMetaMissing` refuses the run, by name, before any genome is written).
     """
     named = genomes_without_gene_table or frozenset()
     report = GenomeLayerReport()
@@ -269,7 +311,7 @@ def load_genome_layer(
             "is a load nothing downstream can detect."
         )
 
-    genomes = discover_genomes(artifacts)
+    genomes, universe_count = _discover_genomes(artifacts)
     # ⭐ ONE listing of the .nseq tree for the whole run — never a stat per genome.
     present = artifacts.nseq_present()
     # ⭐ The frame, stated. Three sources make one roster, and a reader cannot otherwise tell a
@@ -279,10 +321,9 @@ def load_genome_layer(
     with_nseq = sum(1 for sample_id, _ in genomes if sample_id in present)
     with_both = sum(1 for sample_id, dataset_id in genomes if dataset_id is not None and sample_id in present)
     located = with_gff + with_nseq - with_both
-    in_universe, _ = read_genome_vocabulary(artifacts)
     report.notes.append(
-        f"roster: {len(genomes):,} genomes — {len(in_universe):,} in the gene universe, "
-        f"{len(genomes) - len(in_universe):,} held by this data root only; "
+        f"roster: {len(genomes):,} genomes — {universe_count:,} in the gene universe, "
+        f"{len(genomes) - universe_count:,} held by this data root only; "
         f"located {located:,}: {with_gff:,} with a GFF, {with_nseq:,} with a .nseq, "
         f"{with_both:,} with both, {len(genomes) - located:,} with neither — "
         f"{len(named):,} of them named as holding no gene table, "
@@ -290,25 +331,39 @@ def load_genome_layer(
     )
     # ⛔ Against the WHOLE roster, before `--only`/`--limit` narrow it and before anything is written.
     refuse_unless_gene_table_list_matches_roster(named, genomes, present)
+    refuse_unless_every_genome_has_meta(genomes, artifacts.per_genome_present("meta"), artifacts.per_genome_root)
     if only:
         genomes = [pair for pair in genomes if pair[0] in only]
     if limit:
         genomes = genomes[:limit]
 
+    def inputs_of(pair: tuple[str, str | None]) -> dict:
+        sample_id, dataset_id = pair
+        return dict(
+            sample_id=sample_id, bakrep_dataset_id=dataset_id, species_key=species_key,
+            nseq_path=artifacts.per_genome_nseq(sample_id) if sample_id in present else None,
+            gene_table_omitted_reason=NSEQ_GATE_REFUSED_REASON if sample_id in named else None,
+        )
+
+    def read(pair: tuple[str, str | None]):
+        return read_genome_inputs(artifacts, **inputs_of(pair))
+
     started = time.time()
-    for index, (sample_id, dataset_id) in enumerate(genomes, start=1):
+    in_order = read_ahead_in_order(genomes, read, read_workers)
+    for index, ((sample_id, dataset_id), prefetched) in enumerate(in_order, start=1):
         try:
             one = ingest_one_genome(
-                session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
-                pathogen_species_ids=species_ids, species_key=species_key,
-                nseq_path=artifacts.per_genome_nseq(sample_id) if sample_id in present else None,
-                gene_table_omitted_reason=NSEQ_GATE_REFUSED_REASON if sample_id in named else None,
+                session, artifacts, pathogen_species_ids=species_ids, prefetched=prefetched,
+                **inputs_of((sample_id, dataset_id)),
             )
             session.commit()
         # ⚠ `ValueError` is in the tuple because `pyarrow.lib.ArrowInvalid` IS one: a single
         # unreadable parquet used to escape this handler and abort the whole run, which is the
-        # opposite of what a per-genome unit of work is for.
-        except (GenomeIngestError, GeneAlignmentError, KeyError, ValueError) as error:
+        # opposite of what a per-genome unit of work is for. ⚠ `OSError` for the same reason: pandas
+        # opens the `_meta` itself, so an EIO, ESTALE or EACCES on one of 71,435 files on Lustre was a
+        # traceback that ended the stage. A database error is NOT caught: it is not a fact about one
+        # genome, and the session it leaves is not one to carry on in.
+        except (GenomeIngestError, GeneAlignmentError, KeyError, ValueError, OSError) as error:
             # ⛔ Roll back THIS genome and carry on. A genome is the unit of work, so one refusal
             # must not discard the 200 already loaded — and it must be named, not counted.
             session.rollback()
@@ -383,6 +438,7 @@ def load_pangenome_layer(
     collection_label: str | None = None,
     allow_missing_strand: bool = False,
     genomes_without_gene_table: frozenset[str] | None = None,
+    read_workers: int = DEFAULT_READ_WORKERS,
 ) -> list[str]:
     """Model registry → roster → run → catalogue, in the one order the foreign keys allow.
 
@@ -428,6 +484,7 @@ def load_pangenome_layer(
         genome_id_by_ordinal=genome_id_by_ordinal(session, collection_id),
         allow_missing_strand=allow_missing_strand,
         genomes_without_gene_table=genomes_without_gene_table,
+        read_workers=read_workers,
     )
     return [
         f"catalogue: {catalogue_key_for(species_key, roster.collection_key, catalogue_key)}",
@@ -579,6 +636,11 @@ def build_parser() -> argparse.ArgumentParser:
                              "without a gene table must be EXACTLY this set. \u26d4 A named genome the "
                              "roster lacks, or one with a GFF or .nseq, refuses the run. Unset, a "
                              "genome with neither file is refused by name as before")  # fmt: skip
+    parser.add_argument("--read-workers", type=int, default=DEFAULT_READ_WORKERS,
+                        help="threads reading each genome's `_meta` and `.nseq` (genomes) and its `.loci` "
+                             "(pangenome) ahead of the serial load, in roster order. \u2b50 The rows "
+                             "written are the same at any value; it only moves Lustre's per-file "
+                             "latency off the SQL thread. 0 reads inline")  # fmt: skip
     parser.add_argument("--limit", type=int, help="stop after N genomes (a smoke run, not a mode)")
     parser.add_argument("--only", nargs="*", help="load only these sample ids")
     return parser
@@ -604,9 +666,15 @@ def main(argv: list[str] | None = None) -> int:
         print("--model-label and --run-id are required for this stage", file=sys.stderr)
         return 2
 
+    # ⛔ `species_key` MUST reach the artifacts: the roster resolves its cohort from
+    # `(artifacts.species_key, artifacts.set_key)`, and left out it defaults to the set key — so the
+    # kp71k launcher's `--set-key kp71k --species-key kp` looked up `('kp71k', 'kp71k')`, which no
+    # cohort declares, and `--stage pangenome` died with `UndeclaredCohort` after the whole genome
+    # stage had run. The probe never saw it: there the two keys are the same string.
     artifacts = CatalogueArtifacts(
         data_root=args.data_root, set_key=args.set_key,
         model_label=args.model_label, run_id=args.run_id,
+        species_key=args.species_key,
         gene_universe_path=args.gene_universe, assignment_path=args.assignment,
         nseq_root=args.nseq_dir,
     )
@@ -638,8 +706,9 @@ def main(argv: list[str] | None = None) -> int:
                 report = load_genome_layer(
                     session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
                     species_key=args.species_key, genomes_without_gene_table=without_gene_table,
+                    read_workers=args.read_workers,
                 )
-            except GeneTableListRefused as error:
+            except (GeneTableListRefused, GenomeMetaMissing) as error:
                 # ⛔ Raised before any genome is written: the list is a misconfiguration, not a refusal
                 # of one genome, so nothing is loaded and the exit code says so.
                 session.rollback()
@@ -684,6 +753,7 @@ def main(argv: list[str] | None = None) -> int:
                 collection_label=args.collection_label,
                 allow_missing_strand=args.allow_missing_strand,
                 genomes_without_gene_table=without_gene_table,
+                read_workers=args.read_workers,
             ):
                 print(line)
             session.commit()

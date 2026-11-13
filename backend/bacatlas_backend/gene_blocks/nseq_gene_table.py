@@ -199,13 +199,14 @@ def read_nseq_gene_table(path: str | Path, *, expect_sample: str | None = None) 
     cross-checked, from `os.stat` rather than from a read — a truncated file is refused here exactly
     as `read_nseq` refuses it.
 
-    ⚠ One `stat` and one `open` per genome is the floor, not a target to beat: on Lustre a cold
-    `stat` is ~28 ms and an `open` costs several, which is why the caller lists the directory once
-    (`CatalogueArtifacts.nseq_present`) instead of asking `exists()` before calling this.
+    ⚠ One `open` per genome is the floor: on Lustre a cold path lookup is ~28 ms, which is why the
+    caller lists the directory once (`CatalogueArtifacts.nseq_present`) instead of asking `exists()`
+    before calling this — and why the length is read with `fstat` on the handle already open rather
+    than a second lookup of the same path by `os.stat`.
     """
     path = Path(path)
-    file_length = os.stat(path).st_size
     with path.open("rb") as handle:
+        file_length = os.fstat(handle.fileno()).st_size
         header_length = _header_length(path, handle.read(_HEADER_OFFSET), file_length)
         header_end = _HEADER_OFFSET + header_length
         header = json.loads(handle.read(header_length).decode("utf-8"))
@@ -223,8 +224,16 @@ def read_loci(path: str | Path, *, gene_count: int | None = None) -> array:
     why that column can be compared against a file nuna published rather than only against itself.
     """
     path = Path(path)
-    raw = path.read_bytes()
-    return decode_int32_vector(raw, name=f"{path.name} (.loci)", expected_count=gene_count)
+    return loci_from_bytes(path.read_bytes(), path, gene_count=gene_count)
+
+
+def loci_from_bytes(raw: bytes, path: str | Path, *, gene_count: int | None = None) -> array:
+    """`read_loci` on bytes already read from ``path`` — the same decode and the same checks.
+
+    ⭐ Split out so a caller can read the files on a thread pool and decode them in order on its own
+    thread, with `read_loci` itself still the one definition of what a `.loci` is.
+    """
+    return decode_int32_vector(raw, name=f"{Path(path).name} (.loci)", expected_count=gene_count)
 
 
 def loci_stride() -> int:

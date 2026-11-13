@@ -92,6 +92,99 @@ class GenomeIngestError(RuntimeError):
     """A genome could not be loaded, named with the reason and the check that caught it."""
 
 
+class PrefetchedReads:
+    """One genome's input files, read OFF the serial SQL path — each a value, or the error its read raised.
+
+    ⭐ **A cache keyed on exactly what was read, never a second reader.** The key is the path AND the
+    columns (or the sample a `.nseq` must name), and a consumer asking for anything else reads it
+    itself, so a prefetch that guessed wrong costs a read and can never hand back a different frame.
+    ⛔ A failed read is stored, not raised: it surfaces when `ingest_one_genome` reaches the point
+    where it would have read that file, so a genome is refused by the same check, with the same
+    message, in the same place as before — and a genome refused EARLIER for another reason never
+    sees it.
+    """
+
+    def __init__(self) -> None:
+        self._results: dict = {}
+
+    def run(self, key, loader, *args) -> None:
+        """Read ``loader(*args)`` now, and keep its value — or the error it raised — under ``key``."""
+        try:
+            self._results[key] = (True, loader(*args))
+        except Exception as error:  # noqa: BLE001 — re-raised, unchanged, where the consumer reads it
+            self._results[key] = (False, error)
+
+    def take(self, key, loader, *args):
+        """The value kept under ``key`` (raising its error, if the read failed), or a fresh ``loader(*args)``."""
+        if key in self._results:
+            succeeded, value = self._results.pop(key)
+            if succeeded:
+                return value
+            raise value
+        return loader(*args)
+
+
+def _meta_columns(*, has_gff: bool, species_key: str | None) -> tuple[str, ...]:
+    """The `_meta` columns a route reads — ONE definition, for the prefetch and the route alike."""
+    if has_gff:
+        # `protein_sequence` is one of `check_against_meta`'s four independent witnesses.
+        columns = ("flat_index", "contig_idx", "start", "end", "protein_sequence")
+        return columns + ("species",) if species_key is None else columns
+    return ("flat_index", "contig_idx", "start", "end")
+
+
+#: The named route reads only this — `0..n-1` is checked and `n` stored.
+_NAMED_ROUTE_META_COLUMNS = ("flat_index",)
+
+
+def _load_meta(meta_path: Path, columns: tuple[str, ...]):
+    import pandas  # the `ingest` extra, deliberately not a serving dependency
+
+    return pandas.read_parquet(meta_path, columns=list(columns))
+
+
+def _load_nseq(path: Path, sample_id: str) -> NseqFile:
+    return read_nseq_gene_table(path, expect_sample=sample_id)
+
+
+def _read_meta(meta_path: Path, columns: tuple[str, ...], prefetched: PrefetchedReads | None):
+    if prefetched is None:
+        return _load_meta(meta_path, columns)
+    return prefetched.take(("meta", meta_path, columns), _load_meta, meta_path, columns)
+
+
+def read_genome_inputs(
+    artifacts: CatalogueArtifacts,
+    *,
+    sample_id: str,
+    bakrep_dataset_id: str | None,
+    species_key: str | None = None,
+    nseq_path: Path | None = None,
+    gene_table_omitted_reason: str | None = None,
+) -> PrefetchedReads:
+    """Read what `ingest_one_genome` would read for this genome — and nothing it would refuse before reading.
+
+    Safe on a worker thread: no session, no shared state, every failure captured per file. The route
+    is decided by the same four facts `ingest_one_genome` decides it by, and the columns come from
+    `_meta_columns`, so the two cannot drift apart; where they did, the consumer would read for itself.
+    """
+    reads = PrefetchedReads()
+    meta_path = artifacts.per_genome(sample_id, "meta")
+    has_gff = bakrep_dataset_id is not None
+    if gene_table_omitted_reason is not None:
+        if not has_gff and nseq_path is None:
+            columns = _NAMED_ROUTE_META_COLUMNS
+            reads.run(("meta", meta_path, columns), _load_meta, meta_path, columns)
+        return reads
+    if not has_gff and (nseq_path is None or species_key is None):
+        return reads
+    columns = _meta_columns(has_gff=has_gff, species_key=species_key)
+    reads.run(("meta", meta_path, columns), _load_meta, meta_path, columns)
+    if nseq_path is not None:
+        reads.run(("nseq", nseq_path, sample_id), _load_nseq, nseq_path, sample_id)
+    return reads
+
+
 @dataclass
 class GenomeIngestReport:
     """What one genome's load actually did — counts, not a boolean."""
@@ -191,6 +284,7 @@ def ingest_one_genome(
     species_key: str | None = None,
     nseq_path: Path | None = None,
     gene_table_omitted_reason: str | None = None,
+    prefetched: PrefetchedReads | None = None,
 ) -> GenomeIngestReport:
     """Load one genome: its `genome` row, assembly, contigs and gene-span block — or raise before writing.
 
@@ -214,11 +308,14 @@ def ingest_one_genome(
     ⭐ ``gene_table_omitted_reason`` non-None is the caller NAMING this genome as one that holds no
     gene table, and why (module table, fourth row). It is honoured only where both files are absent;
     a named genome with a GFF or a `.nseq` is refused, because the name is then stale.
-    """
-    import pandas  # the `ingest` extra, deliberately not a serving dependency
 
+    ⭐ ``prefetched`` is this genome's files already read (`read_genome_inputs`, on a thread pool),
+    and then the caller has ALSO established from one directory scan that the `_meta` parquet exists
+    — so the per-genome `is_file()` is not asked again. A file that vanished in between fails its read
+    with an `OSError`, which the caller refuses by name. Absent, this reads for itself, as it always has.
+    """
     meta_path = artifacts.per_genome(sample_id, "meta")
-    if not meta_path.is_file():
+    if prefetched is None and not meta_path.is_file():
         raise GenomeIngestError(f"{sample_id}: no meta parquet at {meta_path}")
 
     # ⭐ The route, decided before a byte is read — so the `.nseq`-only route never asks the parquet
@@ -237,6 +334,7 @@ def ingest_one_genome(
         return _ingest_named_without_gene_table(
             session, meta_path, sample_id=sample_id, species_key=species_key,
             pathogen_species_ids=pathogen_species_ids, reason=gene_table_omitted_reason,
+            prefetched=prefetched,
         )
     if not has_gff and nseq_path is None:
         raise GenomeIngestError(
@@ -250,14 +348,8 @@ def ingest_one_genome(
             "carries no `species` column in its `_meta` parquets, so there is nothing to read one from."
         )
 
-    if has_gff:
-        # `protein_sequence` is one of `check_against_meta`'s four independent witnesses.
-        columns = ["flat_index", "contig_idx", "start", "end", "protein_sequence"]
-        if species_key is None:
-            columns.append("species")
-    else:
-        columns = ["flat_index", "contig_idx", "start", "end"]
-    meta = pandas.read_parquet(meta_path, columns=columns).sort_values("flat_index")
+    columns = _meta_columns(has_gff=has_gff, species_key=species_key)
+    meta = _read_meta(meta_path, columns, prefetched).sort_values("flat_index")
     if meta.empty:
         raise GenomeIngestError(f"{sample_id}: the meta parquet is empty")
 
@@ -288,7 +380,7 @@ def ingest_one_genome(
             # ⭐ The V1 oracle, at ingest: nuna's encoder and this one must agree byte for byte, or
             # the genome is refused. The block written is the FILE's — nuna's encoder is the only
             # encoder — and the two are identical by this check, so which is copied is not a choice.
-            found = _read_nseq_or_refuse(nseq_path, sample_id)
+            found = _read_nseq_or_refuse(nseq_path, sample_id, prefetched)
             _refuse_unless_nseq_matches_gff(sample_id, found, contig_names, contig_lengths, encoded)
             gene_spans, source = found.gene_table, "nseq+encoded_checked"
         else:
@@ -300,7 +392,7 @@ def ingest_one_genome(
             coding_gene_count=gene_count,
         )
     else:
-        found = _read_nseq_or_refuse(nseq_path, sample_id)
+        found = _read_nseq_or_refuse(nseq_path, sample_id, prefetched)
         _refuse_unless_nseq_matches_meta(sample_id, found, meta)
         gene_spans, source = found.gene_table, "nseq"
         contig_names, contig_lengths, gene_count = found.contig_names, found.contig_lengths, found.gene_count
@@ -319,7 +411,7 @@ def ingest_one_genome(
 
     _, report.contigs_written = replace_rows_for(
         session, GenomeContig.__table__, CONTIG_COLUMNS,
-        _contig_rows(genome_id, contig_names, contig_lengths),
+        _contig_rows(genome_id, contig_names, contig_lengths, sample_id=sample_id),
         where=GenomeContig.__table__.c.genome_id == genome_id,
     )
 
@@ -340,6 +432,7 @@ def _ingest_named_without_gene_table(
     species_key: str | None,
     pathogen_species_ids: dict[str, int],
     reason: str,
+    prefetched: PrefetchedReads | None = None,
 ) -> GenomeIngestReport:
     """The fourth route: a `genome` row, the gene count, the reason — and NO block.
 
@@ -353,7 +446,6 @@ def _ingest_named_without_gene_table(
     otherwise sit beside the mark, and the publish gate refuses a genome carrying both.
     """
     import numpy  # the `ingest` extra, function-local like every numpy import in this package
-    import pandas
 
     if species_key is None:
         raise GenomeIngestError(
@@ -364,7 +456,7 @@ def _ingest_named_without_gene_table(
         raise GenomeIngestError(
             f"{sample_id}: species {species_key!r} has no row. Run ingest_pathogen_species first."
         )
-    flat_index = pandas.read_parquet(meta_path, columns=["flat_index"])["flat_index"].to_numpy()
+    flat_index = _read_meta(meta_path, _NAMED_ROUTE_META_COLUMNS, prefetched)["flat_index"].to_numpy()
     gene_count = len(flat_index)
     if gene_count == 0:
         raise GenomeIngestError(f"{sample_id}: the meta parquet is empty")
@@ -391,14 +483,17 @@ def _ingest_named_without_gene_table(
     )
 
 
-def _read_nseq_or_refuse(path: Path, sample_id: str) -> NseqFile:
+def _read_nseq_or_refuse(path: Path, sample_id: str, prefetched: PrefetchedReads | None = None) -> NseqFile:
     """The `.nseq`'s header and gene table, with any failure named for the GENOME and not just the file.
 
     `expect_sample=sample_id` is what makes the header's own name do its job: a file published under
-    the wrong name decodes perfectly and would serve another genome's coordinates.
+    the wrong name decodes perfectly and would serve another genome's coordinates. A read done ahead
+    on a thread pool (``prefetched``) fails into the same handler as one done here.
     """
     try:
-        return read_nseq_gene_table(path, expect_sample=sample_id)
+        if prefetched is None:
+            return _load_nseq(path, sample_id)
+        return prefetched.take(("nseq", path, sample_id), _load_nseq, path, sample_id)
     except (GeneBlockError, OSError, KeyError, ValueError) as error:
         raise GenomeIngestError(f"{sample_id}: the .nseq at {path} could not be read — {error}") from error
 
@@ -544,6 +639,10 @@ def _upsert_genome(
         session.add(genome)
 
     genome.sample_id_kind = _sample_identifier_kind(sample_id)
+    # ⛔ Written on EVERY route, because the NCBI sequence station asks for nothing else: an assembly
+    # stem's bases are fetched by its bare accession, and a NULL there is refused at serving time as
+    # "an ingest fault". NULL for a BioSample id, which has one form.
+    genome.bare_accession = bare_accession_for(sample_id)
     genome.bakrep_dataset_id = bakrep_dataset_id
     genome.contig_count_with_coding_sequence = contig_count
     genome.total_base_count = total_base_count
@@ -572,17 +671,39 @@ def _upsert_genome(
     return genome.genome_id
 
 
-def _contig_rows(genome_id: int, seqids: Sequence[str], lengths: Sequence[int]):
+def bare_accession_for(sample_id: str) -> str | None:
+    """`GCF_000512165.1_ASM51216v1_genomic` → `GCF_000512165.1`; NULL for a BioSample id.
+
+    ⭐ nuna's `build_genome_set.bare_accession` and nothing else — the rule that anchors on the
+    ACCESSION, not on the `_ASM…` tail (`_INF156_genomic` and `_KSB2_2B_genomic` occur). That function
+    hands back anything it does not recognise unchanged; here an unrecognised assembly stem is NULL
+    instead, because a stem is not an accession and asking NCBI for one is a request that cannot be
+    answered — `verify_pangenome_is_servable` then names the genome rather than the page failing on it.
+    """
+    if _sample_identifier_kind(sample_id) is SampleIdentifierKind.BIOSAMPLE:
+        return None
+    from nuna.tl.stability.build_genome_set import bare_accession
+
+    accession = bare_accession(sample_id)
+    return None if accession == sample_id else accession
+
+
+def _contig_name(seqid: str, sample_id: str) -> str:
+    """The contig NAME, as distinct from the seqid — the BakRep prefix `{sample_id}.` removed, and only that.
+
+    BakRep writes `{BioSample}.contig00001`, and the part after the prefix is what a reader recognises.
+    ⛔ It used to be "everything after the first dot". That is the same string for every BakRep seqid
+    — measured: the seqid on every one of the 1,568,072 feature lines of the 280 probe GFFs begins
+    with its own `{BS}.` — and the VERSION for an NCBI accession: `NZ_CP003999.1` was stored, and
+    served, as contig `1`. A seqid without the prefix is its own name, which is the honest answer
+    rather than a fragment of it.
+    """
+    prefix = f"{sample_id}."
+    return seqid[len(prefix):] if seqid.startswith(prefix) else seqid
+
+
+def _contig_rows(genome_id: int, seqids: Sequence[str], lengths: Sequence[int], *, sample_id: str):
     """⛔ Only contigs carrying a kept CDS — that is what `contig_index` enumerates, on both routes."""
     for contig_index, (seqid, length) in enumerate(zip(seqids, lengths, strict=True)):
-        yield (
-            genome_id,
-            seqid,
-            contig_index,
-            # The contig NAME, as distinct from the seqid: BakRep writes `{BioSample}.contig00001`,
-            # and the part after the dot is what a reader recognises. Where there is no dot the two
-            # are the same string, which is the honest answer rather than an empty column.
-            seqid.split(".", 1)[1] if "." in seqid else seqid,
-            length,
-        )
+        yield (genome_id, seqid, contig_index, _contig_name(seqid, sample_id), length)
 

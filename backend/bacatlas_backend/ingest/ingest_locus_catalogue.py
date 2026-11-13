@@ -29,9 +29,14 @@ from bacatlas_backend.gene_blocks import (
     UNASSIGNED_LOCUS_ORDINAL,
     GeneBlockError,
     encode_int32_vector,
-    read_loci,
 )
-from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+from bacatlas_backend.gene_blocks.nseq_gene_table import loci_from_bytes
+from bacatlas_backend.ingest.artifact_locator import (
+    DEFAULT_READ_WORKERS,
+    CatalogueArtifacts,
+    listed_files,
+    read_ahead_in_order,
+)
 from bacatlas_backend.ingest.catalogue_frames import (
     OFFSETS,
     SIMILARITY_COLUMNS,
@@ -626,6 +631,7 @@ def ingest_locus_catalogue(
     frames: CatalogueFrames | None = None,
     allow_missing_strand: bool = False,
     genomes_without_gene_table: frozenset[str] | None = None,
+    read_workers: int = DEFAULT_READ_WORKERS,
 ) -> CatalogueLoadReport:
     """Load the whole pangenome layer for one catalogue. One transaction, one blast radius.
 
@@ -687,10 +693,9 @@ def ingest_locus_catalogue(
 
     report.annotation_entries = _load_annotation_entries(session, frames, locus_id_by_label)
     report.uniref_crosstab_rows = _load_uniref_crosstab(session, frames, locus_id_by_label)
-    arrangement_ids = _load_arrangements(
+    report.arrangements = _load_arrangements(
         session, frames, pangenome_id, locus_id_by_label, genome_id_by_ordinal
     )
-    report.arrangements = len(arrangement_ids)
     report.offset_occupants = _load_offset_occupants(
         session, frames, pangenome_id, locus_id_by_label, locus_id_by_ordinal
     )
@@ -705,6 +710,7 @@ def ingest_locus_catalogue(
         genome_id_by_sample,
         loci_root=Path(loci_root).expanduser() if loci_root is not None else None,
         gene_counts=gene_counts,
+        read_workers=read_workers,
     )
     report.gene_memberships = written.memberships
     report.genes_without_a_window = written.without_window
@@ -917,19 +923,23 @@ def _load_uniref_crosstab(session, frames, locus_id_by_label) -> int:
 
 def _load_arrangements(
     session, frames, pangenome_id, locus_id_by_label, genome_id_by_ordinal
-) -> dict:
-    """The joint view. Returns `{(node, rank): locus_arrangement_id}`, now only for its count.
+) -> int:
+    """The joint view. Returns how many arrangements were written.
 
-    ⚠ The mapping's per-gene consumer is gone — `gene_locus_membership.locus_arrangement_id` was
-    dropped 2026-10-26 — so the only caller uses `len()` of this to report how many arrangements
-    were written.
+    ⚠ It used to read every row back as `{(node, rank): locus_arrangement_id}` for a caller that took
+    only `len()` of it — the per-gene consumer of the ids went with `gene_locus_membership` on
+    2026-10-26. At 71,435 genomes that was tens of millions of rows fetched into a dict (~372 B and
+    1.4 µs each, measured) held through every later phase, to learn a number `copy_rows` already
+    returns. ⚠ The two are the same number: `(locus_id, rank_within_locus)` and
+    `(pangenome_id, node_label)` are both unique and the pangenome's layer is deleted first, so the
+    read-back held exactly the rows this COPY wrote.
 
     ⛔ `member_genome_ids` is resolved from the collection ORDINAL to `genome_id` here, so nothing
     downstream ever holds a positional index that a re-export would renumber.
     """
     arrangements = frames.arrangements
     if arrangements is None or not len(arrangements):
-        return {}
+        return 0
     slot_columns = [f"s{index}" for index in range(len(OFFSETS))]
     columns = (
         "locus_id",
@@ -955,20 +965,9 @@ def _load_arrangements(
                 [int(genome_id_by_ordinal[int(value)]) for value in row.gset],
             )
 
-    copy_rows(session, LocusArrangement.__table__, columns, rows())
+    written = copy_rows(session, LocusArrangement.__table__, columns, rows())
     session.flush()
-    return {
-        (label, rank): arrangement_id
-        for label, rank, arrangement_id in session.execute(
-            select(
-                Locus.node_label,
-                LocusArrangement.rank_within_locus,
-                LocusArrangement.locus_arrangement_id,
-            )
-            .join(Locus, Locus.locus_id == LocusArrangement.locus_id)
-            .where(LocusArrangement.pangenome_id == pangenome_id)
-        ).all()
-    }
+    return written
 
 
 def _load_offset_occupants(
@@ -1046,6 +1045,7 @@ def _load_gene_memberships(
     *,
     loci_root: Path | None = None,
     gene_counts: GeneCounts | None = None,
+    read_workers: int = DEFAULT_READ_WORKERS,
 ) -> GeneMembershipsWritten:
     """The per-genome assignment blocks (`genome_locus_assignment`), from the memberships frame.
 
@@ -1071,6 +1071,9 @@ def _load_gene_memberships(
     ordinals are compared byte-for-byte against nuna's file and the first mismatch refuses the
     catalogue naming the sample and the index. The counts of checked and absent genomes travel in
     the return value: a report that said only "checked" could mean 0 of 71,435.
+    ⚠ Which `.loci` exist is ONE scan of `loci_root` (`listed_files`), never a cold `is_file()` per
+    genome; the files are read by ``read_workers`` threads ahead of this generator and compared here,
+    in collection order, byte for byte as before. A read that fails raises when its genome is reached.
 
     ⚠ **Vectorised, because the frame is 374 M rows at 71,435 genomes.** Node and sample are
     factorised once (C-speed hashing), the rows are sorted by genome once (an integer argsort), and
@@ -1111,8 +1114,25 @@ def _load_gene_memberships(
         sample_of_code[code]: (int(starts[code]), int(ends[code])) for code in range(len(sample_of_code))
     }
 
+    loci_present = frozenset() if loci_root is None else listed_files(loci_root, ".loci")
+
+    def read_oracle(pair):
+        """The `.loci`'s bytes (or the error reading them raised); `None` where there is no file."""
+        sample = pair[0]
+        if sample not in loci_present:
+            return None
+        try:
+            return True, (loci_root / f"{sample}.loci").read_bytes()
+        except Exception as error:  # noqa: BLE001 — re-raised where the comparison reads it
+            return False, error
+
     def assignment_rows():
-        for sample, genome_id in zip(frames.samples, genome_ids_in_collection, strict=True):
+        in_order = read_ahead_in_order(
+            zip(frames.samples, genome_ids_in_collection, strict=True),
+            read_oracle,
+            read_workers if loci_root is not None else 0,
+        )
+        for (sample, genome_id), oracle_read in in_order:
             gene_count = gene_count_by_genome[genome_id]
             start, end = slice_of_sample.get(sample, (0, 0))
             rows = order[start:end]
@@ -1124,9 +1144,10 @@ def _load_gene_memberships(
                 ranks[rows],
             )
             if loci_root is not None:
-                oracle = loci_root / f"{sample}.loci"
-                if oracle.is_file():
-                    _refuse_unless_loci_agree(oracle, sample, gene_count, block["ordinals"])
+                if oracle_read is not None:
+                    _refuse_unless_loci_agree(
+                        loci_root / f"{sample}.loci", sample, gene_count, block["ordinals"], read=oracle_read
+                    )
                     written.loci_checked += 1
                 else:
                     written.loci_absent += 1
@@ -1272,17 +1293,24 @@ def _assignment_block(sample: str, gene_count: int, flat_indexes, ordinals, rank
     }
 
 
-def _refuse_unless_loci_agree(path: Path, sample: str, gene_count: int, ordinals) -> None:
+def _refuse_unless_loci_agree(path: Path, sample: str, gene_count: int, ordinals, *, read=None) -> None:
     """Compare the block against nuna's `.loci` for this genome and name the first difference.
 
-    ⛔ Byte-for-byte via `read_loci`, which already refuses a file whose length is not
-    `gene_count * 4` — that refusal is re-raised naming the sample, because the file's own name
-    says nothing about which `genome_genes` row it was measured against.
+    ⛔ Byte-for-byte via `read_loci`'s own decode (`loci_from_bytes`), which already refuses a file
+    whose length is not `gene_count * 4` — that refusal is re-raised naming the sample, because the
+    file's own name says nothing about which `genome_genes` row it was measured against. ``read`` is
+    `(True, bytes)` or `(False, error)` from a read done ahead; absent, the file is read here.
     """
     import numpy as np
 
     try:
-        published = read_loci(path, gene_count=gene_count)
+        if read is None:
+            raw = path.read_bytes()
+        else:
+            succeeded, raw = read
+            if not succeeded:
+                raise raw
+        published = loci_from_bytes(raw, path, gene_count=gene_count)
     except GeneBlockError as error:
         raise CatalogueFrameError(
             f"{sample}: the published {path.name} does not hold {gene_count:,} genes "

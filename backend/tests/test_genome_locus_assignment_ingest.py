@@ -589,3 +589,184 @@ def test_the_list_is_THREADED_from_the_command_line_to_the_catalogue_load(monkey
     ])
     assert code == 0
     assert seen["genomes_without_gene_table"] == frozenset({SAMPLE_C})
+
+
+# ── the .loci oracle, read ahead on a pool — against the serial oracle it replaced ─────────────
+def _old_refuse_unless_loci_agree(path, sample, gene_count, ordinals):
+    """⛔ ORACLE — `_refuse_unless_loci_agree` at bacatlas 73e59b0, verbatim but for the docstring."""
+    from bacatlas_backend.gene_blocks import GeneBlockError, read_loci
+
+    try:
+        published = read_loci(path, gene_count=gene_count)
+    except GeneBlockError as error:
+        raise CatalogueFrameError(
+            f"{sample}: the published {path.name} does not hold {gene_count:,} genes "
+            f"(`genome_genes.gene_count`): {error}"
+        ) from error
+    expected = np.frombuffer(published, dtype=np.int32)
+    differing = np.flatnonzero(expected != ordinals)
+    if len(differing):
+        first = int(differing[0])
+        raise CatalogueFrameError(
+            f"{sample}: gene_locus_ordinals disagrees with the published {path.name} at "
+            f"{len(differing):,} of {gene_count:,} genes, first at flat_index {first} "
+            f"(ours {int(ordinals[first])}, the file's {int(expected[first])}). The block and the "
+            "file are two encodings of one assignment, so this catalogue was not built from the "
+            "frame the file was."
+        )
+
+
+def _old_assignment_rows(session, frames, pangenome_id, genome_id_by_sample, *, loci_root):
+    """⛔ ORACLE — `_load_gene_memberships`' block loop at 73e59b0: a serial `is_file()` and a read per genome.
+
+    Returns `(rows, (checked, absent))` instead of COPYing, so the two can be compared row for row.
+    """
+    from bacatlas_backend.ingest.ingest_locus_catalogue import (
+        _arrangement_ranks_of,
+        _assignment_block,
+        _catalogue_ordinals_of,
+        _genome_ids_of_samples,
+    )
+
+    memberships = frames.gene_memberships
+    genome_ids_in_collection = [genome_id_by_sample[sample] for sample in frames.samples]
+    gene_count_by_genome = _gene_counts_by_genome(session, genome_ids_in_collection, frames.samples).by_genome
+    ordinals = _catalogue_ordinals_of(memberships["node"], frames.loci)
+    resolved = _genome_ids_of_samples(memberships["sample_id"], genome_id_by_sample)
+    sample_codes, sample_of_code = resolved["codes"], resolved["samples"]
+    flat_indexes = np.asarray(memberships["flat_index"].to_numpy(), dtype=np.int64)
+    ranks, _ = _arrangement_ranks_of(memberships["arrangement_rank"])
+    order = np.argsort(sample_codes, kind="stable")
+    sorted_codes = sample_codes[order]
+    starts = np.searchsorted(sorted_codes, np.arange(len(sample_of_code)), side="left")
+    ends = np.searchsorted(sorted_codes, np.arange(len(sample_of_code)), side="right")
+    slice_of_sample = {
+        sample_of_code[code]: (int(starts[code]), int(ends[code])) for code in range(len(sample_of_code))
+    }
+    rows, checked, absent = [], 0, 0
+    for sample, genome_id in zip(frames.samples, genome_ids_in_collection, strict=True):
+        gene_count = gene_count_by_genome[genome_id]
+        start, end = slice_of_sample.get(sample, (0, 0))
+        picked = order[start:end]
+        block = _assignment_block(sample, gene_count, flat_indexes[picked], ordinals[picked], ranks[picked])
+        oracle = loci_root / f"{sample}.loci"
+        if oracle.is_file():
+            _old_refuse_unless_loci_agree(oracle, sample, gene_count, block["ordinals"])
+            checked += 1
+        else:
+            absent += 1
+        rows.append((
+            pangenome_id, genome_id, gene_count, block["placed_gene_count"], block["distinct_locus_count"],
+            encode_int32_vector(block["ordinals"], name=f"{sample} gene_locus_ordinals"),
+            encode_int32_vector(block["ranks"], name=f"{sample} gene_arrangement_ranks"),
+        ))
+    return rows, (checked, absent)
+
+
+def _outcome(call):
+    """`("ok", value)` or `("raised", type, message)` — so a refusal is compared as exactly as a row."""
+    try:
+        return ("ok", call())
+    except Exception as error:  # noqa: BLE001
+        return ("raised", type(error).__name__, str(error))
+
+
+def _shape_loci_tree(root, case: str) -> None:
+    """Every way a `.loci` can be present, absent, or wrong — each answered by `is_file()` + a read before."""
+    _write_loci(root, SAMPLE_A, EXPECTED[SAMPLE_A][0])
+    _write_loci(root, SAMPLE_B, EXPECTED[SAMPLE_B][0])
+    if case == "c_is_a_directory":
+        (root / f"{SAMPLE_C}.loci").mkdir()
+    elif case == "c_is_a_dangling_link":
+        (root / f"{SAMPLE_C}.loci").symlink_to(root / "nowhere.loci")
+    elif case == "c_is_a_live_link":
+        target = root / "elsewhere"
+        target.mkdir()
+        _write_loci(target, SAMPLE_C, EXPECTED[SAMPLE_C][0])
+        (root / f"{SAMPLE_C}.loci").symlink_to(target / f"{SAMPLE_C}.loci")
+    elif case == "b_disagrees":
+        _write_loci(root, SAMPLE_B, [0, 0, 0, 0])
+    elif case == "a_too_short":
+        _write_loci(root, SAMPLE_A, EXPECTED[SAMPLE_A][0][:-1])
+    elif case == "b_unreadable":
+        (root / f"{SAMPLE_B}.loci").chmod(0)
+    elif case == "no_directory":
+        for path in root.iterdir():
+            path.unlink()
+        root.rmdir()
+
+
+@pytest.mark.parametrize(
+    "case",
+    ["all_agree", "c_is_a_directory", "c_is_a_dangling_link", "c_is_a_live_link", "b_disagrees", "a_too_short",
+     "b_unreadable", "no_directory"],
+)
+@pytest.mark.parametrize("workers", [0, 1, 3])
+def test_the_loci_oracle_read_ahead_is_the_serial_oracle_row_for_row(session, cohort, tmp_path, monkeypatch,
+                                                                      case, workers):
+    """⭐ Same rows in the same order, same checked/absent counts, and the same refusal with the same words."""
+    import os
+
+    from bacatlas_backend.ingest import ingest_locus_catalogue
+
+    if case == "b_unreadable" and os.geteuid() == 0:
+        pytest.skip("root reads a mode-000 file")
+    root = tmp_path / "loci"
+    root.mkdir()
+    _shape_loci_tree(root, case)
+    frames = _frames()
+    args = (session, frames, cohort["pangenome"].pangenome_id, cohort["genome_id_by_sample"])
+    expected = _outcome(lambda: _old_assignment_rows(*args, loci_root=root))
+
+    collected: list = []
+    monkeypatch.setattr(
+        ingest_locus_catalogue, "copy_rows", lambda _s, _t, _c, rows: len([collected.append(r) for r in rows])
+    )
+
+    def new():
+        written = _load_gene_memberships(*args, loci_root=root, read_workers=workers)
+        return collected, (written.loci_checked, written.loci_absent)
+
+    try:
+        actual = _outcome(new)
+    finally:
+        if case == "b_unreadable":
+            (root / f"{SAMPLE_B}.loci").chmod(0o644)
+    # ⛔ Coverage first: an outcome of each kind, and three rows of seven columns where it loaded.
+    assert expected[0] in ("ok", "raised")
+    if expected[0] == "ok":
+        assert len(expected[1][0]) == 3 and all(len(row) == 7 for row in expected[1][0])
+        assert sum(expected[1][1]) == 3
+    assert actual == expected
+    if case in ("b_disagrees", "a_too_short", "b_unreadable"):
+        assert expected[0] == "raised", "the edge case must actually refuse, or it tests nothing"
+
+
+def test_the_arrangement_count_is_the_rows_the_old_read_back_found(session, cohort):
+    """⛔ `_load_arrangements` returned a `{(node, rank): id}` dict read back for `len()`; it now returns the
+    COPY's count. The oracle is that read-back, run here against the rows the call just wrote."""
+    from bacatlas_backend.ingest.ingest_locus_catalogue import _load_arrangements
+    from bacatlas_backend.models.locus_arrangement import LocusArrangement
+
+    genome_ids = [cohort["genome_id_by_sample"][sample] for sample in (SAMPLE_A, SAMPLE_B, SAMPLE_C)]
+    arrangements = pd.DataFrame({
+        "node": ["n0", "n0", "n1"], "rank": [0, 1, 0], "genes": [2, 1, 2], "genomes": [1, 1, 2],
+        "flip": [False, True, False], **{f"s{i}": [i, 0, 1] for i in range(10)},
+        "gset": [[0], [0], [0, 1]],
+    })
+    pangenome_id = cohort["pangenome"].pangenome_id
+    count = _load_arrangements(
+        session, SimpleNamespace(arrangements=arrangements), pangenome_id, cohort["locus_id_by_label"], genome_ids
+    )
+    read_back = {
+        (label, rank): arrangement_id
+        for label, rank, arrangement_id in session.execute(
+            select(Locus.node_label, LocusArrangement.rank_within_locus, LocusArrangement.locus_arrangement_id)
+            .join(Locus, Locus.locus_id == LocusArrangement.locus_id)
+            .where(LocusArrangement.pangenome_id == pangenome_id)
+        ).all()
+    }
+    assert count == len(read_back) == 3
+    assert _load_arrangements(
+        session, SimpleNamespace(arrangements=arrangements.iloc[:0]), pangenome_id, {}, genome_ids
+    ) == 0

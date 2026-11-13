@@ -380,22 +380,30 @@ def test_one_unreadable_parquet_refuses_THAT_genome_and_the_run_continues(tmp_pa
     the opposite of what a per-genome unit of work is for. The run must end with a report."""
     from bacatlas_backend.ingest.ingest_command_line import load_genome_layer
 
-    _universe(tmp_path / "u.parquet", ["SAMN_corrupt", "SAMN_missing"])
+    # ⚠ `SAMN_unlocated` has a `_meta` and no coordinates: a genome with NO `_meta` now refuses the whole
+    # run up front, by name (`GenomeMetaMissing`, `test_genome_stage_read_ahead.py`). `SAMN_corrupt` is
+    # given a `.nseq` so its route actually READS the parquet — without one it was refused for having
+    # no coordinates, and "parquet" matched only this test's own tmp_path.
+    _universe(tmp_path / "u.parquet", ["SAMN_corrupt", "SAMN_unlocated"])
     directory = tmp_path / "proc" / "embeddings" / "meta"
     directory.mkdir(parents=True)
     (directory / "SAMN_corrupt_meta.parquet").write_bytes(b"not a parquet")
+    _meta(tmp_path, "SAMN_unlocated")
+    (tmp_path / "seq").mkdir()
+    (tmp_path / "seq" / "SAMN_corrupt.nseq").write_bytes(b"")
 
     report = load_genome_layer(
         session,
-        _artifacts(tmp_path, gene_universe_path=tmp_path / "u.parquet"),
+        _artifacts(tmp_path, gene_universe_path=tmp_path / "u.parquet", nseq_root=tmp_path / "seq"),
         species_key="kp",
         progress_every=0,
     )
 
     assert (report.genomes_loaded, report.genomes_refused) == (0, 2)
     refused = dict(report.refusals)
-    assert set(refused) == {"SAMN_corrupt", "SAMN_missing"}, "every refusal is named, not counted"
-    assert "parquet" in refused["SAMN_corrupt"].lower()
+    assert set(refused) == {"SAMN_corrupt", "SAMN_unlocated"}, "every refusal is named, not counted"
+    assert "parquet magic bytes not found" in refused["SAMN_corrupt"].lower()
+    assert "in the roster but under no dataset directory" in refused["SAMN_unlocated"]
     assert report.genome_ids == []
 
 
