@@ -55,6 +55,10 @@ NSEQ_GATE_REFUSED_REASON = (
     "the .nseq acceptance gate refused it: its stored proteins do not reproduce from the assembly"
 )
 
+#: What `--stage genomes` reads of a catalogue's artifacts: the gene universe, for its roster. The
+#: per-genome files (`_meta`, the GFF, the `.nseq`) are located and refused per genome, by name.
+GENOME_STAGE_ARTIFACTS = frozenset({"gene_universe"})
+
 
 class GeneTableListRefused(ValueError):
     """`--genomes-without-gene-table` names something the data root contradicts — the list is wrong."""
@@ -678,8 +682,18 @@ def main(argv: list[str] | None = None) -> int:
         gene_universe_path=args.gene_universe, assignment_path=args.assignment,
         nseq_root=args.nseq_dir,
     )
-    optional = artifacts.verify()
-    print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")
+    if args.stage == "genomes":
+        # ⭐ The genome layer is model-independent: of the catalogue's artifacts it reads the gene
+        # universe (its roster) and nothing else, so nothing else is demanded of it. It can therefore
+        # be loaded while a catalogue's artifacts are still being produced.
+        artifacts.verify(roles=GENOME_STAGE_ARTIFACTS)
+        print(
+            f"artifacts: the genome stage reads {sorted(GENOME_STAGE_ARTIFACTS)} of the "
+            f"{len(artifacts.required())} required — present; the rest are not asked for here"
+        )
+    else:
+        optional = artifacts.verify()
+        print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")
 
     try:
         without_gene_table = (

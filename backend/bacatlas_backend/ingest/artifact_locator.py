@@ -425,9 +425,22 @@ class CatalogueArtifacts:
             ("published_payload", self.published_payload, "the acceptance oracle — never an input"),
         ]
 
-    def verify(self) -> dict[str, bool]:
-        """Raise naming EVERY absent required artifact; return which optional ones are present."""
-        missing = [item for item in self.required() if not item[1].exists()]
+    def verify(self, *, roles: frozenset[str] | None = None) -> dict[str, bool]:
+        """Raise naming EVERY absent required artifact; return which optional ones are present.
+
+        ``roles`` narrows the requirement to the artifacts one stage actually reads. ⚠ It is named by
+        the caller, never inferred: the genome layer is model-independent and reads only the gene
+        universe, so demanding the catalogue's artifacts of it made a 71,435-genome load wait a day
+        for a producer it does not depend on. A role that `required()` does not list is refused —
+        a typo here would otherwise verify nothing and say everything was present.
+        """
+        required = self.required()
+        if roles is not None:
+            unknown = roles - {role for role, _, _ in required}
+            if unknown:
+                raise ValueError(f"not required artifacts: {sorted(unknown)}")
+            required = [item for item in required if item[0] in roles]
+        missing = [item for item in required if not item[1].exists()]
         if missing:
             raise MissingArtifacts(missing)
         return {role: path.exists() for role, path, _ in self.optional()}

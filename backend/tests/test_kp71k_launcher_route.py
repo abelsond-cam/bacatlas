@@ -18,7 +18,7 @@ import pytest
 from sqlalchemy import delete
 
 from bacatlas_backend.ingest import ingest_command_line
-from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
+from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts, MissingArtifacts
 from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_species
 from bacatlas_backend.ingest.publish_pangenome import verify_pangenome_is_servable
 from bacatlas_backend.models.enumerations import SampleIdentifierKind
@@ -38,8 +38,12 @@ class ReachedTheRun(Exception):
     """Raised in place of `ingest_pangenome_run`: the roster resolved, and this is how far the test drives."""
 
 
-def _launcher_tree(tmp_path):
-    """A mirror `main()` accepts with the launcher's overrides: universe, assignment, .nseq dir, the list."""
+def _launcher_tree(tmp_path, *, catalogue_artifacts: bool = True):
+    """A mirror `main()` accepts with the launcher's overrides: universe, assignment, .nseq dir, the list.
+
+    ``catalogue_artifacts=False`` leaves every required artifact but the gene universe ABSENT — the
+    state of the data root while the catalogue's producer is still running.
+    """
     universe = tmp_path / "kleb_close_seq_kp71k_id0.98.parquet"
     pandas.DataFrame({"sample_id": [s for s in SAMPLES for _ in range(3)]}).to_parquet(universe)
     assignment = tmp_path / "comparison" / "nuna" / "hypergeo" / "kp71k_s0" / "step4" / "assignments"
@@ -53,7 +57,7 @@ def _launcher_tree(tmp_path):
         data_root=mirror, set_key=SET, model_label=LABEL, run_id=RUN_ID, species_key=SPECIES,
         gene_universe_path=universe, assignment_path=assignment, nseq_root=nseq_dir,
     )
-    for _role, path, _what in located.required():
+    for _role, path, _what in located.required() if catalogue_artifacts else []:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch(exist_ok=True)
     return [  # ⛔ the launcher's COMMON, flag for flag, in its order
@@ -97,6 +101,41 @@ def test_the_pangenome_stage_with_the_launchers_flags_resolves_cohort_71k_and_ke
     assert seen["catalogue_key"] == "kp-71k"
     assert seen["genome_count"] == len(SAMPLES)
     assert seen["gene_count"] == 3 * len(SAMPLES)
+
+
+def test_the_genome_stage_asks_only_for_the_gene_universe_and_the_pangenome_stage_for_everything(
+    tmp_path, monkeypatch, capsys
+):
+    """The genome layer is model-independent, so it must load while the catalogue's artifacts do not exist yet."""
+    common = _launcher_tree(tmp_path, catalogue_artifacts=False)
+
+    class ReachedTheLoad(Exception):
+        pass
+
+    def load_recorder(session, artifacts, **kwargs):
+        raise ReachedTheLoad
+
+    monkeypatch.setattr(ingest_command_line, "load_genome_layer", load_recorder)
+    monkeypatch.setenv("BACATLAS_DATABASE_URL", PROBE_URL)
+    with pytest.raises(ReachedTheLoad):
+        ingest_command_line.main(["--stage", "genomes", *common])
+    assert "the genome stage reads ['gene_universe'] of the 13 required" in capsys.readouterr().out
+
+    with pytest.raises(MissingArtifacts) as missing:
+        ingest_command_line.main(["--stage", "pangenome", "--publish", *common])
+    for role in ("assignment", "run_manifest", "homology_waterfall", "audit_summary"):
+        assert role in str(missing.value)
+
+    # …and the one artifact the genome stage does read is still demanded of it, by name
+    (tmp_path / "kleb_close_seq_kp71k_id0.98.parquet").unlink()
+    with pytest.raises(MissingArtifacts, match="gene_universe"):
+        ingest_command_line.main(["--stage", "genomes", *common])
+
+
+def test_verify_refuses_a_role_that_is_not_a_required_artifact(tmp_path):
+    located = CatalogueArtifacts(data_root=tmp_path, set_key=SET, model_label=LABEL, run_id=RUN_ID, species_key=SPECIES)
+    with pytest.raises(ValueError, match="gene_univers"):
+        located.verify(roles=frozenset({"gene_univers"}))
 
 
 # ── the NCBI station's one input, gated ───────────────────────────────────────────────────────
