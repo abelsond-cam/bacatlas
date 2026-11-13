@@ -1,8 +1,9 @@
 """One catalogue, computed from its source artifacts — the pandas half, with no database in it.
 
 ⛔ **This calls nuna's own functions and reimplements none of them.** `node_order`, `top_counts`,
-`family_pfam`, `family_modal_symbols`, `family_modal_products`, `oriented_windows`, `arrangements`,
-`neighbour_counts`, `near_synteny_agreement`, `gap_table` and even the two rounding helpers
+`family_pfam`, `family_modal_symbols`, `family_modal_products`, the window path's `WindowReduction`
+(which reduces by genome chunk exactly what `oriented_windows`, `arrangements`, `neighbour_counts` and
+`near_synteny_agreement` compute on the whole cohort), `gap_table` and even the two rounding helpers
 (`_floats`) are the science; a second implementation of any of them would be a second
 thing to keep in step, and the two would agree until the day they did not. What this module does is
 **assemble** their outputs into rows rather than into the payload's columnar, string-interned,
@@ -525,7 +526,6 @@ def build_catalogue_frames(
     *,
     annotation_fold: GeneOntologyFold | None = None,
     allow_missing_strand: bool = False,
-    categorical_windows: bool = False,
 ) -> CatalogueFrames:
     """Assemble every table of one catalogue. The only entry point; everything else is a helper.
 
@@ -545,7 +545,6 @@ def build_catalogue_frames(
     import numpy
     import pandas
     from nuna.eval.metrics.oversubscription import node_membership_profile
-    from nuna.eval.metrics.syntology import NEAR_SHELLS, near_synteny_agreement
     from nuna.eval.prevalence import categorise
     from nuna.tl.locus_browser.export_payload import (
         MAJOR_SHARE,
@@ -554,7 +553,6 @@ def build_catalogue_frames(
         TOP_FAMILIES,
         TOP_GO,
         TOP_KEGG,
-        TOP_NEIGHBOURS,
         TOP_PFAM,
         TOP_PRODUCTS,
         TOP_SYMBOLS,
@@ -562,16 +560,11 @@ def build_catalogue_frames(
         family_modal_products,
         family_modal_symbols,
         family_pfam,
-        neighbour_counts,
         node_order,
-        oriented_windows,
         top_counts,
     )
     from nuna.tl.locus_browser.export_payload import (
         OFFSETS as NUNA_OFFSETS,
-    )
-    from nuna.tl.locus_browser.export_payload import (
-        arrangements as build_arrangements,
     )
     from nuna.tl.locus_browser.functional import NS_CODE, cog_summary, go_verdicts, top_go_slim
     from nuna.tl.locus_browser.intergenic import gap_table
@@ -603,6 +596,7 @@ def build_catalogue_frames(
     annotation = _annotation_frame(
         assign, source["products"], source["dbxrefs"], source["pfam"], numpy
     )
+    _release_merged_sources(source, pandas)
 
     # ── per-locus reductions ───────────────────────────────────────────────────────────────────
     named_counts = annotation.assign(_named=annotation["gene"].notna()).groupby("node")["_named"].sum()
@@ -669,38 +663,18 @@ def build_catalogue_frames(
     gaps = gap_table(assign_coords, source["noncoding"]) if len(assign_coords) else None
     if gaps is not None and len(gaps):
         gaps = gaps[gaps["a"].isin(node_position) & gaps["b"].isin(node_position)]
-    # ⭐ `categorical_windows` is nuna's memory knob, reachable from here because THIS is the call that
-    # has to survive 71,435 genomes. MEASURED by nuna on its 100-genome *E. coli* probe (489,146 genes →
-    # 4,625,590 window rows): **132.8 → 16.4 B/row, 614.4 → 75.7 MB, 8.12×**, `assert_frame_equal` exact.
-    # ⚠ **Default OFF, and deliberately.** It costs ~1.5× the build time, it buys nothing at the 280-genome
-    # probe scale this ingest runs at today, and the B/row figure does not transfer — a category code is as
-    # wide as the cardinality needs, so `sample_id` fits `int8` at 100 genomes and needs `int32` at 71,435.
-    # The switch exists so the frame can be measured BOTH WAYS at this call site before the 71k ingest
-    # chooses, rather than being flipped on an extrapolation.
-    # ⛔ Three hazards were probed on pandas 2.3.3 before this was wired, because each fails SILENTLY rather
-    # than raising: `_gene_memberships` merges the possibly-categorical `flat_index` against a plain `int64`
-    # (matches by value — a mismatch would NULL every `arrangement_rank`); `near_synteny_agreement` returns a
-    # CategoricalIndex that `combine_first` must align against the audit's object index (it coerces and
-    # aligns by value, even with unused categories left in the dtype); and the `MultiIndex.factorize` below
-    # returns observed gene keys, not the category product. The first is gated in this repo's tests, the
-    # third in nuna's.
-    windows = oriented_windows(
-        assign_coords, node_position, radius=NEAR_SHELLS, categorical=categorical_windows
+    # ⛔ Dead from here: `coords` lives on inside `assign_coords`, `noncoding` only fed `gap_table`, the
+    # length groupby holds a (node, nt) copy of every gene, and `labelled` — a filtered COPY of the whole
+    # annotation frame (218 B/gene deep on the kp probe, ~82 GB at 374 M genes) — fed two counts at the top.
+    # Released before the window phase rather than at return.
+    source["coords"] = source["noncoding"] = None
+    del gene_lengths, by_node, labelled
+    # ── the ±5 neighbourhood: reduced one chunk of whole genomes at a time ─────────────────────
+    occupants, arrangement_frame, synteny, gene_memberships = _window_frames(
+        assign, assign_coords, node_position, sample_position
     )
-    occupants = neighbour_counts(windows, top=TOP_NEIGHBOURS)
-    slot_of = {offset: index for index, offset in enumerate(OFFSETS)}
-    # ⛔ `top=None` keeps EVERY arrangement — the page's own default. At 4, a quarter of loci were
-    # truncated and the genome a reader anchors to often had no row at all.
-    arrangement_frame = build_arrangements(
-        windows, slot_of, top=None, sample_pos=sample_position
-    )
-    # A5 groups on locus identity alone (the audit's definition), so the strand bit must not split
-    # its groups — hence the rename rather than the packed `neigh_pos`.
-    synteny = near_synteny_agreement(
-        windows.rename(columns={"neigh_pos": "neigh_id"}), radius=NEAR_SHELLS
-    ).set_index("node")["syntenic_A5"]
-    gene_memberships = _gene_memberships(assign, windows, arrangement_frame, slot_of)
-    del windows
+    genes_with_coordinates = int(len(assign_coords))
+    del assign_coords
 
     # ── the audit's own columns ────────────────────────────────────────────────────────────────
     evidence = audit["evidence"]
@@ -856,7 +830,7 @@ def build_catalogue_frames(
             "loci": n_loci,
             "genomes": n_genomes,
             "genes_assigned": int(len(assign)),
-            "genes_with_coordinates": int(len(assign_coords)),
+            "genes_with_coordinates": genes_with_coordinates,
             "arrangements": int(len(arrangement_frame)),
             "offset_occupant_rows": int(len(occupants)),
             "gaps": int(len(gaps)) if gaps is not None else 0,
@@ -983,8 +957,133 @@ def _uniref_crosstab(top_families, node_position):
     return top_families[top_families["node"].isin(node_position)].reset_index(drop=True)
 
 
-def _gene_memberships(assign, windows, arrangement_frame, slot_of):
+def _release_merged_sources(source: dict, pandas) -> None:
+    """Drop the three source frames `_annotation_frame` has just copied everything it needs out of.
+
+    ⛔ **Measured, not tidied.** `source` used to hold `products`, `dbxrefs` and `pfam` to the end of
+    `build_catalogue_frames`; at 71,435 genomes `products` + `dbxrefs` alone are ~77 GB of arrow buffers
+    (preflight lens "frames", 87 + 119 B/gene × 374 M), carried through every later phase for no reader.
+    ⚠ `dbxrefs` is replaced by an EMPTY frame of its own columns, never by `None`: `annotation_measured`
+    below asks only *was the dbxref store present*, and `None` is how the loader says it was NOT — so
+    `None` here would silently withdraw every propagation verdict. A fresh empty frame shares no buffer
+    with the old one, which is what lets the old one go (an `iloc[:0]` slice would keep it alive).
+    """
+    for name in ("products", "pfam"):
+        source[name] = None
+    if source["dbxrefs"] is not None:
+        source["dbxrefs"] = pandas.DataFrame(columns=list(source["dbxrefs"].columns))
+
+
+#: ⭐ Genes per window chunk. A chunk is a run of WHOLE genomes — a genome is never split, because a
+#: window never crosses a (sample_id, contig) boundary and a split genome would cut its contigs — closed
+#: before it passes this many genes (a genome bigger than the bound is a chunk of its own). The window
+#: phase's transient is set by this number, not by the cohort: see `_window_frames`.
+#: ⚠ Overridable with `BACATLAS_WINDOW_CHUNK_GENES` (read at call time) — deliberately NOT a CLI flag.
+#: No output depends on it; `tests/test_chunked_window_frames.py` proves that at several values.
+WINDOW_CHUNK_GENES = 4_000_000
+
+
+def _window_chunk_genes() -> int:
+    """`WINDOW_CHUNK_GENES`, or the environment's override — refused unless it is a positive integer."""
+    import os
+
+    value = int(os.environ.get("BACATLAS_WINDOW_CHUNK_GENES", WINDOW_CHUNK_GENES))
+    if value < 1:
+        raise CatalogueFrameError(f"BACATLAS_WINDOW_CHUNK_GENES must be a positive gene count, not {value}")
+    return value
+
+
+def _genome_chunks(genes_per_genome, bound: int) -> list[tuple[int, int]]:
+    """`[first, stop)` genome ranges, in genome order, each of WHOLE genomes and at most `bound` genes.
+
+    A genome with more than `bound` genes is a chunk on its own — it is never split. Genomes with no gene
+    belong to whichever range covers them, which costs nothing.
+    """
+    chunks: list[tuple[int, int]] = []
+    first, held = 0, 0
+    for genome, genes in enumerate(int(value) for value in genes_per_genome):
+        if held and held + genes > bound:
+            chunks.append((first, genome))
+            first, held = genome, 0
+        held += genes
+    if len(genes_per_genome):
+        chunks.append((first, len(genes_per_genome)))
+    return chunks
+
+
+def _window_frames(assign, assign_coords, node_position, sample_position):
+    """The ±5 window's four outputs: `(occupants, arrangement_frame, synteny, gene_memberships)`.
+
+    ⛔ **Reduced one chunk of WHOLE genomes at a time, by nuna's `WindowReduction` — never as one frame.**
+    The unchunked build made ~10 rows per gene (3.74 G rows at 374 M genes), merged them back onto the
+    coordinates to read one strand column, built the gene slot matrix twice and grouped the lot, and the
+    preflight audit measured that phase at **0.8-1.0 TB** against a 502 GiB node. A window never crosses
+    a (sample_id, contig) boundary, so the cohort decomposes by genome; nuna sums the chunks' count tables
+    and arrangement groups and reduces each ONCE (A5's sum of squares is not additive, so its COUNT table
+    is what is summed). Each output is identical — values, dtypes and row order — to the unchunked one, on
+    both probe catalogues and at several chunk sizes; the old implementation is kept as the oracle in
+    `tests/test_chunked_window_frames.py`.
+
+    What is held between chunks: a count per distinct (locus, offset, neighbour), a key per distinct
+    arrangement, and 12 bytes per windowed gene — plus, for the whole phase, a genome index and an order
+    over the rows of `assign_coords` and `assign` (16 B per gene each).
+    """
+    import numpy
+    from nuna.eval.metrics.syntology import NEAR_SHELLS
+    from nuna.tl.locus_browser.export_payload import TOP_NEIGHBOURS, WindowReduction
+
+    slot_of = {offset: index for index, offset in enumerate(OFFSETS)}
+    reduction = WindowReduction(node_position, slot_of, sample_pos=sample_position, radius=NEAR_SHELLS)
+    n_genomes = len(sample_position)
+
+    def genome_order(frame, what):
+        genome = frame["sample_id"].map(sample_position)
+        if genome.isna().any():
+            raise CatalogueFrameError(
+                f"{int(genome.isna().sum()):,} {what} rows carry a sample_id outside the genome index — they "
+                "could not be placed in a genome chunk"
+            )
+        genome = genome.to_numpy(dtype=numpy.int64)
+        order = numpy.argsort(genome, kind="stable")  # stable: each genome's rows keep their order
+        return order, numpy.searchsorted(genome[order], numpy.arange(n_genomes + 1))
+
+    coords_order, coords_bounds = genome_order(assign_coords, "assign_coords")
+    assign_order, assign_bounds = genome_order(assign, "assignment")
+    slim = assign_coords[["sample_id", "flat_index", "contig_idx", "start", "strand", "node"]]
+    keys = assign[["sample_id", "flat_index"]]
+    chunks = _genome_chunks(numpy.diff(coords_bounds), _window_chunk_genes())
+    for first, stop in chunks:
+        chunk = slim.take(coords_order[coords_bounds[first] : coords_bounds[stop]])
+        # Which ASSIGNMENT row each coordinate row is — the membership table is in assignment order.
+        assigned = assign_order[assign_bounds[first] : assign_bounds[stop]]
+        located = chunk[["sample_id", "flat_index"]].merge(
+            keys.take(assigned).assign(_row=assigned), on=["sample_id", "flat_index"], how="left"
+        )["_row"]
+        if len(located) != len(chunk) or located.isna().any():
+            raise CatalogueFrameError(
+                "a coordinate row matched no assignment row, or several — `assign_coords` is an inner join "
+                "of the assignment, so this means a repeated (sample_id, flat_index)"
+            )
+        reduction.add(chunk, gene_ids=located.to_numpy(dtype=numpy.int64))
+    if not chunks:
+        reduction.add(slim)  # an empty cohort still answers, with the unchunked functions' empty frames
+    del coords_order, coords_bounds, assign_order, assign_bounds, slim, keys
+    # ⛔ `top_arrangements=None` keeps EVERY arrangement — the page's own default. At 4, a quarter of
+    # loci were truncated and the genome a reader anchors to often had no row at all.
+    reduced = reduction.finish(top_neighbours=TOP_NEIGHBOURS, top_arrangements=None)
+    # A5 groups on locus identity alone (the audit's definition), so the strand bit must not split
+    # its groups — nuna sums the (node, d, neighbour) counts with the strand bit already dropped.
+    synteny = reduced["synteny"].set_index("node")["syntenic_A5"]
+    memberships = _gene_memberships(assign, reduced["gene_ids"], reduced["gene_ranks"], numpy)
+    return reduced["occupants"], reduced["arrangements"], synteny, memberships
+
+
+def _gene_memberships(assign, gene_rows, gene_ranks, numpy):
     """One row per ASSIGNED gene, with the arrangement rank it realises where it has one.
+
+    `gene_rows` are positions in `assign` of the genes that have a window, `gene_ranks` their
+    arrangement's rank — what `WindowReduction` returns, positionally, in place of the merge of every
+    gene's slot vector back onto the arrangement frame that this function used to do.
 
     ⭐ Written in the same pass as `member_genome_ids`, so the array and the rows cannot disagree
     about which genomes carry an arrangement.
@@ -999,37 +1098,21 @@ def _gene_memberships(assign, windows, arrangement_frame, slot_of):
     ⚠ Those genes get a row with a **NULL arrangement rank**, which is a different fact from *"this
     genome has no gene at this locus"*. The page says the two in different words; the assignment
     block carries the second as `NO_ARRANGEMENT_RANK`.
+
+    ⚠ **The rank's dtype is the left join's, kept exactly**: `int64` when every gene is placed, `float64`
+    with NaN when any is not, and an all-`None` object column when no gene has a window at all.
     """
+    columns = ["node", "sample_id", "flat_index", "arrangement_rank"]
     base = assign[["sample_id", "flat_index", "node"]].copy()
     base["sample_id"] = base["sample_id"].astype(str)
-    if not len(windows) or not len(arrangement_frame):
-        return base.assign(arrangement_rank=None)[
-            ["node", "sample_id", "flat_index", "arrangement_rank"]
-        ]
-
-    # ⛔ **nuna's `gene_slot_vectors`, not a copy of it** — this function held fourteen lines that were
-    # `gene_slot_vectors`' body with the variables renamed (proved identical frame-for-frame, object and
-    # categorical dtypes alike, before they were deleted). That is precisely the duplication nuna's own
-    # docstring exists to prevent: *"a projected window that was built by a lookalike could not be compared
-    # with a published arrangement at all"* — and this module's header forbids reimplementing nuna here for
-    # the same reason. It also meant the slot matrix had two dtypes to keep in step; it now has one, and the
-    # ranks below merge on columns produced by the very function that produced the arrangements.
-    from nuna.tl.locus_browser.export_payload import gene_slot_vectors
-
-    columns = [f"s{index}" for index in range(len(slot_of))]
-    genes = gene_slot_vectors(windows, slot_of)
-    ranks = arrangement_frame[["node", *columns, "rank"]].rename(columns={"rank": "arrangement_rank"})
-    windowed = genes.merge(ranks, on=["node", *columns], how="left")[
-        ["node", "sample_id", "flat_index", "arrangement_rank"]
-    ]
-    windowed["sample_id"] = windowed["sample_id"].astype(str)
-    # ⛔ LEFT join from the assignment, so every assigned gene has a row and the ones with no window
-    # arrive with a NULL rank rather than being absent.
-    return base.merge(
-        windowed[["sample_id", "flat_index", "arrangement_rank"]],
-        on=["sample_id", "flat_index"],
-        how="left",
-    )[["node", "sample_id", "flat_index", "arrangement_rank"]]
+    base = base.reset_index(drop=True)
+    if not len(gene_rows):
+        return base.assign(arrangement_rank=None)[columns]
+    rank = numpy.full(len(base), numpy.nan)
+    placed = gene_ranks >= 0  # -1 is an arrangement a `top` cut removed: a left join finds no row for it
+    rank[gene_rows[placed]] = gene_ranks[placed]
+    base["arrangement_rank"] = rank if numpy.isnan(rank).any() else rank.astype(numpy.int64)
+    return base[columns]
 
 
 #: The five per-locus quantities, by the stem they carry in the CSV (each suffixed with the FORM).
