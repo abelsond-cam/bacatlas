@@ -193,6 +193,8 @@ def make_locus(seeded, *, ordinal=0, label="0", **overrides):
         named_member_count=63,
         context_observed_member_counts=TEN_ZEROS,
         total_arrangement_count=4,
+        # NOT NULL since the genome-grain gene layer; the seeded genome is the one present member.
+        present_genome_ids=[seeded["genome"].genome_id],
     )
     fields.update(overrides)
     return Locus(**fields)
