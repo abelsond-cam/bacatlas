@@ -1,15 +1,12 @@
 """Per locus, whether its own annotated genes agree — the rollup, computed once at ingest.
 
-⭐ **The decision is NOT here.** It is `instruments/within_node_propagation.propagation_verdict`,
-which the request-time instrument also calls. This module is only the loop over a catalogue's nodes
+⭐ **The decision is NOT here.** It is `instruments/within_node_propagation.propagation_verdict`.
+This module is only the loop over a catalogue's nodes
 and the two awkward details that loop has to get right: the shape each vocabulary's value is held
 in, and what to write when a vocabulary was never measured at all.
 
-⛔ **The input is nuna's annotation frame; the request-time instrument reads
-`gene_functional_annotation`.** Those are two readers of one parquet, so they can disagree — and
-`tests/test_locus_annotation_rollups.py` exists to say whether they do, locus by locus and band by
-band, while both representations are still live. That comparison is the whole reason this stage
-happens before the gene rows are dropped rather than with them.
+The input is nuna's annotation frame. (While the per-gene tables existed, the stored verdicts were
+checked locus by locus against a recount over them; that oracle went with the tables in D8.)
 
 ⚠ **A missing vocabulary must reach the database as NULL and never as `no_coverage`.** When a
 catalogue has no `{BS}_dbxref.parquet`, `catalogue_frames._annotation_frame` fills every function
@@ -61,7 +58,7 @@ def propagation_verdicts(
     """One verdict per node, in `nodes` order. `None` for every node when `measured` is False.
 
     `values_by_node` holds one entry per member gene that CARRIES this vocabulary, in the shape
-    `gene_functional_annotation` stores — so a node absent from it has no annotated gene and gets
+    `catalogue_frames._values_by_node` parses it to — so a node absent from it has no annotated gene and gets
     `no_coverage`, which is a measured statement rather than an absence.
     """
     if not measured:

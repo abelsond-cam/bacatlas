@@ -90,8 +90,8 @@ second implementation of any of those is exactly what this design exists to avoi
 ```bash
 export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas_ingest"
 
-# ONE genome layer for both species: contigs, genes, functional labels. Model-INDEPENDENT — a new
-# pangenome must never rewrite it. ~180 s for all 280 genomes.
+# ONE genome layer for both species: genomes, contigs and each genome's `genome_genes` block.
+# Model-INDEPENDENT — a new pangenome must never rewrite it. ~180 s for all 280 genomes.
 #
 # ⭐ The roster is the UNION of the catalogue's gene universe and the mirrored GFF tree, and the
 # report prints both counts. The universe is what the catalogue requires; the tree is what this
@@ -100,11 +100,9 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
 # used to load zero genomes and report success wherever the nested `<datasetID>/<BS>/` tree was
 # absent, which is every cohort whose Bakta GFFs are flat.
 #
-# ⚠ Four flags exist for a cohort that does not follow these conventions, and none has a default
-# that guesses: `--gene-universe` / `--assignment` name a file the derived path does not reach,
-# `--species-key` names the species where `_meta` carries no `species` column, and
-# `--no-functional-annotations` / `--no-noncoding-features` leave a table out deliberately rather
-# than letting it arrive empty.
+# ⚠ Three flags exist for a cohort that does not follow these conventions, and none has a default
+# that guesses: `--gene-universe` / `--assignment` name a file the derived path does not reach, and
+# `--species-key` names the species where `_meta` carries no `species` column.
 .venv/bin/python -m bacatlas_backend.ingest --stage genomes \
   --model-label ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0

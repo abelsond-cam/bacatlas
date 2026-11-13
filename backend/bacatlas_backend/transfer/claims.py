@@ -19,7 +19,6 @@ differ by ~400× (COG 0.1 %, cellular component 38.5 %).
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -28,7 +27,6 @@ from sqlalchemy.orm import Session
 from bacatlas_backend.instruments.annotation_transfer import (
     GENE_ONTOLOGY_FACETS,
     _claims,
-    go_rung,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind
 from bacatlas_backend.models.locus import Locus
@@ -99,44 +97,34 @@ class Catalogue:
         return {label: node for node, label in self.node_label.items()}
 
 
-def _carrying(session: Session, identifier: int, fold) -> dict[str, dict[int, int]]:
-    """Per claim, per node, how many member genes state it THEMSELVES.
+def _carrying(session: Session, identifier: int) -> dict[str, dict[int, int]]:
+    """Per claim, per node, how many member genes state it THEMSELVES — read from stored `locus` columns.
 
-    ⛔ **Counted from the gene rows, and the GO facets are folded.**
-    `locus.go_annotated_member_count_*` counts genes carrying a *term* in a namespace, which is not
-    the same as genes with a non-empty *claim* there — a gene stating only the namespace root is
-    counted by the column and states nothing comparable. Reading those columns instead understated
-    one baseline by 25,751 genes.
+    COG is `cog_annotated_member_count`. GO is `go_claiming_member_count_<facet>`: genes whose terms,
+    passed through `go_rung` at ingest (`derive_locus_propagation.go_claiming_counts`), give a
+    NON-EMPTY class set in that facet. ⛔ Not `go_annotated_member_count_*`, which counts genes
+    carrying a *term* in the namespace — a gene stating only the namespace root is counted there and
+    states nothing comparable (`models/locus.py`, beside both columns).
+
+    ⚠ The GO counts are folded at INGEST, so they are meaningful against
+    `pangenome.annotation_fold_version`; a NULL (no fold at ingest, or no dbxrefs measured) reads as
+    no node carrying that facet.
     """
-    from sqlalchemy import text  # noqa: PLC0415 — one query, kept beside the one place it is used
-
-    carrying: dict[str, dict[int, int]] = {kind.key: defaultdict(int) for kind in CLAIM_KINDS}
-    for locus_id, count in session.execute(
-        text(
-            "select locus_id, cog_annotated_member_count from locus "
-            "where pangenome_id = :pid and cog_annotated_member_count > 0"
-        ),
-        {"pid": identifier},
-    ).all():
-        carrying["cog"][locus_id] = count
-
-    facet_key = dict(zip(GENE_ONTOLOGY_FACETS, ("mf", "bp", "cc"), strict=True))
-    for locus_id, terms in session.execute(
-        text(
-            """
-            select m.locus_id, f.gene_ontology_terms
-              from gene_locus_membership m
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where m.pangenome_id = :pid and f.gene_ontology_terms is not null
-            """
-        ),
-        {"pid": identifier},
-    ).all():
-        for (facet, _depth), classes in go_rung([t for t in (terms or ()) if t], fold).items():
-            if classes:
-                carrying[facet_key[facet]][locus_id] += 1
-    return {key: dict(value) for key, value in carrying.items()}
+    facet_columns = {
+        "mf": Locus.go_claiming_member_count_molecular_function,
+        "bp": Locus.go_claiming_member_count_biological_process,
+        "cc": Locus.go_claiming_member_count_cellular_component,
+        "cog": Locus.cog_annotated_member_count,
+    }
+    rows = session.execute(
+        select(Locus.locus_id, *facet_columns.values()).where(Locus.pangenome_id == identifier)
+    ).all()
+    carrying: dict[str, dict[int, int]] = {kind.key: {} for kind in CLAIM_KINDS}
+    for locus_id, *counts in rows:
+        for key, count in zip(facet_columns, counts, strict=True):
+            if count:
+                carrying[key][locus_id] = count
+    return carrying
 
 
 def load(session: Session, catalogue: str) -> Catalogue:
@@ -167,7 +155,7 @@ def load(session: Session, catalogue: str) -> Catalogue:
         gene_count=gene_count,
         node_label=node_label,
         claims=claims,
-        genes_carrying=_carrying(session, identifier, fold),
+        genes_carrying=_carrying(session, identifier),
     )
 
 

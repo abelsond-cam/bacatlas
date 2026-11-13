@@ -14,46 +14,51 @@ from sqlalchemy import func, select
 
 from bacatlas_backend.ingest.staging_table_loader import copy_rows, replace_rows_for
 from bacatlas_backend.models.enumerations import PrevalenceBand, SampleIdentifierKind
-from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation
-from bacatlas_backend.models.genome import Genome
+from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.locus import Locus
 from tests.conftest import TEN_ZEROS
 
-GENE_COLUMNS = (
-    "genome_id", "flat_index", "pathogen_species_id", "contig_index",
-    "start_position", "end_position", "length_nt", "strand", "strand_is_observed",
-    "gff_phase", "is_five_prime_partial",
-)
+#: ⚠ `genome_contig` is the row-at-a-time fixture table since the per-gene `gene` table was dropped
+#: (D8): a real table with integer, small-integer and text columns, scoped by `genome_id`.
+CONTIG_COLUMNS = ("genome_id", "seqid", "contig_index", "contig_name", "length_bases")
+CONTIGS = GenomeContig.__table__
 
 
-def _gene_row(genome_id, species_id, flat_index, **overrides):
+def _contig_row(genome_id, contig_index, **overrides):
     row = dict(
-        genome_id=genome_id, flat_index=flat_index, pathogen_species_id=species_id,
-        contig_index=0, start_position=1, end_position=300, length_nt=300,
-        strand="+", strand_is_observed=True, gff_phase=0, is_five_prime_partial=False,
+        genome_id=genome_id, seqid=f"COPYPROBE.contig{contig_index:05d}", contig_index=contig_index,
+        contig_name=f"contig{contig_index:05d}", length_bases=300,
     )
     row.update(overrides)
-    return tuple(row[name] for name in GENE_COLUMNS)
+    return tuple(row[name] for name in CONTIG_COLUMNS)
+
+
+def _contig_count(session, genome_id) -> int:
+    return session.execute(
+        select(func.count()).select_from(GenomeContig).where(GenomeContig.genome_id == genome_id)
+    ).scalar_one()
 
 
 @pytest.fixture()
-def clean_genes(session, _seed_ids):
-    session.execute(Gene.__table__.delete())
+def clean_contigs(session, _seed_ids):
+    scope = CONTIGS.c.genome_id == _seed_ids["genome"]
+    session.execute(CONTIGS.delete().where(scope))
     session.commit()
     yield
-    session.execute(Gene.__table__.delete())
+    session.rollback()
+    session.execute(CONTIGS.delete().where(scope))
     session.commit()
 
 
-def test_it_copies_rows_and_reports_what_it_wrote(session, _seed_ids, clean_genes):
+def test_it_copies_rows_and_reports_what_it_wrote(session, _seed_ids, clean_contigs):
     written = copy_rows(
-        session, Gene.__table__, GENE_COLUMNS,
-        (_gene_row(_seed_ids["genome"], _seed_ids["species"], i) for i in range(1_000)),
+        session, CONTIGS, CONTIG_COLUMNS,
+        (_contig_row(_seed_ids["genome"], i) for i in range(1_000)),
     )
     session.commit()
 
     assert written == 1_000
-    assert session.execute(select(func.count()).select_from(Gene)).scalar_one() == 1_000
+    assert _contig_count(session, _seed_ids["genome"]) == 1_000
 
 
 def test_a_nan_measurement_becomes_null_and_never_reaches_the_check(session, _seed_ids):
@@ -102,39 +107,49 @@ def test_an_enum_is_written_by_name_not_by_value(session, _seed_ids):
 
 
 def test_an_empty_array_is_not_null(session, _seed_ids):
-    """⛔ `{}` is *annotated with nothing*; NULL is *not annotated*. Different claims."""
-    genome_id, _ = _seed_ids["genome"], None
-    session.execute(GeneFunctionalAnnotation.__table__.delete())
+    """⛔ `{}` is *annotated with nothing*; NULL is *not annotated*. Different claims.
+
+    ⚠ On `locus.modal_cog_categories` — a real nullable array column — since the per-gene
+    `gene_functional_annotation.gene_ontology_terms` this used was dropped (D8).
+    """
+    session.execute(Locus.__table__.delete())
     copy_rows(
-        session, GeneFunctionalAnnotation.__table__,
-        ("genome_id", "flat_index", "gene_ontology_terms"),
-        [(genome_id, 0, []), (genome_id, 1, None), (genome_id, 2, ["GO:0003677"])],
+        session, Locus.__table__,
+        ("pangenome_id", "pathogen_species_id", "node_label", "catalogue_ordinal",
+         "member_gene_count", "member_genome_count", "prevalence_band", "display_name",
+         "display_name_source", "named_member_count", "context_observed_member_counts",
+         "total_arrangement_count", "arrangement_member_gene_count",
+         "arrangement_member_genome_count", "present_genome_ids", "modal_cog_categories"),
+        [
+            (_seed_ids["pangenome"], _seed_ids["species"], str(ordinal), ordinal, 99, 97,
+             PrevalenceBand.CORE, "wzi", "bakta_symbol", 63, TEN_ZEROS, 4, 99, 97, [1], categories)
+            for ordinal, categories in enumerate(([], None, ["C", "P"]))
+        ],
     )
     session.commit()
 
-    stored = dict(
-        session.execute(
-            select(GeneFunctionalAnnotation.flat_index, GeneFunctionalAnnotation.gene_ontology_terms)
-        ).all()
-    )
+    stored = dict(session.execute(select(Locus.catalogue_ordinal, Locus.modal_cog_categories)).all())
     assert stored[0] == []
     assert stored[1] is None
-    assert stored[2] == ["GO:0003677"]
-    session.execute(GeneFunctionalAnnotation.__table__.delete())
+    assert stored[2] == ["C", "P"]
+    session.execute(Locus.__table__.delete())
     session.commit()
 
 
-def test_a_numpy_scalar_is_adapted(session, _seed_ids, clean_genes):
+def test_a_numpy_scalar_is_adapted(session, _seed_ids, clean_contigs):
     """`numpy.int64` has no text dumper; the failure otherwise names the driver, not the column."""
     numpy = pytest.importorskip("numpy")
     copy_rows(
-        session, Gene.__table__, GENE_COLUMNS,
-        [_gene_row(_seed_ids["genome"], _seed_ids["species"], numpy.int64(7),
-                   start_position=numpy.int32(11))],
+        session, CONTIGS, CONTIG_COLUMNS,
+        [_contig_row(_seed_ids["genome"], numpy.int64(7), length_bases=numpy.int32(11))],
     )
     session.commit()
 
-    row = session.execute(select(Gene.flat_index, Gene.start_position)).one()
+    row = session.execute(
+        select(GenomeContig.contig_index, GenomeContig.length_bases).where(
+            GenomeContig.genome_id == _seed_ids["genome"]
+        )
+    ).one()
     assert row == (7, 11)
 
 
@@ -162,38 +177,38 @@ def test_a_numpy_float_is_adapted_on_a_measurement_column(session, _seed_ids):
 
 def test_a_mis_named_column_is_refused_before_a_row_is_sent(session, _seed_ids):
     with pytest.raises(KeyError) as failure:
-        copy_rows(session, Gene.__table__, ("genome_id", "start"), [(1, 1)])
+        copy_rows(session, CONTIGS, ("genome_id", "start"), [(1, 1)])
     assert "start" in str(failure.value)
 
 
 def test_replace_refuses_an_unscoped_predicate(session, _seed_ids):
     """An unbounded `where` here is a table wipe the caller would see as a successful load."""
     with pytest.raises(ValueError, match="scoped predicate"):
-        replace_rows_for(session, Gene.__table__, GENE_COLUMNS, [], where=None)
+        replace_rows_for(session, CONTIGS, CONTIG_COLUMNS, [], where=None)
 
 
-def test_replace_is_idempotent_at_its_own_scope(session, _seed_ids, clean_genes):
+def test_replace_is_idempotent_at_its_own_scope(session, _seed_ids, clean_contigs):
     """⭐ Re-running an ingest after a fix must not double the rows it already wrote."""
-    genome_id, species_id = _seed_ids["genome"], _seed_ids["species"]
-    rows = [_gene_row(genome_id, species_id, i) for i in range(50)]
-    scope = Gene.__table__.c.genome_id == genome_id
+    genome_id = _seed_ids["genome"]
+    rows = [_contig_row(genome_id, i) for i in range(50)]
+    scope = CONTIGS.c.genome_id == genome_id
 
-    replace_rows_for(session, Gene.__table__, GENE_COLUMNS, rows, where=scope)
+    replace_rows_for(session, CONTIGS, CONTIG_COLUMNS, rows, where=scope)
     session.commit()
-    deleted, written = replace_rows_for(session, Gene.__table__, GENE_COLUMNS, rows, where=scope)
+    deleted, written = replace_rows_for(session, CONTIGS, CONTIG_COLUMNS, rows, where=scope)
     session.commit()
 
     assert (deleted, written) == (50, 50)
-    assert session.execute(select(func.count()).select_from(Gene)).scalar_one() == 50
+    assert _contig_count(session, genome_id) == 50
 
 
-def test_the_loader_issues_one_copy_statement_per_call(session, engine, _seed_ids, clean_genes):
+def test_the_loader_issues_one_copy_statement_per_call(session, engine, _seed_ids, clean_contigs):
     """⭐ The cost assertion: 5,000 rows must not be 5,000 statements."""
     from bacatlas_backend.instruments.sql_cost_oracle import SqlCostOracle
 
-    rows = [_gene_row(_seed_ids["genome"], _seed_ids["species"], i) for i in range(5_000)]
+    rows = [_contig_row(_seed_ids["genome"], i) for i in range(5_000)]
     with SqlCostOracle(engine) as report:
-        copy_rows(session, Gene.__table__, GENE_COLUMNS, rows, batch_rows=1_000)
+        copy_rows(session, CONTIGS, CONTIG_COLUMNS, rows, batch_rows=1_000)
         session.commit()
 
     copies = [record for record in report.statements if record.category == "copy"]
@@ -222,13 +237,14 @@ def test_a_locus_array_column_round_trips(session, _seed_ids):
 
 
 # ── bytea through text-format COPY ────────────────────────────────────────────────────────────
-# ⛔ **No bytea column exists in this schema today, so this path has never been exercised.** The
-# gene-layer redesign (`nuna/docs/design/storing_the_gene_layer.md`) stores every per-gene field in
-# `bytea` blocks, and `staging_table_loader`'s own docstring is the reason this is a gate rather
-# than an assumption: the binary COPY path it rejected "fails silently by writing a plausible wrong
-# value", and text format carries exactly the same risk for a type whose text representation is
-# itself backslash-escaped. `\x00 \x09 \x0a \x0d \x5c` are the five bytes COPY TEXT gives meaning
-# to — NUL, TAB, LF, CR and the escape character itself.
+# ⛔ **Written before any bytea column existed in the schema** (`genome_genes.gene_spans` and the
+# assignment blocks came later). The gene-layer redesign
+# (`nuna/docs/design/storing_the_gene_layer.md`) stores every per-gene field in `bytea` blocks, and
+# `staging_table_loader`'s own docstring is the reason this is a gate rather than an assumption: the
+# binary COPY path it rejected "fails silently by writing a plausible wrong value", and text format
+# carries exactly the same risk for a type whose text representation is itself backslash-escaped.
+# `\x00 \x09 \x0a \x0d \x5c` are the five bytes COPY TEXT gives meaning to — NUL, TAB, LF, CR and
+# the escape character itself.
 #
 # ⚠ The table is created and dropped here, not added to the schema: this stage changes no schema.
 # The CHECK is the design's own text. ⭐ An earlier revision wrote `block IS NULL OR

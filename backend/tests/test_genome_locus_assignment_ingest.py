@@ -1,8 +1,7 @@
 """`genome_locus_assignment` and `locus.present_genome_ids` — the genome-grain gene layer, at ingest.
 
-⭐ Both are written by `ingest_locus_catalogue` from the ONE memberships frame that also feeds the
-per-gene `gene_locus_membership` (the dual-write period), so the property worth pinning is that the
-blocks decode to exactly the memberships — every `(genome, flat_index)` to its locus's catalogue
+⭐ Both are written by `ingest_locus_catalogue` from the ONE memberships frame, so the property worth
+pinning is that the blocks decode to exactly the memberships — every `(genome, flat_index)` to its locus's catalogue
 ordinal, `-1` everywhere else — and that every refusal names the genome, the index or the node it is
 about. Design of record: `nuna/docs/design/storing_the_gene_layer.md` §3B.
 
@@ -43,7 +42,6 @@ from bacatlas_backend.ingest.ingest_locus_catalogue import (
 )
 from bacatlas_backend.ingest.staging_table_loader import copy_rows
 from bacatlas_backend.models.enumerations import SampleIdentifierKind
-from bacatlas_backend.models.gene import GeneLocusMembership
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
@@ -142,7 +140,6 @@ def _load(session, cohort, frames=None, *, loci_root=None):
         session,
         frames or _frames(),
         cohort["pangenome"].pangenome_id,
-        cohort["locus_id_by_label"],
         cohort["genome_id_by_sample"],
         loci_root=loci_root,
     )
@@ -164,7 +161,7 @@ def _stored(session, cohort) -> dict:
 # ── the blocks decode to exactly the memberships ──────────────────────────────────────────────
 def test_every_genome_gets_a_row_whose_blocks_decode_to_exactly_its_memberships(session, cohort):
     written = _load(session, cohort)
-    assert written.memberships == 5, "the per-gene table is still written during the dual-write"
+    assert written.memberships == 5, "every membership row of the frame is encoded"
     assert written.assignments == 3
     assert written.without_window == 1
 
@@ -176,29 +173,6 @@ def test_every_genome_gets_a_row_whose_blocks_decode_to_exactly_its_memberships(
         assert list(decode_int32_vector(row.gene_locus_ordinals, expected_count=row.gene_count)) == ordinals, sample
         assert list(decode_int32_vector(row.gene_arrangement_ranks, expected_count=row.gene_count)) == ranks, sample
         assert (row.placed_gene_count, row.distinct_locus_count) == (placed, distinct), sample
-
-
-def test_the_per_gene_rows_and_the_blocks_describe_the_same_assignment(session, cohort):
-    """⛔ Dual-write: a membership row the block does not carry, or vice versa, is two catalogues."""
-    _load(session, cohort)
-    label_of_id = {locus_id: label for label, locus_id in cohort["locus_id_by_label"].items()}
-    sample_of = {genome_id: sample for sample, genome_id in cohort["genome_id_by_sample"].items()}
-    per_gene = {
-        (sample_of[row.genome_id], row.flat_index): ORDINAL_OF[label_of_id[row.locus_id]]
-        for row in session.execute(
-            select(GeneLocusMembership).where(
-                GeneLocusMembership.pangenome_id == cohort["pangenome"].pangenome_id
-            )
-        ).scalars()
-    }
-    from_blocks = {
-        (sample, index): ordinal
-        for sample, row in _stored(session, cohort).items()
-        for index, ordinal in enumerate(decode_int32_vector(row.gene_locus_ordinals))
-        if ordinal != UNASSIGNED_LOCUS_ORDINAL
-    }
-    assert len(per_gene) == 5
-    assert per_gene == from_blocks
 
 
 def test_a_genome_at_rho_above_one_carries_the_same_ordinal_at_BOTH_indexes(session, cohort):

@@ -19,11 +19,11 @@ sibling branches still share nothing. `membrane` and `cytoplasm` remain disjoint
 
 ⚠ **The two measurement paths did not even agree on their INPUT, which is worth saying plainly.**
 The neighbour ladder reads `locus_annotation_entry.term_value` — already a slim class, with its
-namespace already stored. Within-node propagation reads
-`gene_functional_annotation.gene_ontology_terms` — raw accessions, all three namespaces pooled into
-one array. Both called `single_rung`, which wraps whatever it is handed, so one compared slim classes
-and the other compared raw terms and the page printed both as *"agree"*. `claims` takes either, by
-mapping a raw term through the slim and leaving a class that is already slim alone.
+namespace already stored. Within-node propagation reads each gene's `go` dbxref at ingest — raw
+accessions, all three namespaces pooled into one array. Both called `single_rung`, which wraps
+whatever it is handed, so one compared slim classes and the other compared raw terms and the page
+printed both as *"agree"*. `claims` takes either, by mapping a raw term through the slim and leaving
+a class that is already slim alone.
 
 ⚠ **Empty means *states nothing comparable*, which is neither agreement nor disagreement.** A gene
 whose every term is a namespace root — 452 *E. coli* loci state nothing but `cellular_component` —

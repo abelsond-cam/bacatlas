@@ -229,7 +229,7 @@ class Locus(Base):
     #: ⭐⭐ **`within_node_propagation`'s five-state decision, stored per locus per vocabulary.**
     #: One column each for COG, EC, KEGG and the GO slim — **four, not six**: the decision ANDs over
     #: GO's three facets (`unanimous_at_deepest_shared_rung`, the `verdicts.append` loop), so a node
-    #: has ONE GO verdict and not one per namespace, and `compute_propagation` is keyed by
+    #: has ONE GO verdict and not one per namespace, and `pangenome_propagation_rate` is keyed by
     #: `annotation_kind` alone. Three facet columns could not be aggregated back into the rate the
     #: page quotes without reassembling that AND, and nothing reads a per-facet propagation rate.
     #:

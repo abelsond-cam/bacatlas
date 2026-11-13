@@ -73,17 +73,9 @@ _PROPAGATION: dict[tuple[int, AnnotationKind], dict[str, PropagationRate]] = {}
 def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[AnnotationKind, int]]:
     """Per locus, how many member genes carry each vocabulary — the denominator of `checkable`.
 
-    ⭐ **Four stored columns, read from the locus row.** This was a `GROUP BY` over
-    `gene_locus_membership` joined to `gene_functional_annotation` — bounded to six loci, so never a
-    catalogue scan, but still one row per member gene of six loci on every Function tab request. The
-    counts are identical: `LOCUS_ANNOTATED_COUNT_COLUMN` records the measurement, 0 mismatching loci
-    across all four catalogues, and GO's `_any` column is what made the fourth axis expressible.
-
-    ⚠ `ANNOTATED_COUNT_PREDICATE` has not gone and is not dead: it is what
-    `tests/test_locus_annotation_rollups.py` recounts these columns AGAINST, and what
-    `within_node_propagation` selects on. The predicate is now the oracle's and the column the
-    service's, which is the point — they are derived from one `GENE_VALUE_COLUMN` entry each, so they
-    cannot describe different populations.
+    ⭐ **Four stored columns, read from the locus row** (`LOCUS_ANNOTATED_COUNT_COLUMN`, which
+    records the gene-grain recount they were verified against: 0 mismatching loci across all four
+    catalogues). GO's `_any` column is what made the fourth axis expressible.
     """
     if not locus_ids:
         return {}
@@ -126,8 +118,7 @@ def _stored_propagation(
     `compute_propagation`, a scan over **every annotated gene row of the catalogue** — measured at
     0.22-1.94 s per (catalogue, vocabulary), so a cold *E. coli* Function tab paid ~5.8 s across the
     four, and at the 80,000-genome design target the same scan is over ~412 M rows. It is now a
-    primary-key range read of at most five rows, and it is the LAST catalogue-wide read of
-    `gene_functional_annotation` in the serving path.
+    primary-key range read of at most five rows.
 
     ⛔ **It still returns `PropagationRate` objects and not the stored numbers.** The table has no
     `rate` column, by design: `PropagationRate.rate` returns `None` below `MIN_NODES = 30`, and

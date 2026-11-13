@@ -1,17 +1,18 @@
 """How often a node's own call is unanimous, per catalogue · vocabulary · prevalence band.
 
 ⭐ **Precomputed at ingest, never aggregated per request** — the same stance and the same wording as
-`pangenome_genome_locus_count`, for a heavier reason. The equivalent at request time is
-`within_node_propagation.compute_propagation`, which reads **every annotated gene row of the
-catalogue**: measured at **0.22–1.94 s** per (catalogue, vocabulary) on the published catalogues, so
-a cold *E. coli* Function tab paid ~5.8 s across the four before a process cache absorbed it. At the
-80,000-genome design target the same scan is over ~412 M rows.
+`pangenome_genome_locus_count`, for a heavier reason. The equivalent at request time was
+`within_node_propagation.compute_propagation` (retired with the per-gene tables in D8), which read
+**every annotated gene row of the catalogue**: measured at **0.22–1.94 s** per (catalogue,
+vocabulary) on the published catalogues, so a cold *E. coli* Function tab paid ~5.8 s across the
+four before a process cache absorbed it. At the 80,000-genome design target the same scan is over
+~412 M rows.
 
 ⛔ **These twenty rows per catalogue are REDUNDANT, and that is the point.** Every one of them is a
 `GROUP BY` over `locus.propagation_verdict_*`, which is itself stored. The redundancy is not an
-oversight to be optimised away later — it is the stage's own oracle: the table, the verdict columns
-and the live gene-grain instrument are three representations of one measurement, and
-`tests/test_locus_annotation_rollups.py` requires all three to agree. A single stored number has
+oversight to be optimised away later — it is the stage's own oracle: the table and the verdict
+columns are two representations of one measurement, and `tests/test_locus_annotation_rollups.py`
+requires them to agree. A single stored number has
 nothing to be checked against; two have.
 
 ⚠ **It cannot be a view or a generated column** for exactly the reason it exists:

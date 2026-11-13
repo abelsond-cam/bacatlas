@@ -2,9 +2,9 @@
 
 ⭐ **Precomputed at ingest, never aggregated per request.** The published page derived this on first
 opening of the anchor box (`app.js::genomeCounts`) by one pass over the ~490k-entry membership index it
-already held. A server holds no such index in memory; the equivalent query is an aggregation over
-`gene_locus_membership`, which is **~412 M rows per pangenome at the 80,000-genome design target**, on
-every keystroke in a picker. So it is written once, by the pangenome layer, in the same transaction as
+already held. A server holds no such index in memory; the equivalent query was an aggregation over
+the per-gene membership rows, **~412 M per pangenome at the 80,000-genome design target**, on every
+keystroke in a picker. So it is written once, by the pangenome layer, in the same transaction as
 the rows it counts.
 """
 
@@ -21,7 +21,7 @@ class PangenomeGenomeLocusCount(Base):
 
     ⛔ **Two counts, named apart, because they are different facts and only one is the page's.**
 
-    * `locus_count` — distinct loci where the genome has **at least one gene** (`gene_locus_membership`).
+    * `locus_count` — distinct loci where the genome has **at least one gene** (`genome_locus_assignment`).
     * `arrangement_locus_count` — distinct loci where the genome sits in **some arrangement's**
       `member_genome_ids`. This is exactly `app.js::genomeCounts`, which is what the dropdown printed.
 

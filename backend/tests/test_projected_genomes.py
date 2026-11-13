@@ -357,7 +357,7 @@ def _catalogue_counts(session, seeded) -> dict:
             {"c": seeded["collection"].genome_collection_id},
         ).mappings().one(),
         # ⚠ The gene→locus edge at the genome grain: rows and placed genes of `genome_locus_assignment`,
-        # not `gene_locus_membership`, which the gene-layer redesign is retiring.
+        # the per-gene `gene_locus_membership` having been dropped (D8).
         "assignments": session.execute(
             text(
                 "SELECT count(*) AS n, coalesce(sum(placed_gene_count), 0) AS placed "

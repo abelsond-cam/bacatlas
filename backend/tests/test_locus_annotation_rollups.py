@@ -1,24 +1,15 @@
-"""The locus annotation rollups against the gene rows they replace — ⭐ the free oracle of this stage.
+"""The locus annotation rollups — the stored columns against each other and against their bounds.
 
-⛔ **This file exists because of WHEN it can run.** `gene_functional_annotation` and
-`gene_locus_membership` are one row per gene and are being deleted; the rollups on `locus` and in
-`pangenome_propagation_rate` are what replace them. For exactly one stage both representations are
-live, and that is the only window in which the new columns can be checked against the measurement
-they are replacing rather than against themselves. Afterwards the gene-grain source is gone and the
-only available check is that ingest agreed with itself.
+⛔ **The gene-row halves are gone.** While `gene_functional_annotation` and `gene_locus_membership`
+existed, this file checked every stored verdict and count against a recount over them; those tables
+were dropped in D8 and that oracle with them. What remains checks what can still be checked:
 
-**Three representations, and each pair catches what the other cannot:**
-
-1. `locus.propagation_verdict_*` — written at ingest from nuna's annotation frame;
-2. `pangenome_propagation_rate` — tallied from (1) in the same pass, so it proves the WRITE PATH:
+1. `pangenome_propagation_rate` is the `GROUP BY` of `locus.propagation_verdict_*` — the WRITE PATH:
    a column projected to the wrong position, an enum coerced to its value instead of its name, a
    partial `COPY`;
-3. `within_node_propagation.compute_propagation` — reading `gene_functional_annotation` at request
-   time, so it proves the DECISION: two readers of one parquet reaching the same value.
-
-⭐ And for COG a **fourth**, sharing no code with any of them: `count(distinct cog_id) = 1` in pure
-SQL. COG is single-valued per gene, so its five-state verdict is something SQL can decide on its own
-— the same stance as `test_within_node_propagation`'s oracle, at per-locus grain instead of per-band.
+2. `checkable + one_gene + not_comparable` equals the loci whose stored annotated count is non-zero
+   — the verdicts against the counts, two ingest outputs computed by different code;
+3. the GO claim counts are bounded by the term counts, `_any` is written, and the fold is recorded.
 
 ⚠ **Every comparison asserts its own coverage before it reports agreement.** A rollup test that
 `continue`s past a NULL column reports "0 differ" while having compared nothing, and the columns are
@@ -37,15 +28,10 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.ingest.derive_locus_propagation import PROPAGATION_VOCABULARIES
 from bacatlas_backend.instruments.annotation_transfer import (
-    ANNOTATED_COUNT_PREDICATE,
-    GENE_VALUE_COLUMN,
+    LOCUS_ANNOTATED_COUNT_COLUMN,
     SUPPORTED_KINDS,
 )
-from bacatlas_backend.instruments.within_node_propagation import (
-    VERDICT_TALLY,
-    compute_propagation,
-    propagation_verdict,
-)
+from bacatlas_backend.instruments.within_node_propagation import VERDICT_TALLY
 from bacatlas_backend.models.enumerations import (
     GENE_ONTOLOGY_NAMESPACE_NAMES,
     AnnotationKind,
@@ -93,107 +79,17 @@ def session():
 
 @pytest.fixture(scope="module")
 def fold(session):
-    """⛔ The SAME fold the service runs with, and never `None`.
-
-    `test_within_node_propagation`'s oracle calls `compute_propagation` with no fold, where
-    `go_rung` pools all three GO facets into the first. That is a configuration production never
-    uses, and on it a GO node can never abstain — so the identity it asserts holds there and does
-    not hold here. Every comparison in this file is against the folded path.
-    """
+    """⛔ The SAME fold the service runs with, and never `None` — the stored GO columns are folded."""
     loaded = gene_ontology_fold(session)
     assert loaded.slim_of, "the GO reference is not loaded — a folded comparison would prove nothing"
     return loaded
 
 
-def _verdicts_from_the_gene_rows(session, pangenome_id, kind, fold) -> dict[int, PropagationVerdict]:
-    """`{locus_id: verdict}` recomputed from `gene_functional_annotation`, for every locus.
-
-    ⚠ Includes a locus with NO annotated gene as `NO_COVERAGE`, which the instrument's own query
-    cannot produce — it filters the column to non-null, so a silent locus simply has no row. The
-    stored column has one for every locus, so the comparison has to as well or it would skip the
-    majority of the catalogue (12,538 of 17,531 ecoli loci on COG).
-    """
-    column = GENE_VALUE_COLUMN[kind]
-    grouped: dict[int, list] = defaultdict(list)
-    rows = session.execute(
-        text(f"""
-            select l.locus_id, f.{column} as value
-              from locus l
-              join gene_locus_membership m on m.locus_id = l.locus_id
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where l.pangenome_id = :pangenome_id and f.{column} is not null
-        """),
-        {"pangenome_id": pangenome_id},
-    ).all()
-    for locus_id, value in rows:
-        grouped[locus_id].append(value)
-    every_locus = [
-        row[0]
-        for row in session.execute(
-            text("select locus_id from locus where pangenome_id = :pangenome_id"),
-            {"pangenome_id": pangenome_id},
-        ).all()
-    ]
-    return {
-        locus_id: propagation_verdict(kind, grouped.get(locus_id, []), fold) for locus_id in every_locus
-    }
-
-
-# ═══════════════════════════════════════════════ 1 · the verdict, locus by locus, against the genes
+# ═══════════════════════════════════════════════════════════ 1 · the tally, against the verdicts
 @pytest.mark.parametrize("pangenome_id", CATALOGUES)
 @pytest.mark.parametrize("kind", SUPPORTED_KINDS, ids=lambda kind: kind.value)
-def test_the_stored_verdict_matches_the_one_recomputed_from_the_GENE_rows(session, fold, pangenome_id, kind):
-    """⭐⭐ The comparison this whole stage is sequenced around, at per-locus grain.
-
-    Band totals can agree while individual loci disagree in compensating directions — two loci
-    swapping `unanimous` and `discordant` within a band is invisible to every tally. This is the test
-    that cannot be fooled that way, and it is only runnable while the gene rows exist.
-    """
-    suffix = SUFFIX_OF_KIND[kind]
-    stored = {
-        row.locus_id: verdict_of(row.verdict)
-        for row in session.execute(
-            text(f"select locus_id, propagation_verdict_{suffix} as verdict from locus "
-                 "where pangenome_id = :pangenome_id"),
-            {"pangenome_id": pangenome_id},
-        ).all()
-    }
-    recomputed = _verdicts_from_the_gene_rows(session, pangenome_id, kind, fold)
-
-    # ⛔ Coverage FIRST: the column is nullable and a catalogue loaded before it existed holds NULL
-    # for every locus, on which a difference loop would report perfect agreement.
-    assert stored, f"pangenome {pangenome_id} has no locus rows at all"
-    assert set(stored) == set(recomputed), "the two sides do not describe the same loci"
-    written = sum(1 for verdict in stored.values() if verdict is not None)
-    assert written == len(stored), (
-        f"{len(stored) - written:,} of {len(stored):,} loci hold NULL for propagation_verdict_{suffix}"
-        " — re-ingest this catalogue; a NULL column compares equal to nothing and reports no difference"
-    )
-
-    differences = [
-        (locus_id, stored[locus_id], recomputed[locus_id])
-        for locus_id in stored
-        if stored[locus_id] is not recomputed[locus_id]
-    ]
-    assert not differences, (
-        f"{len(differences):,} of {len(stored):,} loci disagree, e.g. {differences[:5]} — the ingest "
-        "frame and the gene rows are two readers of one parquet and they have diverged"
-    )
-    # ⚠ Non-vacuity: at least two DIFFERENT verdicts must occur, or a column stuck on one value
-    # would pass every assertion above.
-    assert len({verdict for verdict in stored.values()}) >= 2, (
-        f"every locus has the same propagation_verdict_{suffix} — the comparison proves nothing"
-    )
-
-
-# ═══════════════════════════════════════════════════ 2 · the tally, against the verdicts and the genes
-@pytest.mark.parametrize("pangenome_id", CATALOGUES)
-@pytest.mark.parametrize("kind", SUPPORTED_KINDS, ids=lambda kind: kind.value)
-def test_the_stored_tally_is_the_GROUP_BY_of_the_stored_verdicts_and_matches_the_genes(
-    session, fold, pangenome_id, kind
-):
-    """Three numbers per band from three places, and all three must agree.
+def test_the_stored_tally_is_the_GROUP_BY_of_the_stored_verdicts(session, pangenome_id, kind):
+    """Three numbers per band, stored and re-derived from the stored verdicts, and they must agree.
 
     ⛔ `checkable` is **`unanimous + discordant`**, not *two or more annotated genes*. The two
     coincide for COG only because a COG id always states its rung, so `agreed` is never `None`
@@ -225,8 +121,6 @@ def test_the_stored_tally_is_the_GROUP_BY_of_the_stored_verdicts_and_matches_the
             {"pangenome_id": pangenome_id, "kind": kind.name},
         ).all()
     }
-    measured = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind, fold=fold)
-
     assert stored, f"no pangenome_propagation_rate rows for pangenome {pangenome_id} {kind.value}"
     assert set(stored) == set(from_verdicts), (
         "the stored tally and the verdict columns cover different bands: "
@@ -235,129 +129,38 @@ def test_the_stored_tally_is_the_GROUP_BY_of_the_stored_verdicts_and_matches_the
     )
     for band, counts in sorted(from_verdicts.items()):
         assert stored[band] == tuple(counts), f"{kind.value} {band}: stored {stored[band]} vs verdicts {counts}"
-        from_genes = measured.get(band)
-        from_genes = (
-            (from_genes.checkable, from_genes.unanimous, from_genes.one_gene) if from_genes else (0, 0, 0)
-        )
-        assert stored[band] == from_genes, f"{kind.value} {band}: stored {stored[band]} vs genes {from_genes}"
     assert sum(sum(counts) for counts in from_verdicts.values()) > 0, (
         f"{kind.value} tallies to zero in every band — the comparison is vacuous"
     )
 
 
-# ═══════════════════════════════════════ 3 · COG, against SQL that shares none of the folding
-@pytest.mark.parametrize("pangenome_id", CATALOGUES)
-def test_the_COG_verdict_matches_a_five_state_recount_done_entirely_in_SQL(session, pangenome_id):
-    """⭐ The independent algorithm. A frozen oracle cannot see a drift it shares.
-
-    COG is single-valued per gene, so each of the five states reduces to a count SQL can take on its
-    own: no annotated gene, exactly one, two or more agreeing, two or more disagreeing. ⚠ There is no
-    `not_comparable` leg because a non-null `cog_id` always states its rung — which is itself worth
-    asserting, since its appearance would mean `_fold_gene` had changed under COG.
-    """
-    oracle = {
-        row.locus_id: row.verdict
-        for row in session.execute(
-            text("""
-                with per as (
-                  select l.locus_id,
-                         count(f.cog_id) as annotated,
-                         count(distinct f.cog_id) as distinct_calls
-                    from locus l
-                    join gene_locus_membership m on m.locus_id = l.locus_id
-                    left join gene_functional_annotation f
-                         on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-                   where l.pangenome_id = :pangenome_id
-                   group by 1)
-                select locus_id,
-                       case when annotated = 0 then 'NO_COVERAGE'
-                            when annotated = 1 then 'ONE_GENE'
-                            when distinct_calls = 1 then 'UNANIMOUS'
-                            else 'DISCORDANT' end as verdict
-                  from per
-            """),
-            {"pangenome_id": pangenome_id},
-        ).all()
-    }
-    stored = {
-        row.locus_id: verdict_of(row.verdict)
-        for row in session.execute(
-            text("select locus_id, propagation_verdict_cog as verdict from locus "
-                 "where pangenome_id = :pangenome_id"),
-            {"pangenome_id": pangenome_id},
-        ).all()
-    }
-    assert oracle and set(oracle) == set(stored), "the oracle and the column describe different loci"
-    assert PropagationVerdict.NOT_COMPARABLE not in set(stored.values()), (
-        "a COG locus reported `not_comparable`, which cannot happen while a non-null cog_id states "
-        "its own rung — `_fold_gene`'s COG branch has changed and this oracle no longer applies"
-    )
-    differences = [
-        (locus_id, stored[locus_id], oracle[locus_id])
-        for locus_id in oracle
-        if stored[locus_id] is None or stored[locus_id].name != oracle[locus_id]
-    ]
-    assert not differences, f"{len(differences):,} loci differ, e.g. {differences[:5]}"
-    # ⚠ Non-vacuity, stated per state: all four must actually occur, or the case that does not is
-    # untested and the test would survive its own deletion.
-    seen = {verdict for verdict in oracle.values()}
-    assert seen == {"NO_COVERAGE", "ONE_GENE", "UNANIMOUS", "DISCORDANT"}, f"only {sorted(seen)} occur"
-
-
-# ═══════════════════════════════════════════════════ 4 · the annotated counts, against the gene rows
+# ════════════════════════════════════════════ 2 · `go_annotated_member_count_any`, and why it exists
 @pytest.mark.parametrize("pangenome_id", [1, 2, 4, 5])
-def test_every_annotated_member_count_matches_the_gene_rows_locus_by_locus(session, pangenome_id):
-    """⭐ Including `go_annotated_member_count_any`, which is why the per-request join can go.
+def test_go_any_is_written_and_the_three_namespace_columns_overcount_it(session, pangenome_id):
+    """⛔ `function_inference_service._annotated_counts` substitutes 0 for a NULL here, and this is the
+    gate that makes that safe: no catalogue may hold a NULL `go_annotated_member_count_any`.
 
-    ⛔ The three GO namespace columns CANNOT be summed to get it, and this test measures the factor
-    rather than asserting the warning: on ecoli their sum is **2.30x** the real count of genes
-    carrying a GO term. `annotation_transfer.py:231-234` is the comment; this is the number.
+    The three GO namespace columns CANNOT be summed to get it, and the factor is asserted rather than
+    quoted (ecoli measured **2.30x**; `annotation_transfer.LOCUS_ANNOTATED_COUNT_COLUMN`).
     """
     row = session.execute(
         text("""
-            with recount as (
-              select m.locus_id,
-                     count(*) filter (where f.cog_id is not null)             as cog,
-                     count(*) filter (where f.ec_numbers is not null)          as ec,
-                     count(*) filter (where f.kegg_orthology_id is not null)   as kegg,
-                     count(*) filter (where f.gene_ontology_terms is not null) as go_any
-                from gene_locus_membership m
-                left join gene_functional_annotation f
-                       on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-               where m.pangenome_id = :pangenome_id
-               group by 1
-            )
             select count(*) as loci,
-                   count(*) filter (where l.cog_annotated_member_count  is distinct from coalesce(r.cog,0))  as cog_bad,
-                   count(*) filter (where l.ec_annotated_member_count   is distinct from coalesce(r.ec,0))   as ec_bad,
-                   count(*) filter (where l.kegg_annotated_member_count is distinct from coalesce(r.kegg,0))
-                       as kegg_bad,
-                   count(*) filter (where l.go_annotated_member_count_any is null) as go_any_null,
-                   count(*) filter (where l.go_annotated_member_count_any is distinct from coalesce(r.go_any,0))
-                       as go_any_bad,
-                   sum(coalesce(r.go_any,0)) as go_any_genes,
-                   sum(coalesce(l.go_annotated_member_count_molecular_function,0)
-                      +coalesce(l.go_annotated_member_count_biological_process,0)
-                      +coalesce(l.go_annotated_member_count_cellular_component,0)) as three_column_sum
-              from locus l left join recount r on r.locus_id = l.locus_id
-             where l.pangenome_id = :pangenome_id
+                   count(*) filter (where go_annotated_member_count_any is null) as go_any_null,
+                   sum(coalesce(go_annotated_member_count_any, 0)) as go_any_genes,
+                   sum(coalesce(go_annotated_member_count_molecular_function,0)
+                      +coalesce(go_annotated_member_count_biological_process,0)
+                      +coalesce(go_annotated_member_count_cellular_component,0)) as three_column_sum
+              from locus where pangenome_id = :pangenome_id
         """),
         {"pangenome_id": pangenome_id},
     ).one()
     assert row.loci > 0, f"pangenome {pangenome_id} has no loci"
     assert row.go_any_null == 0, (
-        f"{row.go_any_null:,} of {row.loci:,} loci hold NULL for go_annotated_member_count_any — "
-        "re-ingest; a NULL is not a mismatch and would not be counted below"
-    )
-    assert (row.cog_bad, row.ec_bad, row.kegg_bad, row.go_any_bad) == (0, 0, 0, 0), (
-        f"mismatching loci: cog {row.cog_bad}, ec {row.ec_bad}, kegg {row.kegg_bad}, go_any {row.go_any_bad}"
+        f"{row.go_any_null:,} of {row.loci:,} loci hold NULL for go_annotated_member_count_any — re-ingest"
     )
     assert row.go_any_genes > 0, "no gene in this catalogue carries a GO term — the test is vacuous"
-    # ⛔ The reason `go_annotated_member_count_any` exists, asserted as an inequality rather than
-    # quoted: the three namespace columns genuinely over-count, by a wide margin.
-    # ⚠ `sum()` comes back as `Decimal`, so the factor is written as integer arithmetic rather
-    # than `* 1.5`, which raises on a Decimal and would have failed as a TypeError rather than a
-    # measurement.
+    # ⚠ `sum()` comes back as `Decimal`, so the factor is integer arithmetic rather than `* 1.5`.
     assert 2 * int(row.three_column_sum) > 3 * int(row.go_any_genes), (
         f"the three GO namespace columns sum to {row.three_column_sum:,} against "
         f"{row.go_any_genes:,} genes carrying a term — if that factor has fallen to ~1, GO is no "
@@ -365,7 +168,7 @@ def test_every_annotated_member_count_matches_the_gene_rows_locus_by_locus(sessi
     )
 
 
-# ═════════════════════════════════════════════════════ 5 · the claim counts, and what bounds them
+# ═════════════════════════════════════════════════════ 3 · the claim counts, and what bounds them
 @pytest.mark.parametrize("pangenome_id", CATALOGUES)
 def test_a_folded_GO_claim_is_never_more_common_than_a_GO_term(session, pangenome_id):
     """⛔ `go_claiming_member_count_*` <= `go_annotated_member_count_*`, per locus, per namespace.
@@ -401,47 +204,44 @@ def test_a_folded_GO_claim_is_never_more_common_than_a_GO_term(session, pangenom
         )
 
 
-# ════════════════════════════════════════════ 6 · the folded identity the unfolded one cannot state
+# ══════════════════════════════════════════ 4 · the verdicts against the annotated counts, per locus
 @pytest.mark.parametrize("pangenome_id", CATALOGUES)
 @pytest.mark.parametrize("kind", SUPPORTED_KINDS, ids=lambda kind: kind.value)
-def test_the_populations_account_for_every_node_carrying_the_vocabulary(session, fold, pangenome_id, kind):
-    """⭐ The coverage identity, repaired for the folded path — and `not_comparable` is the repair.
+def test_the_populations_account_for_every_node_carrying_the_vocabulary(session, pangenome_id, kind):
+    """⭐ `checkable + one_gene + not_comparable == loci carrying the vocabulary`, on the folded path.
 
-    `test_within_node_propagation` asserts `checkable + one_gene == nodes carrying`, which is exact
-    only because it calls `compute_propagation` with NO fold: unfolded, GO pools its three facets and
-    a node can never abstain. On the folded path production runs, **81 ecoli and 33 kp loci** carry
-    GO on two or more genes with no facet every one of them states, and they are in neither column.
-    The stored `not_comparable` count is exactly that shortfall, which makes the identity exact
-    again — and is a use for the column that no tally provides.
+    The verdicts and the annotated counts are computed by different code from the same frame, so a
+    locus whose verdict says *no_coverage* while its count says it carries the vocabulary (or the
+    reverse) breaks the identity. On the folded path **81 ecoli and 33 kp loci** carry GO on two or
+    more genes with no facet every one of them states — they are `not_comparable`, which is why that
+    term is in the sum.
     """
     suffix = SUFFIX_OF_KIND[kind]
-    rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind, fold=fold)
-    counted = sum(one.checkable + one.one_gene for one in rates.values())
+    tallied = session.execute(
+        text("select coalesce(sum(checkable + one_gene), 0) from pangenome_propagation_rate "
+             "where pangenome_id = :pangenome_id and annotation_kind = :kind"),
+        {"pangenome_id": pangenome_id, "kind": kind.name},
+    ).scalar_one()
     not_comparable = session.execute(
         text(f"select count(*) from locus where pangenome_id = :pangenome_id "
              f"and propagation_verdict_{suffix} = 'NOT_COMPARABLE'"),
         {"pangenome_id": pangenome_id},
     ).scalar_one()
     carrying = session.execute(
-        text(f"""
-            select count(distinct m.locus_id)
-              from gene_locus_membership m
-              join locus l on l.locus_id = m.locus_id
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where l.pangenome_id = :pangenome_id and {ANNOTATED_COUNT_PREDICATE[kind]}
-        """),
+        text(f"select count(*) from locus where pangenome_id = :pangenome_id "
+             f"and {LOCUS_ANNOTATED_COUNT_COLUMN[kind]} > 0"),
         {"pangenome_id": pangenome_id},
     ).scalar_one()
     assert carrying > 0, "non-vacuity: this catalogue does carry this vocabulary"
-    assert counted + not_comparable == carrying, (
-        f"{kind.value}: checkable+one_gene {counted:,} plus not_comparable {not_comparable:,} is "
-        f"{counted + not_comparable:,}, against {carrying:,} loci carrying the vocabulary"
+    assert tallied + not_comparable == carrying, (
+        f"{kind.value}: checkable+one_gene {tallied:,} plus not_comparable {not_comparable:,} is "
+        f"{tallied + not_comparable:,}, against {carrying:,} loci whose "
+        f"{LOCUS_ANNOTATED_COUNT_COLUMN[kind]} is non-zero"
     )
 
 
 def test_GO_really_does_abstain_somewhere_so_the_identity_above_is_not_vacuous(session):
-    """⛔ Without this, test 6 is `x + 0 == x` and would pass with the column always NULL or 0.
+    """⛔ Without this, test 4 is `x + 0 == x` and would pass with the column always NULL or 0.
 
     The whole point of distinguishing `not_comparable` from `no_coverage` is that the first occurs.
     """
@@ -456,12 +256,12 @@ def test_GO_really_does_abstain_somewhere_so_the_identity_above_is_not_vacuous(s
     assert all(count > 0 for _pangenome_id, count in abstaining)
 
 
-# ══════════════════════════════════════════════════════ 7 · the fold a stored verdict is read against
+# ══════════════════════════════════════════════════════ 5 · the fold a stored verdict is read against
 def test_every_catalogue_records_the_fold_its_GO_columns_were_computed_under(session, fold):
     """⛔ A stored GO verdict with no recorded fold cannot be known to mean what a reader assumes.
 
     The verdict is a comparison of sets closed upward through the slim; change the slim and the
-    verdict moves. Before it was stored, `compute_propagation` re-folded on every cold process, so a
+    verdict moves. Before it was stored, the request-time instrument re-folded on every cold process, so a
     vendored-table update propagated with no re-ingest. Stored, it does not — so the version is
     written beside it and this is where a drift surfaces.
     """
@@ -500,7 +300,7 @@ def test_the_fold_version_moves_when_the_fold_does_and_not_when_a_NAME_does(fold
     assert GeneOntologyFold().version().startswith("go:0:0:"), "an empty fold must say it is empty"
 
 
-# ═════════════════════════════════════════════════════════════════ 8 · the table's own shape
+# ═════════════════════════════════════════════════════════════════ 6 · the table's own shape
 def test_the_rate_table_holds_one_row_per_vocabulary_and_band_with_no_rate_computed_on_too_few(session):
     """⚠ The floor lives in Python, so the stored numbers must not be read as a rate directly.
 

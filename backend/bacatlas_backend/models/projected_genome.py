@@ -1,7 +1,7 @@
 """A genome the model never clustered, placed on a published pangenome's loci.
 
 ⛔ **This layer only ever ADDS.** A projected genome is not a member of the collection, contributes no
-gene to `gene_locus_membership`, and changes no count anywhere else: prevalence, bands, the census,
+gene to `genome_locus_assignment`, and changes no count anywhere else: prevalence, bands, the census,
 the marginals, arrangement genome counts and the genome picker all stay the modelled 100. Two tables,
 written by `--stage projection`, and nothing else in the schema is touched — which is what keeps the
 publish gate, the column audit and the parity suites meaningful while this feature exists.

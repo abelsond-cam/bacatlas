@@ -212,33 +212,7 @@ def rungs_by_facet(annotation_kind: AnnotationKind) -> dict[str | None, list[Run
 CALLING_FLOOR = 0.80
 SUPPORTED_KINDS = tuple(QUOTED_LEVEL)
 
-#: Which `gene_functional_annotation` column holds each vocabulary's per-GENE value.
-#: ⛔ **One mapping, and the "is this gene annotated" predicate is DERIVED from it** — the pair was
-#: written out separately in four places (`services/function_inference_service.py`,
-#: `scripts/measure_within_node_inference.py`, `scripts/measure_cog_function_inference.py`,
-#: `scripts/measure_cross_species_transfer.py`) and a fifth was about to be added. They cannot now
-#: disagree about which column a vocabulary lives in.
-#: ⚠ It lives **here**, in the instrument layer, rather than in the service that first needed it:
-#: instruments are imported BY services and never import them back, so a service-level home would
-#: have made this module depend upwards.
-GENE_VALUE_COLUMN: dict[AnnotationKind, str] = {
-    AnnotationKind.COG_ORTHOGROUP: "cog_id",
-    AnnotationKind.GENE_ONTOLOGY_SLIM: "gene_ontology_terms",
-    AnnotationKind.EC_NUMBER: "ec_numbers",
-    AnnotationKind.KEGG_ORTHOLOGY: "kegg_orthology_id",
-}
-
-#: ⛔ **Counted from the gene rows, never read from `locus.*_annotated_member_count`.** Those columns
-#: exist for COG, EC and KEGG but NOT for GO: GO has three, one per namespace, and summing them double
-#: counts every gene annotated in more than one.
-#: ⚠ Verified against the three columns that do exist: 0 mismatching nodes out of 17,531 and 15,670.
-ANNOTATED_COUNT_PREDICATE: dict[AnnotationKind, str] = {
-    kind: f"f.{column} is not null" for kind, column in GENE_VALUE_COLUMN.items()
-}
-
-#: ⭐ **The `locus` column holding the same count, so a request need not read a gene row for it.**
-#: The predicate above is now for the ORACLE — `tests/test_locus_annotation_rollups.py` recounts
-#: these columns against it, locus by locus, on every catalogue — and this is what the service reads.
+#: ⭐ **The `locus` column holding each vocabulary's annotated-member count** — what the service reads.
 #:
 #: ⛔ **GO points at `_any` and not at the three namespace columns, which is the whole reason this
 #: mapping could not exist before.** Measured on `bacatlas_ingest` 2026-10-26: 351,559 ecoli genes

@@ -33,14 +33,9 @@ node: non-empty intersection at the deepest rung every one of them states.
 
 from __future__ import annotations
 
-from collections import defaultdict
 from dataclasses import dataclass
 
-from sqlalchemy import text
-from sqlalchemy.orm import Session
-
 from bacatlas_backend.instruments.annotation_transfer import (
-    GENE_VALUE_COLUMN,
     cog_levels,
     ec_levels,
     go_rung,
@@ -203,16 +198,10 @@ def propagation_verdict(
 ) -> PropagationVerdict:
     """One node's state for one vocabulary — ⭐ **the single decision, shared by both writers.**
 
-    `values` is one entry per member gene that CARRIES this vocabulary, in the stored shape
-    (`GENE_VALUE_COLUMN`): a scalar for COG and KEGG, a list for EC and GO.
-
-    ⛔ **This function exists so that the column written at ingest and the rate measured at request
-    time cannot disagree about the DEFINITION.** They necessarily differ in their INPUT — ingest
-    reads nuna's annotation frame, the instrument reads `gene_functional_annotation` — and that
-    difference is precisely what `tests/test_locus_annotation_rollups.py` measures. Routing both
-    through one decision is what makes that measurement about the data rather than about two
-    reimplementations of the same rule, the same reason `ANNOTATED_COUNT_PREDICATE` was moved into
-    `annotation_transfer` rather than written twice.
+    `values` is one entry per member gene that CARRIES this vocabulary, parsed as
+    `catalogue_frames._values_by_node` parses the dbxref parquet: a scalar for COG and KEGG, a list
+    for EC and GO. Ingest (`derive_locus_propagation`) is its caller; the stored
+    `locus.propagation_verdict_*` and `pangenome_propagation_rate` are what serving reads.
 
     ⚠ **An empty `values` is `NO_COVERAGE` and never `NOT_COMPARABLE`.** The two are easy to
     conflate here because both end up in neither tally column, and the whole point of the five-state
@@ -229,55 +218,3 @@ def propagation_verdict(
         return PropagationVerdict.NOT_COMPARABLE
     return PropagationVerdict.UNANIMOUS if agreed else PropagationVerdict.DISCORDANT
 
-
-def compute_propagation(
-    session: Session,
-    *,
-    pangenome_id: int,
-    annotation_kind: AnnotationKind,
-    fold: GeneOntologyFold | None = None,
-) -> dict[str, PropagationRate]:
-    """Per prevalence band, how often a node's annotated genes agree — one pass over the catalogue.
-
-    ⛔ **Counted from the gene rows**, like `_annotated_counts`, and for the same reason: GO has three
-    `*_annotated_member_count` columns (one per namespace) and summing them double-counts every gene
-    annotated in more than one.
-    """
-    column = GENE_VALUE_COLUMN[annotation_kind]
-    rows = session.execute(
-        text(f"""
-            select l.locus_id, l.prevalence_band, f.{column} as value
-              from locus l
-              join gene_locus_membership m on m.locus_id = l.locus_id
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where l.pangenome_id = :pangenome_id and f.{column} is not null
-        """),
-        {"pangenome_id": pangenome_id},
-    ).all()
-
-    genes: dict[int, list] = defaultdict(list)
-    band_of: dict[int, str] = {}
-    for locus_id, band, value in rows:
-        band_of[locus_id] = band.name if hasattr(band, "name") else str(band)
-        genes[locus_id].append(value)
-
-    tally: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])  # checkable, unanimous, one_gene
-    for locus_id, values in genes.items():
-        counts = tally[band_of[locus_id]]
-        # ⚠ A locus with NO annotated gene never reaches here — the query filters them out — so the
-        # `NO_COVERAGE` leg of `VERDICT_TALLY` is unreachable from this side and is exercised only by
-        # the stored column, which does have a row for every locus.
-        for column, increment in enumerate(VERDICT_TALLY[propagation_verdict(annotation_kind, values, fold)]):
-            counts[column] += increment
-
-    return {
-        band: PropagationRate(
-            annotation_kind=annotation_kind,
-            prevalence_band=band,
-            checkable=counts[0],
-            unanimous=counts[1],
-            one_gene=counts[2],
-        )
-        for band, counts in tally.items()
-    }

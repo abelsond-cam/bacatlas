@@ -6,7 +6,7 @@ genome picker are all the modelled 100, whatever is projected. Every function in
 `projected_*` and nothing else.
 
 ⚠ **A projected genome is not an anchor genome, and the two must never share a code path.** An
-anchor is a member — its genes are in `gene_locus_membership` and its id is inside
+anchor is a member — its genes are in `genome_locus_assignment` and its id is inside
 `locus_arrangement.member_genome_ids`. A projected genome is in neither, so a lookup that searched
 the collection would find it absent and report *"this genome has no gene at this locus"*, which is a
 claim about a genome the pangenome says nothing about.

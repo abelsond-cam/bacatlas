@@ -8,9 +8,8 @@ wrong position, an enum coerced to its value instead of its name, a partial `COP
 that arrived as something `PrevalenceBand` does not accept. `GROUP BY` the stored verdicts and
 compare — `tests/test_locus_annotation_rollups.py` does — and the write path is proved.
 
-⭐ The decision itself is gated differently and elsewhere: against
-`within_node_propagation.compute_propagation` reading the gene rows, which is a different reader of
-a different store. Neither gate covers the other, which is why both exist.
+⚠ The decision itself is pinned by `tests/test_within_node_propagation.py` without a database. Its
+gene-row oracle (`compute_propagation`) went with the per-gene tables in D8.
 """
 
 from __future__ import annotations
@@ -35,8 +34,7 @@ def write_propagation_rates(
     """Tally the per-locus verdicts into (vocabulary × band) rows and insert them. Returns the count.
 
     `bands[i]` and `verdicts[suffix][i]` describe the same locus. A vocabulary whose verdicts are all
-    `None` was never measured and gets **no rows at all** — the same statement its NULL column makes,
-    and the same thing `compute_propagation` does today when a catalogue carries no dbxrefs.
+    `None` was never measured and gets **no rows at all** — the same statement its NULL column makes.
 
     ⚠ **A band present in the catalogue gets a row even when every number in it is zero.** RARE is
     that band in every catalogue measured so far: zero checkable nodes beside hundreds of one-gene

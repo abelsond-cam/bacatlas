@@ -136,13 +136,11 @@ def test_the_residual_lists_are_two_statements(application):
 SEQUENCE_TAB = SPECIES_RESOLUTION + 2 + 1
 
 
-def test_the_SEQUENCE_tab_is_four_statements_and_reads_no_gene_grain_table(application):
+def test_the_SEQUENCE_tab_is_four_statements(application):
     if not os.environ.get("BACATLAS_ROOT_GFF"):
         pytest.skip("BACATLAS_ROOT_GFF is not set — the sequence route slices the original GFFs")
     report = _measure(application, "/api/v1/species/ecoli/genomes/SAMEA103923484/loci/2811/sequence")
     report.assert_at_most(SEQUENCE_TAB, what="the Sequence tab, at the route")
-    # ⛔ And none of them touches a one-row-per-gene table: the coordinates come from `genome_genes`.
-    assert _gene_grain_reads(report) == []
 
 
 @pytest.mark.parametrize(
@@ -162,7 +160,6 @@ def test_an_anchor_picker_KEYSTROKE_is_two_statements_whatever_the_limit(applica
         record.summary()
         for record in report.statements
         if "GROUP BY" in record.sql.upper()
-        or "gene_locus_membership" in record.sql
         or "unnest" in record.sql.lower()
     ]
 
@@ -191,83 +188,24 @@ def test_and_the_shell_DOES_aggregate_so_the_property_above_is_not_vacuous(appli
     assert len(_catalogue_aggregations(report)) == 1
 
 
-def _gene_grain_catalogue_scans(report):
-    """Statements reading `gene_functional_annotation` across a whole catalogue.
-
-    ⚠ It still excludes `locus_id = any(:locus_ids)`, which used to be `_annotated_counts` reading
-    six loci rather than a catalogue. That reader has since moved to `locus.*_annotated_member_count`
-    and issues no such statement at all, so the exclusion now matches nothing on these routes — it is
-    kept because the detector is about SCANS and a future bounded reader of the gene rows should not
-    trip it.
-    """
-    return [
-        record.summary()
-        for record in report.statements
-        if "gene_functional_annotation" in record.sql and "locus_id = any(" not in record.sql
-    ]
-
-
-def _gene_grain_reads(report):
-    """ANY statement touching either one-row-per-gene table, bounded or not."""
-    return [
-        record.summary()
-        for record in report.statements
-        if "gene_functional_annotation" in record.sql or "gene_locus_membership" in record.sql
-    ]
-
-
 @pytest.mark.parametrize("species,label", [("ecoli", "2811"), ("kp", "722")])
-def test_the_FUNCTION_tab_pays_its_catalogue_SCANS_once_per_process_and_never_again(
-    application, species, label
-):
-    """⭐⭐ **The Function tab now reads NO gene row at all — cold or warm — and that is the change.**
+def test_the_FUNCTION_tab_is_bounded_cold_and_warm(application, species, label):
+    """⭐⭐ **The Function tab reads NO gene row at all — cold or warm.**
 
-    This test used to assert the opposite half and say so: *"the guarantee is therefore not that the
-    scan is cheap but that it happens ONCE"*. The scan was `within_node_propagation`'s propagation
-    base rate over every annotated gene of the catalogue, measured at **0.22-1.94 s** per (catalogue,
-    vocabulary), so a cold tab paid 4.2-5.2 s wall. It is now a primary-key read of at most five rows
-    from `pangenome_propagation_rate`, and `_annotated_counts` reads four stored `locus` columns
-    instead of joining six loci to their gene rows. ⛔ So the old non-vacuity assertion —
-    `assert _gene_grain_catalogue_scans(cold)` — is now FALSE, and deleting it would have left
-    `== []` passing forever over a detector that can no longer match anything.
-
-    ⚠ **The non-vacuity therefore moved rather than going away**: the detector is exercised directly
-    against `compute_propagation`, which still scans, so it is proved able to fire in the same run
-    that proves the route does not fire it.
+    It used to pay `within_node_propagation`'s propagation base rate over every annotated gene of the
+    catalogue, measured at **0.22-1.94 s** per (catalogue, vocabulary), so a cold tab paid 4.2-5.2 s
+    wall. It is now a primary-key read of at most five rows from `pangenome_propagation_rate`, and
+    `_annotated_counts` reads four stored `locus` columns. ⛔ The per-gene tables are DROPPED (D8),
+    so a gene-row read is no longer something to detect: it would raise `UndefinedTable` and
+    `_measure`'s 200 assertion fails. What remains to bound is the statement count.
 
     ⚠ Still clears both caches, so the cold half is really cold whatever order the suite runs in.
     """
     clear_calibration_cache()
     clear_propagation_cache()
     cold = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
-    assert _gene_grain_reads(cold) == [], (
-        f"a COLD Function tab still reads a one-row-per-gene table: {_gene_grain_reads(cold)}"
-    )
-
     warm = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
-    assert _gene_grain_reads(warm) == []
     warm.assert_at_most(FUNCTION_TAB_WARM, what="a warm Function tab, at the route")
     # ⚠ And the cold tab is no longer dramatically more expensive than the warm one: the only thing
     # the caches now save is a handful of bounded reads, not a catalogue scan.
     cold.assert_at_most(FUNCTION_TAB_COLD, what="a COLD Function tab, at the route")
-
-
-def test_the_gene_grain_scan_detector_can_still_FIRE_so_the_test_above_is_not_vacuous(application):
-    """⛔ A detector that cannot match anything reports an empty list for every route.
-
-    `compute_propagation` is the scan the Function tab used to pay. It still exists — it is the
-    oracle `tests/test_locus_annotation_rollups.py` compares the stored rollups against — so it can
-    be run deliberately here to show that `_gene_grain_reads` recognises it. ⚠ If this ever goes
-    red because `compute_propagation` has gone, the assertions above stop meaning anything and need
-    a different witness, not a deletion.
-    """
-    from sqlalchemy.orm import Session
-
-    from bacatlas_backend.instruments.within_node_propagation import compute_propagation
-    from bacatlas_backend.models.enumerations import AnnotationKind
-
-    engine = application.extensions["bacatlas_database"].engine
-    with SqlCostOracle(engine) as report, Session(engine) as session:
-        compute_propagation(session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP)
-    assert _gene_grain_reads(report), "the detector did not fire on a statement that does scan"
-    assert _gene_grain_catalogue_scans(report), "the catalogue-scan detector did not fire either"

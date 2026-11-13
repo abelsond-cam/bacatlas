@@ -726,9 +726,8 @@ def build_catalogue_frames(
         )
 
     # ── propagation: does each node's own call agree with itself? ──────────────────────────────
-    # ⛔ Read from the SAME frame every rollup above reads, through the SAME two parsers the genome
-    # layer writes `gene_functional_annotation` with. Two readers of one parquet reaching one value
-    # is the requirement; `tests/test_locus_annotation_rollups.py` is what says whether they do.
+    # ⛔ Read from the SAME frame every rollup above reads, through the two parsers that define a
+    # dbxref value's shape (`ingest_genome_gene_table.split_set_value` / `scalar_or_none`).
     annotation_measured = source["dbxrefs"] is not None
     node_keys = [str(node) for node in nodes]
     # ⚠ `ec` and `go` are comma-joined in the frame and ARRAYS in the database, so they are split to
@@ -946,13 +945,12 @@ def _gene_memberships(assign, windows, arrangement_frame, slot_of):
     `flank_windows` emits nothing at all for a gene with no neighbour, so a gene alone on its contig
     never reaches the window table. Measured on the published *E. coli* catalogue: **2,352 of
     489,146 genes (0.48 %)**, which is entirely ordinary in draft assemblies whose mean contig holds
-    ~14 genes. Building this frame from the windows alone left `gene_locus_membership` — a table
-    whose docstring says *"exactly one row per gene"* — short by exactly that many, with nothing
-    anywhere reporting it.
+    ~14 genes. Building this frame from the windows alone left the per-gene membership table (since
+    dropped for `genome_locus_assignment`) short by exactly that many, with nothing anywhere reporting it.
 
     ⚠ Those genes get a row with a **NULL arrangement rank**, which is a different fact from *"this
-    genome has no gene at this locus"*. The page says the two in different words, and only a row can
-    carry the second.
+    genome has no gene at this locus"*. The page says the two in different words; the assignment
+    block carries the second as `NO_ARRANGEMENT_RANK`.
     """
     base = assign[["sample_id", "flat_index", "node"]].copy()
     base["sample_id"] = base["sample_id"].astype(str)

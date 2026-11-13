@@ -27,7 +27,6 @@ from bacatlas_backend.ingest.ingest_genome_locus_counts import (
     write_genome_locus_counts,
 )
 from bacatlas_backend.models.enumerations import SampleIdentifierKind
-from bacatlas_backend.models.gene import Gene, GeneLocusMembership
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
 from bacatlas_backend.models.genome_genes import GenomeGenes
@@ -200,9 +199,9 @@ def test_the_per_genome_counts_are_COUNT_DISTINCT_and_add_up_to_the_locus_side(a
                 select(func.sum(Locus.member_genome_count)).where(Locus.pangenome_id == pangenome_id)
             ).scalar_one()
             gene_rows = session.execute(
-                select(func.count())
-                .select_from(GeneLocusMembership)
-                .where(GeneLocusMembership.pangenome_id == pangenome_id)
+                select(func.sum(GenomeLocusAssignment.placed_gene_count)).where(
+                    GenomeLocusAssignment.pangenome_id == pangenome_id
+                )
             ).scalar_one()
             assert per_genome == per_locus, (pangenome_id, per_genome, per_locus)
             # And the naive count really is different here, so the assertion above has teeth.
@@ -317,34 +316,9 @@ def small_catalogue(session, seeded):
     session.add_all(arrangements)
     session.flush()
     # ⚠ No arrangement is paired with a gene here. `arrangement_locus_count` is counted from
-    # `locus_arrangement.member_genome_ids` above, never from a per-gene link — which is why
-    # dropping `gene_locus_membership.locus_arrangement_id` left this fixture's subject intact.
-    genes = [
-        # (genome, flat_index, locus)
-        (a, 0, loci[0]),
-        (a, 1, loci[0]),
-        (a, 2, loci[1]),
-        (b, 0, loci[0]),
-        (b, 1, loci[1]),
-    ]
-    for genome_id, flat_index, _locus in genes:
-        session.add(
-            Gene(
-                genome_id=genome_id, flat_index=flat_index, pathogen_species_id=species_id,
-                contig_index=0, start_position=1 + 100 * flat_index,
-                end_position=90 + 100 * flat_index, length_nt=90, strand="+",
-            )
-        )
-    session.flush()
-    for genome_id, flat_index, locus in genes:
-        session.add(
-            GeneLocusMembership(
-                pangenome_id=pangenome.pangenome_id, genome_id=genome_id, flat_index=flat_index,
-                locus_id=locus.locus_id,
-            )
-        )
-    # ⭐ The genome-grain twin of the rows above — `locus_count` is read from
-    # `distinct_locus_count` now, and the publish gate checks `gene_count` against `genome_genes`.
+    # `locus_arrangement.member_genome_ids` above, never from a per-gene link.
+    # ⭐ The genes, at the genome grain — `locus_count` is read from `distinct_locus_count`, and the
+    # publish gate checks `gene_count` against `genome_genes`.
     # A: three genes over loci 0, 0, 1 → placed 3, distinct 2. B: 0, 1 → 2, 2. C: nothing.
     blocks = {
         a: ([0, 0, 1], 3, 2),
@@ -367,44 +341,15 @@ def small_catalogue(session, seeded):
     return pangenome, {"a": a, "b": b, "c": genome_c.genome_id}
 
 
-#: ⛔ The ORIGINAL `locus_count` definition — `count(DISTINCT locus_id)` over the per-gene table —
-#: kept here verbatim as the reference the assignment-based SELECT is proved against. The migration
-#: `d79a80412308` carries the same copy for its backfill.
-MEMBERSHIP_LOCUS_COUNT_SELECT = """
-    SELECT member.genome_id,
-           coalesce(present.locus_count, 0) AS locus_count
-      FROM pangenome p
-      JOIN genome_collection_membership member
-        ON member.genome_collection_id = p.genome_collection_id
-      LEFT JOIN (SELECT genome_id, count(DISTINCT locus_id) AS locus_count
-                   FROM gene_locus_membership
-                  WHERE pangenome_id = :pangenome_id
-                  GROUP BY genome_id) present
-        ON present.genome_id = member.genome_id
-     WHERE p.pangenome_id = :pangenome_id
-"""
-
-
-def test_the_assignment_based_locus_count_equals_the_membership_aggregate_genome_for_genome(
-    session, small_catalogue
-):
-    """⭐ The two definitions must agree on EVERY genome while both tables are written, or the
-    picker's count silently changed meaning when its source did. Coverage is asserted first: three
-    genomes on both sides, non-empty, before a single difference is reported."""
+def test_the_assignment_based_locus_count_counts_distinct_loci_genome_for_genome(session, small_catalogue):
+    """⭐ The picker's count is DISTINCT loci per genome — ρ > 1 counted once, a genome with no gene a
+    zero and not a gap. Coverage is asserted first: three genomes, before a value is compared."""
     pangenome, genome = small_catalogue
-    parameters = {"pangenome_id": pangenome.pangenome_id}
-    from_memberships = {
-        row.genome_id: row.locus_count
-        for row in session.execute(text(MEMBERSHIP_LOCUS_COUNT_SELECT), parameters)
-    }
     from_assignments = {
         row.genome_id: row.locus_count
-        for row in session.execute(text(GENOME_LOCUS_COUNT_SELECT), parameters)
+        for row in session.execute(text(GENOME_LOCUS_COUNT_SELECT), {"pangenome_id": pangenome.pangenome_id})
     }
-    assert set(from_memberships) == set(from_assignments) == set(genome.values())
-    assert len(from_memberships) == 3
-    assert from_assignments == from_memberships
-    # And the values are the ones the fixture promises — ρ > 1 counted once, C a zero and not a gap.
+    assert set(from_assignments) == set(genome.values())
     assert from_assignments == {genome["a"]: 2, genome["b"]: 2, genome["c"]: 0}
 
 

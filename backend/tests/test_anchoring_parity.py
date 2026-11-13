@@ -47,7 +47,6 @@ from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.ingest.ingest_genome_locus_counts import GENOME_LOCUS_COUNT_SELECT
 from bacatlas_backend.ingest.published_catalogues import catalogue as published_catalogue
-from bacatlas_backend.models.gene import GeneLocusMembership
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
 from bacatlas_backend.models.locus import Locus
@@ -102,7 +101,7 @@ class AnchoringParity:
     genome_id_by_ordinal: list[int]
     sample_id_by_ordinal: list[str]
     arrangements_by_ordinal: list[list]
-    #: ⚠ From `gene_locus_membership`: every genome with ≥ 1 gene at the locus. The payload cannot
+    #: ⚠ From `locus.present_genome_ids`: every genome with ≥ 1 gene at the locus. The payload cannot
     #: name these — `arr.gid` omits a genome whose gene reached no window — so the pairs where the
     #: two differ are exactly the "no recorded neighbourhood" cases.
     present_by_ordinal: list[set[int]]
@@ -242,12 +241,8 @@ def parity(request, tmp_path_factory) -> AnchoringParity:
         ).scalars():
             arrangements_by_ordinal[ordinal_by_locus_id[arrangement.locus_id]].append(arrangement)
         present_by_ordinal: list[set[int]] = [set() for _ in loci]
-        for locus_id, genome_id in session.execute(
-            select(GeneLocusMembership.locus_id, GeneLocusMembership.genome_id)
-            .where(GeneLocusMembership.pangenome_id == pangenome.pangenome_id)
-            .distinct()
-        ):
-            present_by_ordinal[ordinal_by_locus_id[locus_id]].add(genome_id)
+        for locus in loci:
+            present_by_ordinal[locus.catalogue_ordinal] = set(locus.present_genome_ids)
         session.expunge_all()
 
     catalogue = load_catalogue(payload)

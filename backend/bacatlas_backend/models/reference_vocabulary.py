@@ -128,10 +128,10 @@ class KeggOrthology(Base):
 class GeneOntologyTerm(Base):
     """One GO term: what it is called, which namespace it belongs to, and the slim classes it folds onto.
 
-    ⛔ **The 38,092-row table exists for ONE consumer**: within-node propagation, which reads
-    `gene_functional_annotation.gene_ontology_terms` — raw accessions, all three namespaces pooled
-    into one array. The neighbour ladder does not need it: `locus_annotation_entry.term_value` is
-    already a slim class with its namespace already stored beside it.
+    ⛔ **The 38,092-row table exists for ONE consumer**: the GO fold applied at ingest to each gene's
+    `go` dbxref (within-node propagation and the `go_claiming_member_count_*` columns) — raw
+    accessions, all three namespaces pooled into one array. The neighbour ladder does not need it:
+    `locus_annotation_entry.term_value` is already a slim class with its namespace already stored beside it.
 
     ⚠ `namespace_index`, not a namespace string — `enumerations.GENE_ONTOLOGY_NAMESPACE_NAMES`
     already owns the index↔name contract, and this joins straight to

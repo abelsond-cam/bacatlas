@@ -34,9 +34,11 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
-from bacatlas_backend.models.gene import Gene, GeneLocusMembership
+from bacatlas_backend.gene_blocks import GeneSpanTable, decode_int32_vector
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollectionMembership
+from bacatlas_backend.models.genome_genes import GenomeGenes
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.pangenome import Pangenome
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
@@ -139,34 +141,58 @@ def choose_cases(session: Session, pangenome_id: int) -> dict[str, str]:
 
 
 def choose_sequences(session: Session, pangenome_id: int) -> dict[str, tuple[str, str]]:
-    """A minus-strand gene well inside its contig, and a genome with no gene at that locus."""
-    minus = session.execute(
-        select(Genome.sample_id, Locus.node_label)
-        .select_from(Gene)
-        .join(
-            GeneLocusMembership,
-            (GeneLocusMembership.genome_id == Gene.genome_id) & (GeneLocusMembership.flat_index == Gene.flat_index),
-        )
-        .join(Genome, Genome.genome_id == Gene.genome_id)
-        .join(Locus, Locus.locus_id == GeneLocusMembership.locus_id)
-        .where(
-            GeneLocusMembership.pangenome_id == pangenome_id,
-            Gene.strand == "-",
-            Gene.start_position > 500,
-            Gene.length_nt > 900,
-            # ⚠ A locus SOME collection genome lacks, so the "no gene here" case below exists at the
-            # same locus — on kp the first minus-strand gene sat at a locus all 100 genomes carry.
-            Locus.member_genome_count
-            < select(Pangenome.genome_count).where(Pangenome.pangenome_id == pangenome_id).scalar_subquery(),
-        )
-        .order_by(Gene.genome_id, Gene.flat_index)
-        .limit(1)
-    ).one()
-    members = (
-        select(GeneLocusMembership.genome_id)
-        .join(Locus, Locus.locus_id == GeneLocusMembership.locus_id)
-        .where(Locus.node_label == minus.node_label, Locus.pangenome_id == pangenome_id)
+    """A minus-strand gene well inside its contig, and a genome with no gene at that locus.
+
+    Read from the genome-grain blocks: each genome's `gene_locus_ordinals` against its `gene_spans`,
+    in `(genome_id, flat_index)` order, the first gene that qualifies.
+    """
+    genome_count = session.execute(
+        select(Pangenome.genome_count).where(Pangenome.pangenome_id == pangenome_id)
+    ).scalar_one()
+    # ⚠ A locus SOME collection genome lacks, so the "no gene here" case below exists at the same
+    # locus — on kp the first minus-strand gene sat at a locus all 100 genomes carry.
+    label_of_ordinal = dict(
+        session.execute(
+            select(Locus.catalogue_ordinal, Locus.node_label).where(
+                Locus.pangenome_id == pangenome_id, Locus.member_genome_count < genome_count
+            )
+        ).all()
     )
+    blocks = session.execute(
+        select(
+            Genome.sample_id,
+            GenomeGenes.gene_count,
+            GenomeGenes.gene_spans,
+            GenomeLocusAssignment.gene_locus_ordinals,
+        )
+        .join(GenomeGenes, GenomeGenes.genome_id == GenomeLocusAssignment.genome_id)
+        .join(Genome, Genome.genome_id == GenomeLocusAssignment.genome_id)
+        .where(GenomeLocusAssignment.pangenome_id == pangenome_id)
+        .order_by(GenomeLocusAssignment.genome_id)
+    )
+    minus = None
+    for sample_id, gene_count, spans, ordinal_block in blocks:
+        table = GeneSpanTable(spans, gene_count=gene_count)
+        ordinals = decode_int32_vector(ordinal_block, expected_count=gene_count)
+        flat_index = next(
+            (
+                index
+                for index, ordinal in enumerate(ordinals)
+                if ordinal in label_of_ordinal
+                and table.is_minus_strand(index)
+                and table.start_position(index) > 500
+                and table.length_nt(index) > 900
+            ),
+            None,
+        )
+        if flat_index is not None:
+            minus = (sample_id, label_of_ordinal[ordinals[flat_index]])
+            break
+    if minus is None:
+        raise SystemExit("no minus-strand gene qualifies for the `minus_strand` sequence case")
+    present = session.execute(
+        select(Locus.present_genome_ids).where(Locus.node_label == minus[1], Locus.pangenome_id == pangenome_id)
+    ).scalar_one()
     # ⛔ A genome of THIS COLLECTION that lacks a gene here — not merely one of the species. The
     # database holds more genomes per species than the pangenome modelled, and one outside the
     # collection is a different claim (404, "not in this catalogue"), which the recorded "no gene here"
@@ -177,12 +203,12 @@ def choose_sequences(session: Session, pangenome_id: int) -> dict[str, tuple[str
         .join(GenomeCollectionMembership, GenomeCollectionMembership.genome_id == Genome.genome_id)
         .where(
             GenomeCollectionMembership.genome_collection_id == collection.scalar_subquery(),
-            Genome.genome_id.not_in(members),
+            Genome.genome_id.not_in(present),
         )
         .order_by(Genome.sample_id)
         .limit(1)
     ).scalar_one()
-    return {"minus_strand": (minus.sample_id, minus.node_label), "no_gene_here": (absent, minus.node_label)}
+    return {"minus_strand": minus, "no_gene_here": (absent, minus[1])}
 
 
 def record_species(client, session: Session, species_key: str) -> dict:

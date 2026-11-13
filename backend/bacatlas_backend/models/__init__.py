@@ -5,12 +5,6 @@ silently omits its table — and the failure surfaces much later, as a missing r
 endpoint. Adding a model means adding it to this file.
 """
 
-from bacatlas_backend.models.gene import (  # noqa: F401
-    Gene,
-    GeneFunctionalAnnotation,
-    GeneLocusMembership,
-    GenomeNoncodingFeature,
-)
 from bacatlas_backend.models.genome import Genome, GenomeAssembly, GenomeContig  # noqa: F401
 from bacatlas_backend.models.genome_collection import (  # noqa: F401
     GenomeCollection,
@@ -52,9 +46,6 @@ from bacatlas_backend.models.projected_genome import (  # noqa: F401
 from bacatlas_backend.models.reference_vocabulary import PfamFamily  # noqa: F401
 
 __all__ = [
-    "Gene",
-    "GeneFunctionalAnnotation",
-    "GeneLocusMembership",
     "Genome",
     "GenomeAssembly",
     "GenomeCollection",
@@ -63,7 +54,6 @@ __all__ = [
     "GenomeContig",
     "GenomeGenes",
     "GenomeLocusAssignment",
-    "GenomeNoncodingFeature",
     "IntergenicGap",
     "IntergenicGapFeature",
     "Locus",

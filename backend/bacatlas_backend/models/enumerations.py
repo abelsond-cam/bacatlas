@@ -168,8 +168,8 @@ class PropagationVerdict(enum.Enum):
     """Whether a node's own annotated genes agree — the five states, one per locus per vocabulary.
 
     ⭐ **This is `within_node_propagation`'s decision, named and stored.** It is not a new question:
-    `compute_propagation` has always sorted every node into exactly these five cases and then thrown
-    four of the labels away, keeping only the per-band tally. Storing the label per locus makes the
+    the request-time `compute_propagation` (retired in D8) sorted every node into exactly these five
+    cases and then threw four of the labels away, keeping only the per-band tally. Storing the label per locus makes the
     tally a `GROUP BY` over a column instead of a scan over 1.3 M gene rows.
 
     ⛔ **Five values and not three, because two of them are different kinds of silence.**

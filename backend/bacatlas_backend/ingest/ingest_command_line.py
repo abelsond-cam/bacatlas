@@ -41,7 +41,6 @@ from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_spec
 from bacatlas_backend.ingest.ingest_projected_genomes import ProjectionRefused, load_projection
 from bacatlas_backend.ingest.ingest_reference_vocabularies import load_reference_vocabularies
 from bacatlas_backend.ingest.publish_pangenome import PublishRefused, publish_pangenome
-from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation, GenomeNoncodingFeature
 from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.locus import Locus
@@ -54,10 +53,9 @@ class GenomeLayerReport:
 
     genomes_loaded: int = 0
     genomes_refused: int = 0
+    #: Genes across the `genome_genes` blocks written — the sum of their `gene_count`.
     genes: int = 0
     contigs: int = 0
-    functional_annotations: int = 0
-    noncoding_features: int = 0
     #: ⭐ `genome_genes` rows written, and by which ROUTE. The three route counts add up to
     #: `genomes_loaded`, and a reader needs them apart: a load where every genome reads `encoded`
     #: is a load that checked no block against nuna's file, which one total could not say.
@@ -78,8 +76,6 @@ class GenomeLayerReport:
             f"{self.seconds:.0f}s",
             f"  genes                  {self.genes:,}",
             f"  contigs                {self.contigs:,}",
-            f"  functional annotations {self.functional_annotations:,}",
-            f"  non-coding features    {self.noncoding_features:,}",
             f"  gene_spans blocks      {self.gene_spans:,}  ("
             + " · ".join(f"{route} {self.gene_spans_routes.get(route, 0):,}" for route in GENE_SPANS_SOURCES)
             + ")",
@@ -182,14 +178,11 @@ def load_genome_layer(
     only: set[str] | None = None,
     progress_every: int = 25,
     species_key: str | None = None,
-    write_functional_annotations: bool = True,
-    write_noncoding_features: bool = False,
 ) -> GenomeLayerReport:
     """Load every genome in the roster, one atomic transaction each.
 
     ``species_key`` names the species for every genome instead of reading it per parquet — see
-    `ingest_one_genome`, which is where the reason lives. The two ``write_*`` switches exist so a
-    table can be left out of a load deliberately and *said*, rather than arriving empty.
+    `ingest_one_genome`, which is where the reason lives.
     """
     report = GenomeLayerReport()
     species_ids = ingest_pathogen_species(session)
@@ -230,8 +223,6 @@ def load_genome_layer(
                 session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
                 pathogen_species_ids=species_ids, species_key=species_key,
                 nseq_path=artifacts.per_genome_nseq(sample_id) if sample_id in present else None,
-                write_functional_annotations=write_functional_annotations,
-                write_noncoding_features=write_noncoding_features,
             )
             session.commit()
         # ⚠ `ValueError` is in the tuple because `pyarrow.lib.ArrowInvalid` IS one: a single
@@ -246,10 +237,8 @@ def load_genome_layer(
             continue
         report.genomes_loaded += 1
         report.genome_ids.append(one.genome_id)
-        report.genes += one.genes_written
+        report.genes += one.gene_count
         report.contigs += one.contigs_written
-        report.functional_annotations += one.functional_annotations_written
-        report.noncoding_features += one.noncoding_features_written
         report.gene_spans += one.gene_spans_written
         if one.gene_spans_source is not None:
             report.gene_spans_routes[one.gene_spans_source] = report.gene_spans_routes.get(one.gene_spans_source, 0) + 1
@@ -278,20 +267,9 @@ def reconcile(session: Session, report: GenomeLayerReport) -> list[str]:
     """
     scope = literal(report.genome_ids, ARRAY(Integer))
     held = {
-        "genes": session.execute(
-            select(func.count()).select_from(Gene).where(Gene.genome_id == any_(scope))
-        ).scalar_one(),
         "contigs": session.execute(
             select(func.count()).select_from(GenomeContig)
             .where(GenomeContig.genome_id == any_(scope))
-        ).scalar_one(),
-        "functional_annotations": session.execute(
-            select(func.count()).select_from(GeneFunctionalAnnotation)
-            .where(GeneFunctionalAnnotation.genome_id == any_(scope))
-        ).scalar_one(),
-        "noncoding_features": session.execute(
-            select(func.count()).select_from(GenomeNoncodingFeature)
-            .where(GenomeNoncodingFeature.genome_id == any_(scope))
         ).scalar_one(),
         "genomes": session.execute(
             select(func.count()).select_from(Genome).where(Genome.genome_id == any_(scope))
@@ -301,10 +279,7 @@ def reconcile(session: Session, report: GenomeLayerReport) -> list[str]:
         ).scalar_one(),
     }
     written = {
-        "genes": report.genes, "contigs": report.contigs,
-        "functional_annotations": report.functional_annotations,
-        "noncoding_features": report.noncoding_features, "genomes": report.genomes_loaded,
-        "gene_spans": report.gene_spans,
+        "contigs": report.contigs, "genomes": report.genomes_loaded, "gene_spans": report.gene_spans,
     }
     return [
         f"{key}: wrote {written[key]:,} but the table holds {held[key]:,} "
@@ -501,26 +476,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="where nuna published `{BS}.nseq` / `{BS}.loci`. \u2b50 A genome with a "
                              ".nseq has its gene_spans block COPIED from the file (and, where it also "
                              "has a GFF, checked byte for byte against the GFF's encoding); a genome "
-                             "with a .nseq and NO GFF is loaded from the header alone, with no per-gene "
-                             "rows. \u26d4 Listed ONCE, never stat-ed per genome. Unset, nothing is read "
+                             "with a .nseq and NO GFF is loaded from the header alone. "
+                             "\u26d4 Listed ONCE, never stat-ed per genome. Unset, nothing is read "
                              "from one and the block is encoded from the GFF as before")  # fmt: skip
-    parser.add_argument("--no-functional-annotations", action="store_true",
-                        help="\u2b50 do not write `gene_functional_annotation`. The per-node rollups "
-                             "in `locus_annotation_entry` are what the page reads; the per-gene "
-                             "table is 372 M rows at 71,435 genomes and nothing renders it. Left "
-                             "OUT deliberately and reported, never arriving empty")  # fmt: skip
-    parser.add_argument("--with-noncoding-features", action="store_true",
-                        help="\u2b50 write `genome_noncoding_feature`, which is OFF by default. "
-                             "\u26d4 The earlier `--no-noncoding-features` said suppressing it was "
-                             "'a decision to take and state, not a default' because 'it renders a "
-                             "track'. That was wrong, and the polarity followed the error: traced "
-                             "2026-10-29, the table has NO reader \u2014 no service, no route, no "
-                             "frontend field \u2014 only the ingest that writes it and the reconcile "
-                             "that counts it. The track's intergenic slot is drawn from "
-                             "`intergenic_gap`, whose lengths come from gene adjacencies and whose "
-                             "features come from the `_noncoding` PARQUET, never from this table. "
-                             "It is also the largest single table at 71,435 genomes (~5.8 GB), so "
-                             "writing it is what now has to be asked for")  # fmt: skip
     parser.add_argument("--allow-missing-strand", action="store_true",
                         help="proceed when genomes have no `{BS}_strand.parquet`, recording the "
                              "shortfall in `omitted`. \u26d4 Refused by default: `load_gene_coords` "
@@ -575,8 +533,6 @@ def main(argv: list[str] | None = None) -> int:
             report = load_genome_layer(
                 session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
                 species_key=args.species_key,
-                write_functional_annotations=not args.no_functional_annotations,
-                write_noncoding_features=args.with_noncoding_features,
             )
             session.commit()
             print(report.render())

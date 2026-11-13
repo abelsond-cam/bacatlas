@@ -1,6 +1,6 @@
 """Genomes the model never clustered, placed on a published pangenome's loci.
 
-⛔ **It writes two tables and reads the rest.** `gene_locus_membership`, `locus_arrangement`,
+⛔ **It writes two tables and reads the rest.** `genome_locus_assignment`, `locus_arrangement`,
 `genome_collection_membership` and `pangenome_genome_locus_count` are never touched, so the publish
 gate, the column audit and every parity suite keep meaning what they meant. A projected genome is
 not a member of anything: it is drawn beside the model, never inside it.
@@ -130,7 +130,7 @@ def _refuse_a_collection_genome(session: Session, pangenome_id: int, genome_id: 
     if in_collection:
         raise ProjectionRefused(
             f"{sample_id} is one of this pangenome's modelled genomes. Its genes are already in "
-            "`gene_locus_membership`, and placing it again would report a gene's distance to itself."
+            "`genome_locus_assignment`, and placing it again would report a gene's distance to itself."
         )
 
 

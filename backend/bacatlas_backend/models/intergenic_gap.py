@@ -128,8 +128,8 @@ class IntergenicGapFeature(Base):
 
     Editorial rules recorded as data, decided from the cohort census (job 34060534):
     `crispr-repeat`/`crispr-spacer` fold into the `CRISPR` array containing them at ingest;
-    `regulatory_region` is kept in `genome_noncoding_feature` and off the track (50.7 % sit inside a
-    CDS); `gap` rows never arrive, being bookkeeping dropped at the parser.
+    `regulatory_region` is kept off the track (50.7 % sit inside a CDS); `gap` rows never arrive,
+    being bookkeeping dropped at the parser.
     """
 
     __tablename__ = "intergenic_gap_feature"

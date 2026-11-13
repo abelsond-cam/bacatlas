@@ -1,10 +1,9 @@
 """Where a genome's bases come from — the one seam the Sequence tab reads through.
 
-⭐ **The seam already existed; this only widens it.** `models/gene.py` states the design: *"Everything
-the Sequence tab shows is a column here EXCEPT the base letters themselves."* Coordinates, strand,
-phase, partiality, GC, protein length, symbol and product are all `gene` columns, deliberately split
-from `gene_locus_membership` so a model re-run never rewrites 412 M coordinate rows. Only the base
-letters came off the disk, through exactly one expression. So the change is to replace *one
+⭐ **The seam already existed; this only widens it.** Everything the Sequence tab shows is in the
+database EXCEPT the base letters themselves — coordinates, strand, phase and partiality in
+`genome_genes`, kept apart from the model's `genome_locus_assignment` so a model re-run never
+rewrites them. Only the base letters came off the disk, through exactly one expression. So the change is to replace *one
 resolver* — "build a path from `bakrep_dataset_id`, open it" — with "get this genome's contigs, from
 wherever", keeping the `dict[seqid, str]` contract. `read_gene_sequence` is untouched, and so are
 the schema, the API shape and the translation rule.

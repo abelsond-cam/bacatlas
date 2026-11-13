@@ -11,11 +11,11 @@ What is pinned here, and why each one is a failure that would otherwise be silen
   one-gene population, so a 0.0 would print "0 % agree" on the very nodes the page is quietest about;
 * ⛔ a band under the floor reports its count and no rate, like `annotation_transfer.Cell`;
 * ⚠ the folding goes through the **shared** folders, so a dash-padded or comma-joined EC value behaves
-  here exactly as it does in the neighbour ladder;
-* ⭐ and against a **raw-SQL oracle sharing none of the instrument's code**, which is the only thing
-  that can catch the instrument and its author being wrong the same way.
+  here exactly as it does in the neighbour ladder.
 
-⚠ Only the oracle needs a database; everything else runs without one, because a skip is not a pass.
+⚠ The raw-SQL oracle over the gene rows went with the per-gene tables in D8; the stored tally is
+checked against the stored verdicts in `tests/test_locus_annotation_rollups.py`. One database check
+remains here: RARE is the band with nothing to measure, read from `pangenome_propagation_rate`.
 """
 
 from __future__ import annotations
@@ -26,16 +26,10 @@ import pytest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from bacatlas_backend.instruments.annotation_transfer import (
-    ANNOTATED_COUNT_PREDICATE,
-    GENE_VALUE_COLUMN,
-    SUPPORTED_KINDS,
-)
 from bacatlas_backend.instruments.within_node_propagation import (
     MIN_NODES,
     PropagationRate,
     _fold_gene,
-    compute_propagation,
     unanimous_at_deepest_shared_rung,
 )
 from bacatlas_backend.models.enumerations import AnnotationKind
@@ -120,17 +114,7 @@ def test_a_COG_gene_folds_at_the_rung_the_page_shows():
     assert folded[(None, 1)] == frozenset(), "a single gene carries no locus-level category set"
 
 
-def test_every_supported_vocabulary_has_a_gene_column_and_a_derived_predicate():
-    """⛔ The mapping that replaced four hand-written copies — a missing kind would skip silently."""
-    assert set(GENE_VALUE_COLUMN) == set(SUPPORTED_KINDS)
-    assert set(ANNOTATED_COUNT_PREDICATE) == set(SUPPORTED_KINDS)
-    for kind, column in GENE_VALUE_COLUMN.items():
-        assert ANNOTATED_COUNT_PREDICATE[kind] == f"f.{column} is not null", (
-            "the predicate must be DERIVED from the column, or the two can disagree again"
-        )
-
-
-# ======================================================= the oracle, in SQL that shares no code
+# ================================================= the stored tally, where a database is loaded
 @pytest.fixture(scope="module")
 def session():
     url = os.environ.get("BACATLAS_DATABASE_URL")
@@ -140,96 +124,6 @@ def session():
         yield open_session
 
 
-@pytest.mark.parametrize("pangenome_id", [1, 2])
-@pytest.mark.parametrize("kind", SUPPORTED_KINDS, ids=lambda kind: kind.value)
-def test_every_vocabulary_is_measured_on_ITS_OWN_column(session, pangenome_id, kind):
-    """⛔⛔ The defect this instrument replaced, kept as a gate.
-
-    `measure_cog_function_inference.gene_level_values` selected `f.cog_id` and `f.ec_numbers` and
-    nothing else, so its GO and KEGG rows measured **COG** agreement over a GO- or KEGG-filtered
-    subset of genes. It went unnoticed for a year of edits because the numbers looked entirely
-    reasonable — COG agreement is also ~99.5 %, so a wrong measurement of the right shape reads as
-    a right one.
-
-    ⭐ **The tell is the POPULATION, not the rate.** A gene carrying a GO term and no COG folds to
-    nothing, so its node states no rung at all, falls out of `checkable` AND `one_gene`, and the two
-    stop summing to the number of nodes carrying the vocabulary.
-
-    ⛔⛔ **The identity is exact only on the UNFOLDED path, which is the one this test runs and NOT
-    the one the service runs.** `compute_propagation` is called below with no `fold`, where
-    `go_rung` pools GO's three facets into the first — so a GO node can never abstain and the two
-    columns always account for every node carrying the vocabulary. With the fold the service passes
-    (`function_inference_service`), **81 ecoli and 33 kp loci** carry GO on two or more genes with no
-    facet every one of them states, and they are in neither column. So this assertion is a statement
-    about the population bookkeeping, not a guarantee about the served numbers, and reading it as the
-    latter is the mistake the paragraph above was one sentence away from inviting.
-    ⭐ The folded identity — `checkable + one_gene + not_comparable == nodes carrying` — is pinned in
-    `tests/test_locus_annotation_rollups.py`, where `locus.propagation_verdict_*` supplies the third
-    term that this file has no way to count.
-    """
-    rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=kind)
-    carrying = session.execute(
-        text(f"""
-            select count(distinct m.locus_id)
-              from gene_locus_membership m
-              join locus l on l.locus_id = m.locus_id
-              join gene_functional_annotation f
-                   on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-             where l.pangenome_id = :pangenome_id and {ANNOTATED_COUNT_PREDICATE[kind]}
-        """),
-        {"pangenome_id": pangenome_id},
-    ).scalar_one()
-    assert carrying > 0, "non-vacuity: this catalogue does carry this vocabulary"
-    assert sum(one.checkable + one.one_gene for one in rates.values()) == carrying
-
-
-@pytest.mark.parametrize("pangenome_id", [1, 2])
-def test_the_COG_rates_match_a_recount_done_entirely_in_SQL(session, pangenome_id):
-    """⭐ The anti-vacuity oracle: `count(distinct cog_id) = 1`, which shares none of the folding.
-
-    COG is single-valued per gene, so unanimity reduces to one distinct id — a statement SQL can make
-    on its own. ⛔ A frozen oracle cannot see a drift it shares, so this one is a different algorithm,
-    not a copied number.
-    """
-    oracle = {
-        row.band: (row.checkable, row.unanimous, row.one_gene)
-        for row in session.execute(
-            text("""
-                with per as (
-                  select l.locus_id,
-                         l.prevalence_band as band,
-                         count(*) as annotated,
-                         count(distinct f.cog_id) as distinct_calls
-                    from locus l
-                    join gene_locus_membership m on m.locus_id = l.locus_id
-                    join gene_functional_annotation f
-                         on f.genome_id = m.genome_id and f.flat_index = m.flat_index
-                   where l.pangenome_id = :pangenome_id and f.cog_id is not null
-                   group by 1, 2)
-                select band,
-                       count(*) filter (where annotated >= 2) as checkable,
-                       count(*) filter (where annotated >= 2 and distinct_calls = 1) as unanimous,
-                       count(*) filter (where annotated = 1) as one_gene
-                  from per group by 1
-            """),
-            {"pangenome_id": pangenome_id},
-        ).all()
-    }
-    assert sum(counts[0] for counts in oracle.values()) > 0, (
-        "the oracle recounted ZERO checkable nodes — the oracle itself is vacuous"
-    )
-
-    measured = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=COG)
-    for band, (checkable, unanimous, one_gene) in oracle.items():
-        name = band.name if hasattr(band, "name") else str(band)
-        assert name in measured, f"the instrument reported no {name} band"
-        got = measured[name]
-        assert (got.checkable, got.unanimous, got.one_gene) == (checkable, unanimous, one_gene), (
-            f"{name}: instrument says {(got.checkable, got.unanimous, got.one_gene)}, "
-            f"SQL says {(checkable, unanimous, one_gene)}"
-        )
-
-
 def test_RARE_really_is_the_band_with_nothing_to_measure(session):
     """⛔ The design rests on this, so it is asserted rather than assumed: RARE is near-empty.
 
@@ -237,9 +131,13 @@ def test_RARE_really_is_the_band_with_nothing_to_measure(session):
     the page would be wrong and this test is where that shows up.
     """
     for pangenome_id in (1, 2):
-        rates = compute_propagation(session, pangenome_id=pangenome_id, annotation_kind=COG)
-        rare = rates.get("RARE")
-        assert rare is not None, "RARE should appear — it holds most of the one-gene population"
+        row = session.execute(
+            text("select checkable, unanimous, one_gene from pangenome_propagation_rate "
+                 "where pangenome_id = :pangenome_id and annotation_kind = :kind and prevalence_band = 'RARE'"),
+            {"pangenome_id": pangenome_id, "kind": COG.name},
+        ).one_or_none()
+        assert row is not None, "RARE should appear — it holds most of the one-gene population"
+        rare = rate_of(prevalence_band="RARE", checkable=row.checkable, unanimous=row.unanimous, one_gene=row.one_gene)
         assert rare.checkable < MIN_NODES, f"RARE now has {rare.checkable} checkable nodes"
         assert rare.rate is None
         assert rare.one_gene > 100, f"RARE holds only {rare.one_gene} one-gene nodes"
@@ -279,5 +177,5 @@ def test_a_single_annotated_gene_is_never_asked_whether_it_agrees_with_itself():
     to stop the page making.
     """
     assert unanimous_at_deepest_shared_rung(COG, ["COG3206"]) is True, (
-        "true by construction — which is why `compute_propagation` routes it to `one_gene` instead"
+        "true by construction — which is why `propagation_verdict` routes it to `one_gene` instead"
     )
