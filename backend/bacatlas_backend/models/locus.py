@@ -36,6 +36,12 @@ class Locus(Base):
         Index("ix_locus__pangenome_id__prevalence_band", "pangenome_id", "prevalence_band"),
         Index("ix_locus__pangenome_id__member_genome_count", "pangenome_id", "member_genome_count"),
         Index("ix_locus__pangenome_id__interest_score", "pangenome_id", "interest_score"),
+        # ⭐ GIN over the genomes present: *"which genomes carry locus L"* is `present_genome_ids @> ARRAY[?]`.
+        # Without it the question has NO SQL answer once `gene_locus_membership` is gone —
+        # `locus_arrangement.member_genome_ids` covers only genomes that reached a window, which is
+        # provably incomplete (6.26 % of ecoli and 3.69 % of kp loci have a present genome in no
+        # arrangement; see `arrangement_member_genome_count`).
+        Index("ix_locus__present_genome_ids", "present_genome_ids", postgresql_using="gin"),
         # ⚠ The FK to `genome` needs this to delete a genome without scanning every locus. Rare, but
         # at 889,160 loci a genome retraction should not be an outage — see the note on
         # `gene_locus_membership`, where the same omission cost an 8-minute stall.
@@ -81,6 +87,11 @@ class Locus(Base):
 
     member_gene_count: Mapped[int] = mapped_column(Integer, nullable=False)
     member_genome_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: ⭐ Every `genome_id` with at least one member gene here, sorted ascending, no repeats — so
+    #: `len(present_genome_ids) == member_genome_count` is an invariant the loader asserts. The one
+    #: per-locus array kept on purpose (design §3B): it is what answers *which genomes carry this
+    #: locus* after the per-gene membership table is gone. ~140 MB compressed at 72,801 genomes.
+    present_genome_ids: Mapped[list[int]] = mapped_column(ARRAY(Integer), nullable=False)
     prevalence_band: Mapped[PrevalenceBand] = mapped_column(nullable=False)
 
     # ── naming ────────────────────────────────────────────────────────────────────────────────

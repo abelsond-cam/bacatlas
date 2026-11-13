@@ -17,6 +17,8 @@ from bacatlas_backend.models.genome_collection import (  # noqa: F401
     GenomeCollectionBuildReport,
     GenomeCollectionMembership,
 )
+from bacatlas_backend.models.genome_genes import GenomeGenes  # noqa: F401
+from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment  # noqa: F401
 from bacatlas_backend.models.intergenic_gap import IntergenicGap, IntergenicGapFeature  # noqa: F401
 from bacatlas_backend.models.locus import Locus  # noqa: F401
 from bacatlas_backend.models.locus_annotation import (  # noqa: F401
@@ -59,6 +61,8 @@ __all__ = [
     "GenomeCollectionBuildReport",
     "GenomeCollectionMembership",
     "GenomeContig",
+    "GenomeGenes",
+    "GenomeLocusAssignment",
     "GenomeNoncodingFeature",
     "IntergenicGap",
     "IntergenicGapFeature",
