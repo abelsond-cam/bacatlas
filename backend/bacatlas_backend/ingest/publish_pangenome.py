@@ -27,6 +27,7 @@ from sqlalchemy.orm import Session
 
 from bacatlas_backend.gene_blocks import GENE_SPAN_STRIDE
 from bacatlas_backend.models.enumerations import EmbeddingRepresentation
+from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
 from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
@@ -235,11 +236,22 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
     # the blocks: O(genomes), never a row per gene, and `octet_length` on bytea reads the stored size
     # without detoasting. ⚠ The length is the table's own CHECK, re-asked here because a row that got
     # in around the constraint would otherwise be found by the first reader of its last gene.
+    # ⛔ Keyed to the CAUSE, not to a count: a genome may hold no block only where the genome stage
+    # recorded WHY (`genome.gene_table_omitted_reason` — nuna's `.nseq` gate refused it). A block XOR
+    # a reason, per genome; neither is an unloaded genome and both is a stale mark, and each is named.
+    # The sample ids ride along as `array_agg … FILTER`, empty whenever the check passes.
     # ⚠ Not `members`: that name is the collection subquery the assignment checks below still use.
-    collection_genomes, with_block, malformed, genes_in_blocks = session.execute(
+    has_block = GenomeGenes.genome_id.is_not(None)
+    is_named = Genome.gene_table_omitted_reason.is_not(None)
+    (
+        collection_genomes, with_block, named_count, neither, both, malformed, genes_in_blocks, named_genes,
+    ) = session.execute(
         select(
             func.count(),
             func.count(GenomeGenes.genome_id),
+            func.count().filter(~has_block & is_named),
+            func.array_agg(Genome.sample_id).filter(~has_block & ~is_named),
+            func.array_agg(Genome.sample_id).filter(has_block & is_named),
             func.coalesce(
                 func.sum(
                     case(
@@ -254,17 +266,29 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
                 0,
             ),
             func.coalesce(func.sum(GenomeGenes.gene_count), 0),
+            func.coalesce(func.sum(Genome.coding_gene_count).filter(~has_block & is_named), 0),
         )
         .select_from(GenomeCollectionMembership)
+        .join(Genome, Genome.genome_id == GenomeCollectionMembership.genome_id)
         .outerjoin(GenomeGenes, GenomeGenes.genome_id == GenomeCollectionMembership.genome_id)
         .where(GenomeCollectionMembership.genome_collection_id == pangenome.genome_collection_id)
     ).one()
+    neither, both = sorted(neither or []), sorted(both or [])
     check(
-        "every collection genome has a gene_spans block",
-        collection_genomes - with_block == 0,
-        f"{collection_genomes - with_block:,} of {collection_genomes:,} collection genomes have no "
-        "genome_genes row — the "
-        "Sequence tab would have no coordinates for any of their genes",
+        f"every collection genome has a gene_spans block or is named as holding none — "
+        f"{with_block:,} with a block, {named_count:,} named as carrying none, of {collection_genomes:,}",
+        not neither and not both,
+        "; ".join(
+            part
+            for part in (
+                f"{len(neither):,} of {collection_genomes:,} collection genomes have no genome_genes row "
+                f"and no gene_table_omitted_reason — the Sequence tab would have no coordinates for any "
+                f"of their genes and nothing says why: {neither[:10]}" if neither else "",
+                f"{len(both):,} collection genomes have a genome_genes row AND a "
+                f"gene_table_omitted_reason — the mark is stale: {both[:10]}" if both else "",
+            )
+            if part
+        ),
     )
     check(
         "every gene_spans block is 16 bytes per gene",
@@ -272,18 +296,21 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
         f"{malformed:,} block(s) whose octet_length is not gene_count × {GENE_SPAN_STRIDE} — a short "
         "block reads every gene after the gap as the one before it",
     )
+    genes_counted = genes_in_blocks + named_genes
     if pangenome.gene_count is not None and pangenome.gene_count > 0:
         check(
-            "the gene_spans blocks hold the pangenome's gene_count",
-            genes_in_blocks == pangenome.gene_count,
-            f"the blocks hold {genes_in_blocks:,} genes and the pangenome row claims "
+            "the gene_spans blocks, with the named genomes' coding_gene_count, hold the pangenome's "
+            "gene_count",
+            genes_counted == pangenome.gene_count,
+            f"the blocks hold {genes_in_blocks:,} genes and the {named_count:,} genome(s) named as "
+            f"carrying none {named_genes:,} — {genes_counted:,} — and the pangenome row claims "
             f"{pangenome.gene_count:,}",
         )
     else:
         # ⚠ Stated, not skipped: a reader must be able to tell "compared and equal" from "there was
         # nothing to compare against". It goes under passed because it is not a refusal.
         passed.append(
-            f"the gene_spans block total ({genes_in_blocks:,} genes) was NOT compared: "
+            f"the gene_spans block total ({genes_counted:,} genes) was NOT compared: "
             f"pangenome.gene_count is {pangenome.gene_count!r}"
         )
 
@@ -324,21 +351,30 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
 
     # ⛔ The two blocks are indexed by the same `flat_index` as `genome_genes.gene_spans`, so their
     # lengths must agree — ONE outer-join aggregate, counting a missing `genome_genes` row as a
-    # disagreement rather than as nothing to compare.
+    # disagreement rather than as nothing to compare. ⚠ A genome NAMED as holding no gene table is
+    # compared against `genome.coding_gene_count` instead (its `_meta` row count); an unnamed genome
+    # with no block has no expected count at all, so it still disagrees.
+    expected_gene_count = func.coalesce(
+        GenomeGenes.gene_count,
+        case((Genome.gene_table_omitted_reason.is_not(None), Genome.coding_gene_count)),
+    )
     disagreeing, without_genes = session.execute(
         select(
-            func.count().filter(GenomeGenes.gene_count.is_distinct_from(GenomeLocusAssignment.gene_count)),
-            func.count().filter(GenomeGenes.genome_id.is_(None)),
+            func.count().filter(expected_gene_count.is_distinct_from(GenomeLocusAssignment.gene_count)),
+            func.count().filter(GenomeGenes.genome_id.is_(None) & Genome.gene_table_omitted_reason.is_(None)),
         )
         .select_from(GenomeLocusAssignment)
+        .join(Genome, Genome.genome_id == GenomeLocusAssignment.genome_id)
         .outerjoin(GenomeGenes, GenomeGenes.genome_id == GenomeLocusAssignment.genome_id)
         .where(GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id)
     ).one()
     check(
-        "every assignment's gene_count equals genome_genes.gene_count",
+        "every assignment's gene_count equals genome_genes.gene_count, or genome.coding_gene_count "
+        "where the genome is named as holding none",
         disagreeing == 0,
-        f"{disagreeing:,} assignment rows disagree with genome_genes.gene_count ({without_genes:,} of "
-        "them have no genome_genes row at all) — the ordinals would index a block of another length",
+        f"{disagreeing:,} assignment rows disagree with the genome's gene count ({without_genes:,} of "
+        "them have no genome_genes row and are not named as holding none) — the ordinals would index a "
+        "block of another length",
     )
 
     # ⭐ Every placed gene is a member of exactly one locus, so the two sums are one number counted

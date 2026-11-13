@@ -65,6 +65,8 @@ UNOBSERVED = "SAMEA0000003"  # placed, with `strand_is_observed` False
 MISMATCHED = "SAMEA0000004"  # `genome_genes` says 2 genes, the assignment says 3 — both CHECKs pass
 UNLOADED = "SAMEA0000005"  # placed, but no `genome_genes` row at all
 ENCODED_OTHERWISE = "SAMEA0000006"  # `span_encoding` 2, which no decoder knows
+NAMED = "SAMEA0000007"  # placed, no `genome_genes` row, and NAMED as holding none — with the reason why
+NAMED_REASON = "the .nseq acceptance gate refused it: its stored proteins do not reproduce from the assembly"
 
 LOCUS = "2811"  # catalogue_ordinal 5 — HOST has genes 0 (+) and 1 (−) here
 OTHER = "3126"  # catalogue_ordinal 7 — HOST has gene 2 here, on the renamed contig
@@ -211,6 +213,29 @@ def gene_layer(engine, _seed_ids):
                 # ENCODED_OTHERWISE: a layout this decoder does not know.
                 _gene_layer(others[ENCODED_OTHERWISE], ((11, 100, 0, PLUS, 5),), span_encoding=2),
                 _assignment(pangenome_id, others[ENCODED_OTHERWISE], [5]),
+            ]
+        )
+        # NAMED: what the genome stage leaves for a genome nuna's `.nseq` gate refused — a `genome` row
+        # with the reason and its `_meta` gene count, no block, no contigs — placed at LOCUS only.
+        named = Genome(
+            pathogen_species_id=species.pathogen_species_id,
+            sample_id=NAMED,
+            sample_id_kind=host.sample_id_kind,
+            strand_is_observed=False,
+            coding_gene_count=2,
+            gene_table_omitted_reason=NAMED_REASON,
+        )
+        session.add(named)
+        session.flush()
+        others[NAMED] = named.genome_id
+        session.add_all(
+            [
+                GenomeCollectionMembership(
+                    genome_collection_id=collection.genome_collection_id,
+                    genome_id=named.genome_id,
+                    collection_genome_ordinal=len(memberships),
+                ),
+                _assignment(pangenome_id, named.genome_id, [5, -1]),
             ]
         )
         session.commit()
@@ -387,6 +412,37 @@ def test_a_malformed_gene_layer_is_REFUSED_by_name_and_NEVER_served_as_no_gene_h
     assert response.get_json() == {"error": "server_error", "detail": "the server could not answer this request"}
 
 
+def test_a_NAMED_genome_with_a_gene_here_is_a_NAMED_non_retryable_503_and_never_a_500(
+    session, gene_layer, held, probe_client
+):
+    """⭐ A modelled genome with no gene table: the gene exists (its assignment says so) and its bases
+    cannot be shown, for the stored reason. The existing "sequence unavailable" path, without
+    `Retry-After` — no retry will produce a table — and without opening an assembly."""
+    with pytest.raises(SequenceUnavailable) as raised:
+        _load(session, gene_layer, held, sample_id=NAMED, label=LOCUS)
+    assert raised.value.is_retryable is False
+    detail = (
+        f"{NAMED} has a gene at this locus, but BacAtlas holds no gene table for this genome — "
+        f"{NAMED_REASON} — so its coordinates and bases cannot be shown"
+    )
+    assert str(raised.value) == detail
+
+    response = probe_client.get(_url(NAMED, LOCUS))
+    assert response.status_code == 503
+    assert "Retry-After" not in response.headers
+    assert response.get_json() == {"error": "sequence_unavailable", "detail": detail}
+    assert held.requests == []
+
+
+def test_a_NAMED_genome_with_NO_gene_here_is_still_the_ANSWER_no_gene_here(session, gene_layer, held, probe_client):
+    """Its assignment block is real, so *"this genome has no gene at this locus"* is still true and still said."""
+    assert _load(session, gene_layer, held, sample_id=NAMED, label=OTHER) == []
+    response = probe_client.get(_url(NAMED, OTHER))
+    assert response.status_code == 200
+    assert response.get_json()["genes"] == []
+    assert held.requests == []
+
+
 def test_the_sequence_view_is_ONE_statement_whatever_it_answers(engine, gene_layer, held):
     """⚠ Two copies, no gene here, and a locus the catalogue lacks: one statement each.
 
@@ -398,15 +454,20 @@ def test_the_sequence_view_is_ONE_statement_whatever_it_answers(engine, gene_lay
             rows = _load(session, gene_layer, held, sample_id=sample_id, label=label)
         assert len(rows) == copies
         report.assert_at_most(1, what=f"the sequence view for {sample_id} at {label}")
+    # ⚠ The named state reads its reason off the same statement — no second one to learn why.
+    with Session(engine) as session, SqlCostOracle(engine) as report, pytest.raises(SequenceUnavailable):
+        _load(session, gene_layer, held, sample_id=NAMED, label=LOCUS)
+    report.assert_at_most(1, what=f"the sequence view for the named genome {NAMED}")
 
 
 def test_the_sequence_ROUTE_is_the_view_plus_the_three_named_lookups(probe_application, probe_client):
     """The species, the genome-in-collection and the locus — each a named 404 when it misses — then
     the view's one statement. ⚠ Held to the same number in `test_route_cost.SEQUENCE_TAB`."""
-    with SqlCostOracle(probe_application.extensions["bacatlas_database"].engine) as report:
-        response = probe_client.get(_url(HOST, LOCUS))
-    assert response.status_code == 200
-    report.assert_at_most(4, what="the Sequence tab, at the route")
+    for sample_id, status in ((HOST, 200), (NAMED, 503)):
+        with SqlCostOracle(probe_application.extensions["bacatlas_database"].engine) as report:
+            response = probe_client.get(_url(sample_id, LOCUS))
+        assert response.status_code == status
+        report.assert_at_most(4, what=f"the Sequence tab, at the route, for {sample_id}")
 
 
 def test_an_unreadable_assembly_RAISES_rather_than_returning_no_genes(session, gene_layer, tmp_path):

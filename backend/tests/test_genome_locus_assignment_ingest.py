@@ -36,9 +36,13 @@ from bacatlas_backend.ingest.ingest_locus_catalogue import (
     LOCUS_COLUMNS,
     CatalogueLoadReport,
     _delete_pangenome_layer,
+    _gene_counts_by_genome,
+    _genome_ids_by_sample,
     _load_gene_memberships,
     _locus_rows,
+    _omitted_sections,
     _present_genome_ids_by_node,
+    _refuse_unless_named_set_matches,
 )
 from bacatlas_backend.ingest.staging_table_loader import copy_rows
 from bacatlas_backend.models.enumerations import SampleIdentifierKind
@@ -231,7 +235,11 @@ def test_a_collection_genome_with_no_genome_genes_row_refuses_by_name(session, c
             GenomeGenes.genome_id == cohort["genome_id_by_sample"][SAMPLE_C]
         )
     )
-    with pytest.raises(KeyError, match=rf"1 of 3 collection genomes have no `genome_genes` row \(\['{SAMPLE_C}'\]\)"):
+    with pytest.raises(
+        KeyError,
+        match=rf"1 of 3 collection genomes have no `genome_genes` row and are not named as holding none "
+        rf"\(\['{SAMPLE_C}'\]\)",
+    ):
         _load(session, cohort)
 
 
@@ -413,3 +421,171 @@ def test_the_vectors_are_numpy_int32_before_encoding():
     assert block["ordinals"].dtype == np.int32 and block["ranks"].dtype == np.int32
     assert block["ordinals"].tolist() == [7, -1, 7, -1]
     assert (block["placed_gene_count"], block["distinct_locus_count"]) == (2, 1)
+
+
+# ── a genome NAMED as holding no gene table ────────────────────────────────────────────────────
+NAMED_REASON = "the .nseq acceptance gate refused it: its stored proteins do not reproduce from the assembly"
+
+
+def _name_without_gene_table(session, cohort, sample, *, coding_gene_count):
+    """What the genome stage leaves for a named genome: no block, the `_meta` row count, the reason."""
+    genome_id = cohort["genome_id_by_sample"][sample]
+    session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome_id))
+    session.execute(
+        Genome.__table__.update().where(Genome.genome_id == genome_id).values(
+            gene_table_omitted_reason=NAMED_REASON, coding_gene_count=coding_gene_count
+        )
+    )
+
+
+def test_a_NAMED_genome_is_assigned_like_any_other_at_its_coding_gene_count(session, cohort):
+    """⭐ B carries two memberships; with its block gone and the reason recorded, its row is written at
+    `genome.coding_gene_count` and decodes to exactly the memberships, as it did with a block."""
+    _name_without_gene_table(session, cohort, SAMPLE_B, coding_gene_count=GENE_COUNTS[SAMPLE_B])
+    written = _load(session, cohort)
+    assert written.assignments == 3
+    row = _stored(session, cohort)[SAMPLE_B]
+    assert row.gene_count == GENE_COUNTS[SAMPLE_B]
+    assert list(decode_int32_vector(row.gene_locus_ordinals, expected_count=row.gene_count)) == EXPECTED[SAMPLE_B][0]
+
+
+def test_an_UNNAMED_genome_with_no_block_is_refused_EVEN_WITH_a_coding_gene_count(session, cohort):
+    """⛔ The cause is the reason, not the count: the cohort fixture's genomes carry no count, so without
+    one set here a loader that used ANY genome's `coding_gene_count` would pass the refusal test above."""
+    genome_id = cohort["genome_id_by_sample"][SAMPLE_C]
+    session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome_id))
+    session.execute(Genome.__table__.update().where(Genome.genome_id == genome_id).values(coding_gene_count=3))
+    with pytest.raises(KeyError, match=rf"1 of 3 collection genomes have no `genome_genes` row .*{SAMPLE_C}"):
+        _load(session, cohort)
+
+
+def test_a_NAMED_genome_with_no_coding_gene_count_is_still_refused(session, cohort):
+    """A reason with no count is not a count: the block would have no length."""
+    _name_without_gene_table(session, cohort, SAMPLE_C, coding_gene_count=None)
+    with pytest.raises(KeyError, match=rf"1 of 3 collection genomes have no `genome_genes` row .*{SAMPLE_C}"):
+        _load(session, cohort)
+
+
+def test_the_gene_counts_name_exactly_the_genomes_without_a_block_and_their_reason(session, cohort):
+    _name_without_gene_table(session, cohort, SAMPLE_C, coding_gene_count=3)
+    samples = [SAMPLE_A, SAMPLE_B, SAMPLE_C]
+    counts = _gene_counts_by_genome(session, [cohort["genome_id_by_sample"][s] for s in samples], samples)
+    assert counts.omitted_reasons == {SAMPLE_C: NAMED_REASON}
+    assert counts.by_genome == {cohort["genome_id_by_sample"][s]: GENE_COUNTS[s] for s in samples}
+
+
+@pytest.mark.parametrize(
+    "listed,expected",
+    [
+        (frozenset(), rf"1 collection genome\(s\) hold no gene table but are not on the list: \['{SAMPLE_C}'\]"),
+        (
+            frozenset({SAMPLE_C, SAMPLE_B}),
+            rf"1 listed genome\(s\) are not collection genomes without a gene table .*\['{SAMPLE_B}'\]",
+        ),
+    ],
+    ids=["actual_not_listed", "listed_not_actual"],
+)
+def test_the_named_set_must_equal_the_genomes_without_a_block_both_ways(listed, expected):
+    with pytest.raises(KeyError, match=expected):
+        _refuse_unless_named_set_matches(listed, {SAMPLE_C: NAMED_REASON})
+    _refuse_unless_named_set_matches(frozenset({SAMPLE_C}), {SAMPLE_C: NAMED_REASON})
+
+
+def test_omitted_sections_STATES_the_count_the_reason_and_the_genomes(session, cohort):
+    """⭐ The footer prints it as "Not shown on this build: …", so it must read as a sentence on its own."""
+    _name_without_gene_table(session, cohort, SAMPLE_C, coding_gene_count=3)
+    samples = [SAMPLE_A, SAMPLE_B, SAMPLE_C]
+    counts = _gene_counts_by_genome(session, [cohort["genome_id_by_sample"][s] for s in samples], samples)
+    sections = _omitted_sections({"strand": "kept"}, counts, roster_size=3)
+    assert sections["strand"] == "kept"
+    assert sections["gene_table"] == (
+        f"the gene table (Sequence tab) of 1 of 3 genomes — {NAMED_REASON} ({SAMPLE_C}). They are "
+        "clustered, assigned and counted like every other genome"
+    )
+    nothing_named = _gene_counts_by_genome(session, [cohort["genome_id_by_sample"][SAMPLE_A]], [SAMPLE_A])
+    assert _omitted_sections({}, nothing_named, roster_size=1) is None
+
+
+def test_the_genome_lookups_survive_MORE_genomes_than_postgres_has_bind_parameters(session, cohort):
+    """⛔ 71,435 genomes. `IN (…)` sends one bind parameter per genome and Postgres carries at most
+    65,535, so the pangenome stage could not resolve its own roster. Measured: psycopg refuses it."""
+    many = [f"SAMEA_ABSENT_{index}" for index in range(70_000)]
+    assert _genome_ids_by_sample(session, [SAMPLE_A, *many]) == {SAMPLE_A: cohort["genome_id_by_sample"][SAMPLE_A]}
+    with pytest.raises(KeyError, match="70000 of 70000 collection genomes have no `genome_genes` row"):
+        _gene_counts_by_genome(session, list(range(-70_000, 0)), many)
+
+
+# ── the list reaches the pangenome stage, and is checked there BEFORE a locus row is written ──
+@pytest.mark.parametrize(
+    "listed,refusal",
+    [(frozenset({SAMPLE_C}), None), (frozenset(), "not on the list"), (frozenset({SAMPLE_C, SAMPLE_A}), "are not")],
+    ids=["matches", "named_genome_unlisted", "listed_genome_has_a_block"],
+)
+def test_ingest_locus_catalogue_CHECKS_the_list_before_writing_a_locus(session, cohort, monkeypatch, listed, refusal):
+    """⛔ The real entry function, its heavy derivations stubbed: the named-set check runs right after the
+    gene counts, and a matching list gets past it to the first locus write — which the stub stops."""
+    from bacatlas_backend.ingest import ingest_locus_catalogue as module
+
+    class ReachedTheLocusRows(Exception):
+        pass
+
+    def stop(*_args, **_kwargs):
+        raise ReachedTheLocusRows
+
+    monkeypatch.setattr(module, "gene_ontology_fold", lambda session: None)
+    monkeypatch.setattr(module, "_policy", dict)
+    monkeypatch.setattr(module, "load_pfam_name_table", dict)
+    monkeypatch.setattr(module, "_derive_locus_columns", lambda *args: {})
+    monkeypatch.setattr(module, "_locus_rows", stop)
+    _name_without_gene_table(session, cohort, SAMPLE_C, coding_gene_count=3)
+    frames = SimpleNamespace(**vars(_frames()), coverage={}, omitted={})
+    expected = pytest.raises(KeyError, match=refusal) if refusal else pytest.raises(ReachedTheLocusRows)
+    with expected:
+        module.ingest_locus_catalogue(
+            session, artifacts=None, pangenome_id=cohort["pangenome"].pangenome_id,
+            pathogen_species_id=cohort["species_id"], genome_id_by_ordinal=[], frames=frames,
+            genomes_without_gene_table=listed,
+        )
+
+
+def test_the_list_is_THREADED_from_the_command_line_to_the_catalogue_load(monkeypatch, tmp_path):
+    """⛔ A flag parsed and never threaded is a silent success: the stage would accept any genome the
+    genome stage marked, list or no list. Driven through `main`, every stage function stubbed."""
+    from bacatlas_backend.ingest import ingest_command_line as cli
+
+    seen: dict = {}
+    listed = tmp_path / "without.txt"
+    listed.write_text(f"{SAMPLE_C}\n")
+
+    class Artifacts:
+        run_id, species_key = "r", "probe"
+
+        def __init__(self, **_kwargs):
+            pass
+
+        def verify(self):
+            return {}
+
+        def required(self):
+            return []
+
+    def record(session, artifacts, **kwargs):
+        seen.update(kwargs)
+        return SimpleNamespace(render=lambda: "catalogue")
+
+    monkeypatch.setattr(cli, "CatalogueArtifacts", Artifacts)
+    monkeypatch.setattr(cli, "ingest_pathogen_species", lambda session: {"probe": 1})
+    monkeypatch.setattr(cli, "ingest_genome_collection", lambda *a, **k: (1, SimpleNamespace(
+        genome_count=3, genes_in_universe=12, collection_key="c", collection_label="C")))
+    monkeypatch.setattr(cli, "ingest_pangenome_run", lambda *a, **k: (1, SimpleNamespace(render=lambda: "run")))
+    monkeypatch.setattr(cli, "genome_id_by_ordinal", lambda *a: [])
+    monkeypatch.setattr(cli, "ingest_locus_catalogue", record)
+    monkeypatch.setattr(cli, "reconcile_pangenome", lambda *a: [])
+    from tests.conftest import PROBE_URL
+
+    code = cli.main([
+        "--database-url", PROBE_URL, "--model-label", "m", "--run-id", "r", "--stage", "pangenome",
+        "--species-key", "probe", "--genomes-without-gene-table", str(listed),
+    ])
+    assert code == 0
+    assert seen["genomes_without_gene_table"] == frozenset({SAMPLE_C})

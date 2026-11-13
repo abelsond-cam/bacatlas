@@ -7,7 +7,7 @@ property of the genome; a locus is a property of the model. The split is the sam
 
 from __future__ import annotations
 
-from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, SmallInteger, String, UniqueConstraint
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Integer, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from bacatlas_backend.database import Base
@@ -81,6 +81,17 @@ class Genome(Base):
     #: `n_defaulted` lives only in an in-memory `df.attrs`, so there is no per-gene observation flag
     #: to be had from that source at all.
     strand_is_observed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+    #: ⛔ **Why this genome has NO `genome_genes` row — or NULL, meaning it has one.** A modelled
+    #: genome can be clustered, assigned and counted in every per-locus number and still hold no
+    #: verified gene table: nuna's `.nseq` acceptance gate refuses a genome whose stored proteins do
+    #: not reproduce from its assembly (17 of the 71,435-genome *K. pneumoniae* cohort). Such a genome
+    #: is NAMED at ingest (`--genomes-without-gene-table`), never inferred from an absent file, and the
+    #: reason is stored here so the publish gate and the Sequence tab can tell *named as carrying none*
+    #: from *the genome layer was never loaded for it* — the second is still a defect.
+    #: ⚠ Every route that writes a `genome_genes` row sets this back to NULL, so a genome that later
+    #: gains a table loses the mark. A row with both is refused by `verify_pangenome_is_servable`.
+    gene_table_omitted_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     def __repr__(self) -> str:
         return f"<Genome {self.sample_id}>"

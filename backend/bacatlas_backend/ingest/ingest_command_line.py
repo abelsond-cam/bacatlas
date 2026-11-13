@@ -16,6 +16,7 @@ import argparse
 import os
 import sys
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -46,6 +47,60 @@ from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.pangenome import Pangenome
 
+#: ⭐ The reason stored on `genome.gene_table_omitted_reason` for every genome named by
+#: `--genomes-without-gene-table`. One sentence, because the Sequence tab shows it to a reader and the
+#: catalogue's `omitted_sections["gene_table"]` quotes it.
+NSEQ_GATE_REFUSED_REASON = (
+    "the .nseq acceptance gate refused it: its stored proteins do not reproduce from the assembly"
+)
+
+
+class GeneTableListRefused(ValueError):
+    """`--genomes-without-gene-table` names something the data root contradicts — the list is wrong."""
+
+
+def read_genomes_without_gene_table(path: Path) -> frozenset[str]:
+    """The named allowlist: one `sample_id` per line, blank lines ignored, nothing else interpreted.
+
+    ⛔ A name repeated is refused rather than collapsed: a list written twice over is a list nobody
+    checked, and the count it implies is the count the report states.
+    """
+    names = [line.strip() for line in Path(path).expanduser().read_text().splitlines() if line.strip()]
+    repeated = sorted(name for name, seen in Counter(names).items() if seen > 1)
+    if repeated:
+        raise GeneTableListRefused(f"{path}: names {repeated[:5]} more than once")
+    return frozenset(names)
+
+
+def refuse_unless_gene_table_list_matches_roster(
+    named: frozenset[str],
+    genomes: list[tuple[str, str | None]],
+    present: frozenset[str],
+) -> None:
+    """⛔ Before a genome is loaded: every named genome is in the roster and holds NEITHER file.
+
+    The two refusals are the two ways the list can be stale — a name the roster does not contain
+    (a typo, or another cohort's list) and a name the data root holds a GFF or `.nseq` for (the list
+    claims the gate refused a genome that has a table). Either refuses the RUN, by name, because the
+    list is one claim about the cohort and a list wrong in one place is not trusted in the others.
+    """
+    roster = {sample_id: dataset_id for sample_id, dataset_id in genomes}
+    not_in_roster = sorted(named - set(roster))
+    holds_a_table = sorted(
+        sample_id for sample_id in named
+        if sample_id in roster and (roster[sample_id] is not None or sample_id in present)
+    )
+    problems = []
+    if not_in_roster:
+        problems.append(f"{len(not_in_roster)} named genome(s) are not in the roster: {not_in_roster[:10]}")
+    if holds_a_table:
+        problems.append(
+            f"{len(holds_a_table)} named genome(s) have a GFF or a .nseq in this data root, so the list "
+            f"is stale — it claims the gate refused a genome that has a table: {holds_a_table[:10]}"
+        )
+    if problems:
+        raise GeneTableListRefused("--genomes-without-gene-table: " + "; ".join(problems))
+
 
 @dataclass
 class GenomeLayerReport:
@@ -56,11 +111,18 @@ class GenomeLayerReport:
     #: Genes across the `genome_genes` blocks written — the sum of their `gene_count`.
     genes: int = 0
     contigs: int = 0
-    #: ⭐ `genome_genes` rows written, and by which ROUTE. The three route counts add up to
-    #: `genomes_loaded`, and a reader needs them apart: a load where every genome reads `encoded`
-    #: is a load that checked no block against nuna's file, which one total could not say.
+    #: ⭐ `genome_genes` rows written, and by which ROUTE. The three route counts plus
+    #: `without_gene_table` add up to `genomes_loaded`, and a reader needs them apart: a load where
+    #: every genome reads `encoded` is a load that checked no block against nuna's file, which one
+    #: total could not say.
     gene_spans: int = 0
     gene_spans_routes: dict[str, int] = field(default_factory=lambda: dict.fromkeys(GENE_SPANS_SOURCES, 0))
+    #: ⛔ Genomes loaded WITHOUT a gene table because they were NAMED (`--genomes-without-gene-table`)
+    #: — loaded, not refused, and listed by name so the count can be checked against the list.
+    without_gene_table: list[str] = field(default_factory=list)
+    #: Their genes — the `_meta` row counts stored as `coding_gene_count` — kept OUT of `genes`, which
+    #: is the blocks' total and is what `verify_pangenome_is_servable` adds these to.
+    genes_without_gene_table: int = 0
     seconds: float = 0.0
     refusals: list[tuple[str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -79,6 +141,12 @@ class GenomeLayerReport:
             f"  gene_spans blocks      {self.gene_spans:,}  ("
             + " · ".join(f"{route} {self.gene_spans_routes.get(route, 0):,}" for route in GENE_SPANS_SOURCES)
             + ")",
+            f"  no gene table (named)  {len(self.without_gene_table):,}"
+            + (
+                f"  ({self.genes_without_gene_table:,} genes: {', '.join(sorted(self.without_gene_table))})"
+                if self.without_gene_table
+                else ""
+            ),
         ]
         for sample_id, reason in self.refusals:
             lines.append(f"  REFUSED {sample_id}: {reason}")
@@ -178,12 +246,19 @@ def load_genome_layer(
     only: set[str] | None = None,
     progress_every: int = 25,
     species_key: str | None = None,
+    genomes_without_gene_table: frozenset[str] | None = None,
 ) -> GenomeLayerReport:
     """Load every genome in the roster, one atomic transaction each.
 
     ``species_key`` names the species for every genome instead of reading it per parquet — see
     `ingest_one_genome`, which is where the reason lives.
+
+    ``genomes_without_gene_table`` NAMES the genomes that hold neither a GFF nor a `.nseq` because
+    nuna's `.nseq` acceptance gate refused them. Each is loaded as a `genome` row with no block; the
+    list is checked against the whole roster first and raises `GeneTableListRefused` — before any
+    genome is written — if it names a genome the roster lacks or one this data root holds a table for.
     """
+    named = genomes_without_gene_table or frozenset()
     report = GenomeLayerReport()
     species_ids = ingest_pathogen_species(session)
     session.commit()
@@ -209,8 +284,12 @@ def load_genome_layer(
         f"roster: {len(genomes):,} genomes — {len(in_universe):,} in the gene universe, "
         f"{len(genomes) - len(in_universe):,} held by this data root only; "
         f"located {located:,}: {with_gff:,} with a GFF, {with_nseq:,} with a .nseq, "
-        f"{with_both:,} with both, {len(genomes) - located:,} with neither (refused by name)"
+        f"{with_both:,} with both, {len(genomes) - located:,} with neither — "
+        f"{len(named):,} of them named as holding no gene table, "
+        f"{len(genomes) - located - len(named):,} refused by name"
     )
+    # ⛔ Against the WHOLE roster, before `--only`/`--limit` narrow it and before anything is written.
+    refuse_unless_gene_table_list_matches_roster(named, genomes, present)
     if only:
         genomes = [pair for pair in genomes if pair[0] in only]
     if limit:
@@ -223,6 +302,7 @@ def load_genome_layer(
                 session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
                 pathogen_species_ids=species_ids, species_key=species_key,
                 nseq_path=artifacts.per_genome_nseq(sample_id) if sample_id in present else None,
+                gene_table_omitted_reason=NSEQ_GATE_REFUSED_REASON if sample_id in named else None,
             )
             session.commit()
         # ⚠ `ValueError` is in the tuple because `pyarrow.lib.ArrowInvalid` IS one: a single
@@ -237,7 +317,11 @@ def load_genome_layer(
             continue
         report.genomes_loaded += 1
         report.genome_ids.append(one.genome_id)
-        report.genes += one.gene_count
+        if one.gene_table_omitted_reason is None:
+            report.genes += one.gene_count
+        else:
+            report.without_gene_table.append(sample_id)
+            report.genes_without_gene_table += one.gene_count
         report.contigs += one.contigs_written
         report.gene_spans += one.gene_spans_written
         if one.gene_spans_source is not None:
@@ -298,6 +382,7 @@ def load_pangenome_layer(
     collection_key: str | None = None,
     collection_label: str | None = None,
     allow_missing_strand: bool = False,
+    genomes_without_gene_table: frozenset[str] | None = None,
 ) -> list[str]:
     """Model registry → roster → run → catalogue, in the one order the foreign keys allow.
 
@@ -342,6 +427,7 @@ def load_pangenome_layer(
         pathogen_species_id=species_id,
         genome_id_by_ordinal=genome_id_by_ordinal(session, collection_id),
         allow_missing_strand=allow_missing_strand,
+        genomes_without_gene_table=genomes_without_gene_table,
     )
     return [
         f"catalogue: {catalogue_key_for(species_key, roster.collection_key, catalogue_key)}",
@@ -485,6 +571,14 @@ def build_parser() -> argparse.ArgumentParser:
                              "fills an absent sidecar with `+` for that genome's WHOLE gene set, "
                              "which un-reverses its windows, points every track arrow forward and "
                              "pulls syntenic_A5 toward 0.5 with no error anywhere")  # fmt: skip
+    parser.add_argument("--genomes-without-gene-table", type=Path, default=None,
+                        help="a text file, one sample_id per line: the modelled genomes nuna's .nseq "
+                             "acceptance gate refused (their stored proteins do not reproduce from the "
+                             "assembly). \u2b50 `genomes`: each is loaded as a genome row with no gene "
+                             "table instead of being refused. `pangenome`: the collection's genomes "
+                             "without a gene table must be EXACTLY this set. \u26d4 A named genome the "
+                             "roster lacks, or one with a GFF or .nseq, refuses the run. Unset, a "
+                             "genome with neither file is refused by name as before")  # fmt: skip
     parser.add_argument("--limit", type=int, help="stop after N genomes (a smoke run, not a mode)")
     parser.add_argument("--only", nargs="*", help="load only these sample ids")
     return parser
@@ -519,6 +613,16 @@ def main(argv: list[str] | None = None) -> int:
     optional = artifacts.verify()
     print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")
 
+    try:
+        without_gene_table = (
+            read_genomes_without_gene_table(args.genomes_without_gene_table)
+            if args.genomes_without_gene_table is not None
+            else None
+        )
+    except (OSError, GeneTableListRefused) as error:
+        print(f"--genomes-without-gene-table: {error}", file=sys.stderr)
+        return 2
+
     engine = create_engine(args.database_url, future=True)
     report, differences, reconcilable = None, [], True
     with Session(engine) as session:
@@ -530,10 +634,17 @@ def main(argv: list[str] | None = None) -> int:
             print(load_reference_vocabularies(session).render())
             session.commit()
         if args.stage in ("genomes", "all"):
-            report = load_genome_layer(
-                session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
-                species_key=args.species_key,
-            )
+            try:
+                report = load_genome_layer(
+                    session, artifacts, limit=args.limit, only=set(args.only) if args.only else None,
+                    species_key=args.species_key, genomes_without_gene_table=without_gene_table,
+                )
+            except GeneTableListRefused as error:
+                # ⛔ Raised before any genome is written: the list is a misconfiguration, not a refusal
+                # of one genome, so nothing is loaded and the exit code says so.
+                session.rollback()
+                print(f"GENOME LAYER REFUSED: {error}", file=sys.stderr)
+                return 2
             session.commit()
             print(report.render())
             differences += reconcile(session, report)
@@ -572,6 +683,7 @@ def main(argv: list[str] | None = None) -> int:
                 collection_key=args.collection_key,
                 collection_label=args.collection_label,
                 allow_missing_strand=args.allow_missing_strand,
+                genomes_without_gene_table=without_gene_table,
             ):
                 print(line)
             session.commit()

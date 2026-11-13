@@ -418,7 +418,8 @@ def test_the_publish_gate_REFUSES_a_collection_genome_with_no_count_row(session,
 # ── the publish gate on the genome-grain layer ────────────────────────────────────────────────
 ASSIGNMENT_CHECKS = (
     "every collection genome has a locus assignment row",
-    "every assignment's gene_count equals genome_genes.gene_count",
+    "every assignment's gene_count equals genome_genes.gene_count, or genome.coding_gene_count where the "
+    "genome is named as holding none",
     "the placed genes add up to the loci's member genes",
     "every locus lists exactly member_genome_count present genomes",
 )
@@ -461,7 +462,7 @@ def test_the_gate_REFUSES_a_gene_count_that_disagrees_with_genome_genes(session,
     )
     _passed, failed = _gate(session, pangenome)
     assert any(
-        f.startswith("every assignment's gene_count equals genome_genes.gene_count: 1 assignment rows disagree")
+        f.startswith(f"{ASSIGNMENT_CHECKS[1]}: 1 assignment rows disagree")
         for f in failed
     ), failed
 
@@ -492,10 +493,13 @@ def test_the_gate_REFUSES_a_locus_whose_present_genomes_are_not_member_genome_co
 #: The three checks by name, as `verify_pangenome_is_servable` spells them. ⚠ `small_catalogue` seeds
 #: the blocks these read — a: 3 genes, b: 2, c: 0 (a row, not a missing row) — so the total is 5, and
 #: each test below tells the pangenome row the number it wants compared against.
+#: ⚠ The first check names its own counts when it passes — all three genomes with a block, none named.
+BLOCK_OR_NAMED = "every collection genome has a gene_spans block or is named as holding none"
+BLOCK_TOTAL = "the gene_spans blocks, with the named genomes' coding_gene_count, hold the pangenome's gene_count"
 GENE_LAYER_CHECKS = (
-    "every collection genome has a gene_spans block",
+    f"{BLOCK_OR_NAMED} — 3 with a block, 0 named as carrying none, of 3",
     "every gene_spans block is 16 bytes per gene",
-    "the gene_spans blocks hold the pangenome's gene_count",
+    BLOCK_TOTAL,
 )
 
 
@@ -526,14 +530,18 @@ def test_the_publish_gate_REFUSES_a_collection_genome_with_no_gene_spans_block(s
     session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome["c"]))
 
     passed, failed = _gate(session, pangenome)
-    assert "every collection genome has a gene_spans block" not in passed
+    assert not any(line.startswith(BLOCK_OR_NAMED) for line in passed)
     assert any(
-        failure.startswith("every collection genome has a gene_spans block: 1 of 3 collection genomes")
+        failure.startswith(
+            f"{BLOCK_OR_NAMED} — 2 with a block, 0 named as carrying none, of 3: 1 of 3 collection genomes "
+            "have no genome_genes row and no gene_table_omitted_reason"
+        )
+        and "['SAMEA0000003']" in failure
         for failure in failed
     ), failed
     # The other two still hold: the blocks that remain are well-formed, and C held no genes.
     assert "every gene_spans block is 16 bytes per gene" in passed
-    assert "the gene_spans blocks hold the pangenome's gene_count" in passed
+    assert BLOCK_TOTAL in passed
 
 
 def test_the_publish_gate_REFUSES_a_block_total_that_is_not_the_pangenomes_gene_count_and_SAYS_both(
@@ -544,10 +552,10 @@ def test_the_publish_gate_REFUSES_a_block_total_that_is_not_the_pangenomes_gene_
     session.flush()
 
     passed, failed = _gate(session, pangenome)
-    assert "the gene_spans blocks hold the pangenome's gene_count" not in passed
+    assert BLOCK_TOTAL not in passed
     assert (
-        "the gene_spans blocks hold the pangenome's gene_count: the blocks hold 5 genes and the "
-        "pangenome row claims 6"
+        f"{BLOCK_TOTAL}: the blocks hold 5 genes and the 0 genome(s) named as carrying none 0 — 5 — and "
+        "the pangenome row claims 6"
     ) in failed, failed
 
 
@@ -561,8 +569,8 @@ def test_the_publish_gate_SAYS_when_the_block_total_was_not_compared(session, sm
     assert any(
         line == "the gene_spans block total (5 genes) was NOT compared: pangenome.gene_count is 0" for line in passed
     ), passed
-    assert "the gene_spans blocks hold the pangenome's gene_count" not in passed
-    assert not any(line.startswith("the gene_spans blocks hold") for line in failed)
+    assert BLOCK_TOTAL not in passed
+    assert not any(line.startswith(BLOCK_TOTAL) for line in failed)
 
 
 def test_the_publish_gate_REFUSES_a_block_that_is_not_16_bytes_per_gene(session, small_catalogue):
@@ -591,5 +599,94 @@ def test_the_publish_gate_REFUSES_a_block_that_is_not_16_bytes_per_gene(session,
         for failure in failed
     ), failed
     # Every genome HAS a row and the counts add to 6 — only the length is wrong, and only that is said.
-    assert "every collection genome has a gene_spans block" in passed
-    assert "the gene_spans blocks hold the pangenome's gene_count" in passed
+    assert GENE_LAYER_CHECKS[0] in passed
+    assert BLOCK_TOTAL in passed
+
+
+# ── the publish gate on a genome NAMED as holding no gene table ───────────────────────────────
+NAMED_REASON = "the .nseq acceptance gate refused it: its stored proteins do not reproduce from the assembly"
+
+
+def _name_b_without_gene_table(session, genome, *, coding_gene_count=2):
+    """B as the genome stage leaves a named genome: no block, its `_meta` row count, the reason."""
+    session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome["b"]))
+    session.execute(
+        Genome.__table__.update().where(Genome.genome_id == genome["b"]).values(
+            gene_table_omitted_reason=NAMED_REASON, coding_gene_count=coding_gene_count
+        )
+    )
+
+
+def test_the_publish_gate_PASSES_a_genome_NAMED_as_holding_no_gene_table_and_says_how_many(
+    session, small_catalogue
+):
+    """⭐ The positive case: the blocks hold 3, B is named with 2, the pangenome claims 5 — every check passes,
+    and the first one states its own counts."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+    _name_b_without_gene_table(session, genome)
+
+    passed, failed = _gate(session, pangenome)
+    # ⚠ The fixture has no similarity layer, so other checks fail here; only the gene layer's are asked.
+    assert not any(line.startswith((BLOCK_OR_NAMED, BLOCK_TOTAL, ASSIGNMENT_CHECKS[1])) for line in failed), failed
+    assert f"{BLOCK_OR_NAMED} — 2 with a block, 1 named as carrying none, of 3" in passed
+    assert BLOCK_TOTAL in passed
+    assert ASSIGNMENT_CHECKS[1] in passed
+
+
+def test_the_publish_gate_REFUSES_a_genome_with_NEITHER_a_block_nor_a_reason_by_name(session, small_catalogue):
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+    session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome["b"]))
+
+    passed, failed = _gate(session, pangenome)
+    assert not any(line.startswith(BLOCK_OR_NAMED) for line in passed)
+    assert any(
+        line.startswith(BLOCK_OR_NAMED) and "no gene_table_omitted_reason" in line and "['SAMEA0000002']" in line
+        for line in failed
+    ), failed
+    # ⚠ And the assignment row now has nothing to equal: counted as a disagreement, never skipped.
+    assert any(line.startswith(f"{ASSIGNMENT_CHECKS[1]}: 1 assignment rows disagree") for line in failed), failed
+
+
+def test_the_publish_gate_REFUSES_a_genome_with_BOTH_a_block_and_a_reason_by_name(session, small_catalogue):
+    """⛔ A stale mark: the genome stage clears it whenever it writes a block, so both is a defect."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+    # ⚠ With its true count: the fixture's genomes carry none, and a NULL would hide a total that
+    # counted a stale-marked genome's genes twice — once in its block, once as "named".
+    session.execute(
+        Genome.__table__.update().where(Genome.genome_id == genome["a"]).values(
+            gene_table_omitted_reason=NAMED_REASON, coding_gene_count=3
+        )
+    )
+
+    passed, failed = _gate(session, pangenome)
+    assert not any(line.startswith(BLOCK_OR_NAMED) for line in passed)
+    assert any(
+        line.startswith(BLOCK_OR_NAMED) and "the mark is stale" in line and "['SAMEA0000001']" in line
+        for line in failed
+    ), failed
+    # Its genes are counted ONCE, in its block — the stale mark refuses, it does not double the total.
+    assert BLOCK_TOTAL in passed, failed
+
+
+def test_the_publish_gate_REFUSES_a_named_genome_whose_coding_gene_count_is_not_its_assignment_s(
+    session, small_catalogue
+):
+    """B's assignment block holds 2 genes; a stored count of 3 disagrees with it and with the total."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+    _name_b_without_gene_table(session, genome, coding_gene_count=3)
+
+    passed, failed = _gate(session, pangenome)
+    assert any(line.startswith(f"{ASSIGNMENT_CHECKS[1]}: 1 assignment rows disagree") for line in failed), failed
+    assert any(
+        line.startswith(f"{BLOCK_TOTAL}: the blocks hold 3 genes and the 1 genome(s) named as carrying none 3")
+        for line in failed
+    ), failed
+    assert f"{BLOCK_OR_NAMED} — 2 with a block, 1 named as carrying none, of 3" in passed

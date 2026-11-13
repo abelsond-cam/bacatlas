@@ -21,7 +21,7 @@ from bacatlas_backend.gene_blocks import GENE_SPAN_STRIDE, SPAN_ENCODING_NSEQ_GE
 from bacatlas_backend.gff.gff_cds_parser import parse_genome_annotation
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
 from bacatlas_backend.ingest.genome_gene_alignment import flatten_to_extractor_order
-from bacatlas_backend.ingest.ingest_command_line import load_genome_layer, reconcile
+from bacatlas_backend.ingest.ingest_command_line import NSEQ_GATE_REFUSED_REASON, load_genome_layer, reconcile
 from bacatlas_backend.ingest.ingest_genome_gene_table import (
     GenomeIngestError,
     gene_spans_from_alignment,
@@ -498,3 +498,227 @@ def test_reconcile_counts_the_gene_spans_blocks_beside_the_rest(session, artifac
     assert reconcile(session, report) == [
         "gene_spans: wrote 1 but the table holds 0 for the 1 genome(s) this run loaded"
     ]
+
+
+# ── the fourth route: a modelled genome NAMED as holding no gene table ────────────────────────
+def _named(session, artifacts, sample_id, *, species_key, bakrep_dataset_id=None, nseq_path=None):
+    species_ids = ingest_pathogen_species(session)
+    session.commit()
+    report = ingest_one_genome(
+        session, artifacts, sample_id=sample_id, bakrep_dataset_id=bakrep_dataset_id,
+        pathogen_species_ids=species_ids, species_key=species_key, nseq_path=nseq_path,
+        gene_table_omitted_reason=NSEQ_GATE_REFUSED_REASON,
+    )
+    session.commit()
+    return report
+
+
+def test_a_NAMED_genome_with_neither_file_loads_a_bare_genome_row_and_no_block(
+    session, artifacts, one_sequenced_genome, clean_slate
+):
+    """⭐ The 17 genomes nuna's `.nseq` gate refused: a `genome` row, the `_meta` row count, the reason — no block."""
+    sample_id, _ = one_sequenced_genome
+    meta_rows = len(pandas.read_parquet(artifacts.per_genome(sample_id, "meta"), columns=["flat_index"]))
+    report = _named(session, artifacts, sample_id, species_key=_species_key_of(artifacts, sample_id))
+
+    assert (report.gene_count, report.gene_spans_written, report.gene_spans_source) == (meta_rows, 0, None)
+    assert report.gene_table_omitted_reason == NSEQ_GATE_REFUSED_REASON
+    genome = session.execute(select(Genome).where(Genome.sample_id == sample_id)).scalar_one()
+    assert genome.coding_gene_count == meta_rows > 3_000
+    assert genome.gene_table_omitted_reason == NSEQ_GATE_REFUSED_REASON
+    assert (genome.contig_count_with_coding_sequence, genome.total_base_count, genome.bakrep_dataset_id) == (
+        None, None, None,
+    )
+    assert genome.strand_is_observed is False
+    assert (_count(session, GenomeGenes), _count(session, GenomeContig)) == (0, 0)
+
+
+@pytest.mark.parametrize("holds", ["nseq", "gff"])
+def test_a_NAMED_genome_that_HAS_a_table_is_refused_because_the_list_is_stale(
+    session, artifacts, one_sequenced_genome, clean_slate, holds
+):
+    sample_id, dataset_id = one_sequenced_genome
+    with pytest.raises(GenomeIngestError, match=f"{sample_id}: named as holding no gene table .* The list is stale"):
+        _named(
+            session, artifacts, sample_id, species_key=_species_key_of(artifacts, sample_id),
+            nseq_path=SEQUENCE_DIR / f"{sample_id}.nseq" if holds == "nseq" else None,
+            bakrep_dataset_id=dataset_id if holds == "gff" else None,
+        )
+    session.rollback()
+    assert _count(session, Genome) == 0
+
+
+def test_naming_a_genome_REMOVES_a_stale_block_and_contigs_and_a_later_table_CLEARS_the_mark(
+    session, artifacts, one_sequenced_genome, clean_slate
+):
+    """⛔ Both directions: a block left beside the mark, or a mark left beside a block, is a refused state."""
+    sample_id, _ = one_sequenced_genome
+    species_key = _species_key_of(artifacts, sample_id)
+    nseq = SEQUENCE_DIR / f"{sample_id}.nseq"
+    species_ids = ingest_pathogen_species(session)
+    session.commit()
+    ingest_one_genome(
+        session, artifacts, sample_id=sample_id, bakrep_dataset_id=None,
+        pathogen_species_ids=species_ids, species_key=species_key, nseq_path=nseq,
+    )
+    session.commit()
+    assert (_count(session, GenomeGenes), _count(session, GenomeContig) > 100) == (1, True)
+
+    _named(session, artifacts, sample_id, species_key=species_key)
+    assert (_count(session, GenomeGenes), _count(session, GenomeContig)) == (0, 0)
+    assert _count(session, Genome) == 1
+
+    ingest_one_genome(
+        session, artifacts, sample_id=sample_id, bakrep_dataset_id=None,
+        pathogen_species_ids=species_ids, species_key=species_key, nseq_path=nseq,
+    )
+    session.commit()
+    genome = session.execute(select(Genome).where(Genome.sample_id == sample_id)).scalar_one()
+    session.refresh(genome)
+    assert genome.gene_table_omitted_reason is None
+    assert genome.strand_is_observed is True
+    assert _count(session, GenomeGenes) == 1
+
+
+# ── the CLI entry point on a synthetic tree: two real-shaped genomes, one of them named ──────
+def _synthetic_tree(tmp_path, artifacts, real_sample: str, named_sample: str, *, unlisted: str | None = None):
+    """A data root `main` accepts: a universe naming the genomes, every required artifact touched,
+    the real genome's `_meta` and `.nseq` copied, and a `_meta` of `flat_index` 0..4 for each other one."""
+    universe_samples = [real_sample, named_sample] + ([unlisted] if unlisted else [])
+    universe = tmp_path / "universe.parquet"
+    pandas.DataFrame({"sample_id": universe_samples, "flat_index": [0] * len(universe_samples)}).to_parquet(universe)
+    located = CatalogueArtifacts(
+        data_root=tmp_path, set_key="ecoli", model_label=MODEL_LABEL, run_id=RUN_ID,
+        gene_universe_path=universe, nseq_root=tmp_path / "seq",
+    )
+    for _role, path, _what in located.required():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch(exist_ok=True)
+    located.per_genome_root.mkdir(parents=True, exist_ok=True)
+    shutil.copy(artifacts.per_genome(real_sample, "meta"), located.per_genome(real_sample, "meta"))
+    for other in universe_samples[1:]:
+        pandas.DataFrame({"flat_index": [3, 1, 4, 0, 2]}).to_parquet(located.per_genome(other, "meta"))
+    (tmp_path / "seq").mkdir()
+    shutil.copy(SEQUENCE_DIR / f"{real_sample}.nseq", tmp_path / "seq" / f"{real_sample}.nseq")
+    return universe
+
+
+def _main(tmp_path, universe, *extra):
+    from bacatlas_backend.ingest.ingest_command_line import main
+    from tests.conftest import PROBE_URL
+
+    return main([
+        "--database-url", PROBE_URL, "--data-root", str(tmp_path), "--set-key", "ecoli",
+        "--model-label", MODEL_LABEL, "--run-id", RUN_ID, "--stage", "genomes",
+        "--gene-universe", str(universe), "--nseq-dir", str(tmp_path / "seq"), "--species-key", "ecoli",
+        *extra,
+    ])
+
+
+NAMED_SAMPLE = "SAMEA9999901"
+
+
+def _list_file(tmp_path, *names):
+    path = tmp_path / "without_gene_table.txt"
+    path.write_text("".join(f"{name}\n" for name in names) + "\n")
+    return path
+
+
+def test_main_LOADS_a_named_genome_without_a_table_and_exits_0(
+    session, artifacts, one_sequenced_genome, clean_slate, tmp_path, capsys
+):
+    """⭐ The real entry point: the named genome is loaded, counted and named, and the run is clean."""
+    sample_id, _ = one_sequenced_genome
+    universe = _synthetic_tree(tmp_path, artifacts, sample_id, NAMED_SAMPLE)
+    code = _main(tmp_path, universe, "--genomes-without-gene-table", str(_list_file(tmp_path, NAMED_SAMPLE)))
+    out = capsys.readouterr().out
+    assert code == 0, out
+    assert "genome layer: 2 loaded, 0 refused" in out
+    assert f"no gene table (named)  1  (5 genes: {NAMED_SAMPLE})" in out
+    assert "1 with neither — 1 of them named as holding no gene table, 0 refused by name" in out
+    assert "reconciled: every count the loader reported is what the tables hold" in out
+
+    rows = {
+        sample: (reason, coding, has_block)
+        for sample, reason, coding, has_block in session.execute(
+            select(
+                Genome.sample_id, Genome.gene_table_omitted_reason, Genome.coding_gene_count,
+                GenomeGenes.genome_id.is_not(None),
+            ).outerjoin(GenomeGenes, GenomeGenes.genome_id == Genome.genome_id)
+        ).all()
+    }
+    assert rows[NAMED_SAMPLE] == (NSEQ_GATE_REFUSED_REASON, 5, False)
+    assert rows[sample_id][0] is None and rows[sample_id][2] is True
+    # ⛔ `genes` is the BLOCKS' total — the real genome's alone; the named genome's 5 are stated beside it.
+    assert f"  genes                  {_stored_block(session, sample_id).gene_count:,}\n" in out
+
+
+def test_main_without_the_list_still_REFUSES_a_genome_with_neither_file(
+    session, artifacts, one_sequenced_genome, clean_slate, tmp_path, capsys
+):
+    sample_id, _ = one_sequenced_genome
+    universe = _synthetic_tree(tmp_path, artifacts, sample_id, NAMED_SAMPLE)
+    code = _main(tmp_path, universe)
+    out = capsys.readouterr().out
+    assert code == 1
+    assert f"REFUSED {NAMED_SAMPLE}: {NAMED_SAMPLE}: in the roster but under no dataset directory" in out
+    assert "no gene table (named)  0" in out
+
+
+def test_main_REFUSES_an_unlisted_genome_with_neither_file_beside_a_listed_one(
+    session, artifacts, one_sequenced_genome, clean_slate, tmp_path, capsys
+):
+    sample_id, _ = one_sequenced_genome
+    unlisted = "SAMEA9999902"
+    universe = _synthetic_tree(tmp_path, artifacts, sample_id, NAMED_SAMPLE, unlisted=unlisted)
+    code = _main(tmp_path, universe, "--genomes-without-gene-table", str(_list_file(tmp_path, NAMED_SAMPLE)))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert f"REFUSED {unlisted}: {unlisted}: in the roster but under no dataset directory" in out
+    assert f"no gene table (named)  1  (5 genes: {NAMED_SAMPLE})" in out
+
+
+@pytest.mark.parametrize("which", ["has_an_nseq", "not_in_roster"])
+def test_main_REFUSES_THE_RUN_when_the_list_is_stale_and_writes_no_genome(
+    session, artifacts, one_sequenced_genome, clean_slate, tmp_path, capsys, which
+):
+    """⛔ A list naming a genome with a `.nseq`, or one the roster lacks, is wrong whole: exit 2, nothing loaded."""
+    sample_id, _ = one_sequenced_genome
+    universe = _synthetic_tree(tmp_path, artifacts, sample_id, NAMED_SAMPLE)
+    bad = sample_id if which == "has_an_nseq" else "SAMEA_NOT_IN_ROSTER"
+    code = _main(
+        tmp_path, universe, "--genomes-without-gene-table", str(_list_file(tmp_path, NAMED_SAMPLE, bad))
+    )
+    err = capsys.readouterr().err
+    assert code == 2
+    expected = "the list is stale" if which == "has_an_nseq" else "are not in the roster"
+    assert "GENOME LAYER REFUSED" in err and expected in err and bad in err, err
+    assert _count(session, Genome) == 0
+
+
+def test_main_REFUSES_a_named_genome_whose_flat_index_is_not_0_to_n_minus_1(
+    session, artifacts, one_sequenced_genome, clean_slate, tmp_path, capsys
+):
+    sample_id, _ = one_sequenced_genome
+    universe = _synthetic_tree(tmp_path, artifacts, sample_id, NAMED_SAMPLE)
+    pandas.DataFrame({"flat_index": [0, 1, 3]}).to_parquet(
+        tmp_path / "proc" / "embeddings" / "meta" / f"{NAMED_SAMPLE}_meta.parquet"
+    )
+    code = _main(tmp_path, universe, "--genomes-without-gene-table", str(_list_file(tmp_path, NAMED_SAMPLE)))
+    out = capsys.readouterr().out
+    assert code == 1
+    assert f"REFUSED {NAMED_SAMPLE}: {NAMED_SAMPLE}: the meta parquet's flat_index is not exactly 0..2" in out
+
+
+def test_the_list_flag_reaches_the_parser_and_a_repeated_name_is_refused(tmp_path):
+    from bacatlas_backend.ingest.ingest_command_line import (
+        GeneTableListRefused,
+        build_parser,
+        read_genomes_without_gene_table,
+    )
+
+    path = _list_file(tmp_path, "SAMN1", "SAMN2")
+    assert build_parser().parse_args(["--genomes-without-gene-table", str(path)]).genomes_without_gene_table == path
+    assert read_genomes_without_gene_table(path) == frozenset({"SAMN1", "SAMN2"})
+    with pytest.raises(GeneTableListRefused, match=r"names \['SAMN1'\] more than once"):
+        read_genomes_without_gene_table(_list_file(tmp_path, "SAMN1", "SAMN1"))

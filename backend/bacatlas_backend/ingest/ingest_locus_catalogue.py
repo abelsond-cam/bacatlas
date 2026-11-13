@@ -21,7 +21,7 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from sqlalchemy import select, update
+from sqlalchemy import ARRAY, Integer, String, any_, literal, select, update
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.gene_blocks import (
@@ -61,6 +61,7 @@ from bacatlas_backend.models.enumerations import (
     PrevalenceBand,
     PropagationVerdict,
 )
+from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.genome_locus_assignment import GenomeLocusAssignment
 from bacatlas_backend.models.intergenic_gap import IntergenicGap, IntergenicGapFeature
@@ -624,8 +625,16 @@ def ingest_locus_catalogue(
     genome_id_by_ordinal: list[int],
     frames: CatalogueFrames | None = None,
     allow_missing_strand: bool = False,
+    genomes_without_gene_table: frozenset[str] | None = None,
 ) -> CatalogueLoadReport:
-    """Load the whole pangenome layer for one catalogue. One transaction, one blast radius."""
+    """Load the whole pangenome layer for one catalogue. One transaction, one blast radius.
+
+    ⭐ ``genomes_without_gene_table``, when given, is the NAMED set of collection genomes that hold no
+    `genome_genes` row (`--genomes-without-gene-table`): the genomes the genome stage actually loaded
+    without one must be exactly this set, or the load is refused naming the difference both ways.
+    Absent, a genome without a gene table is still accepted wherever the genome stage recorded WHY
+    (`genome.gene_table_omitted_reason`), and refused by name wherever it did not.
+    """
     # ⛔ The fold comes from `gene_ontology_term`, which is what `function_inference_service` reads,
     # and NOT from nuna's `slim_of(go_reference())` that `catalogue_frames` already loads for
     # `go_verdicts` — that mapping does no upward closure and strips no root. Two folds for one
@@ -650,6 +659,13 @@ def ingest_locus_catalogue(
             f"({missing_genomes[:5]}). Every membership is keyed by genome_id, so a missing one would "
             "silently drop that genome's genes from every locus it is in."
         )
+    # ⛔ Before a single locus row: the gene count of every collection genome, from its block or — for
+    # a genome NAMED as holding none — from `genome.coding_gene_count`. Refuses by name on a gap.
+    gene_counts = _gene_counts_by_genome(
+        session, [genome_id_by_sample[sample] for sample in frames.samples], frames.samples
+    )
+    if genomes_without_gene_table is not None:
+        _refuse_unless_named_set_matches(genomes_without_gene_table, gene_counts.omitted_reasons)
 
     report.loci = copy_rows(
         session,
@@ -688,6 +704,7 @@ def ingest_locus_catalogue(
         pangenome_id,
         genome_id_by_sample,
         loci_root=Path(loci_root).expanduser() if loci_root is not None else None,
+        gene_counts=gene_counts,
     )
     report.gene_memberships = written.memberships
     report.genes_without_a_window = written.without_window
@@ -728,7 +745,7 @@ def ingest_locus_catalogue(
             landing_locus_id=locus_id_by_ordinal[landing],
             example_locus_ids=[locus_id_by_ordinal[index] for index in examples],
             locus_count=report.loci,
-            omitted_sections=frames.omitted or None,
+            omitted_sections=_omitted_sections(frames.omitted, gene_counts, len(frames.samples)),
             # ⚠ Names the fold the GO-folded columns were computed under, and ONLY those: the three
             # `go_annotated_member_count_*` beside them come from nuna's own vendored table read at
             # frame-build time, so this string cannot certify their vintage. It governs
@@ -747,9 +764,49 @@ def ingest_locus_catalogue(
     report.separation_measurable = {
         key: index.measurable_count for key, index in derived["similarities"].items()
     }
-    for section, reason in frames.omitted.items():
+    for section, reason in (_omitted_sections(frames.omitted, gene_counts, len(frames.samples)) or {}).items():
         report.notes.append(f"omitted {section}: {reason}")
     return report
+
+
+def _omitted_sections(omitted: dict, gene_counts: GeneCounts, roster_size: int) -> dict | None:
+    """`frames.omitted`, plus `gene_table` when any collection genome holds no gene table.
+
+    ⭐ The footer renders every value as *"Not shown on this build: …"*, so the sentence names what is
+    missing (the Sequence tab), for how many of the roster, why, and which genomes — the count alone
+    would not let a reader find the one they anchored.
+    """
+    sections = dict(omitted)
+    named = gene_counts.omitted_reasons
+    if named:
+        reasons = sorted(set(named.values()))
+        sections["gene_table"] = (
+            f"the gene table (Sequence tab) of {len(named):,} of {roster_size:,} genomes — "
+            + "; ".join(reasons)
+            + f" ({', '.join(sorted(named))}). They are clustered, assigned and counted like every "
+            "other genome"
+        )
+    return sections or None
+
+
+def _refuse_unless_named_set_matches(named: frozenset[str], omitted_reasons: dict[str, str]) -> None:
+    """⛔ The genomes loaded without a gene table must be EXACTLY the named set — both differences named."""
+    actual = set(omitted_reasons)
+    unexpected, missing = sorted(actual - named), sorted(named - actual)
+    if unexpected or missing:
+        raise KeyError(
+            "--genomes-without-gene-table does not match the database: "
+            + "; ".join(
+                part
+                for part in (
+                    f"{len(unexpected)} collection genome(s) hold no gene table but are not on the list: "
+                    f"{unexpected[:10]}" if unexpected else "",
+                    f"{len(missing)} listed genome(s) are not collection genomes without a gene table "
+                    f"(they hold one, or are not in this collection): {missing[:10]}" if missing else "",
+                )
+                if part
+            )
+        )
 
 
 def _policy() -> dict:
@@ -959,6 +1016,17 @@ class GeneMembershipsWritten:
     loci_root: str | None = None
 
 
+@dataclass(frozen=True)
+class GeneCounts:
+    """Every collection genome's gene count, and which of them hold no gene table and why."""
+
+    #: `{genome_id: gene_count}` — `genome_genes.gene_count`, or `genome.coding_gene_count` for a
+    #: genome named as holding no gene table.
+    by_genome: dict
+    #: `{sample_id: genome.gene_table_omitted_reason}` for exactly the genomes with no block.
+    omitted_reasons: dict
+
+
 ASSIGNMENT_COLUMNS = (
     "pangenome_id",
     "genome_id",
@@ -977,6 +1045,7 @@ def _load_gene_memberships(
     genome_id_by_sample,
     *,
     loci_root: Path | None = None,
+    gene_counts: GeneCounts | None = None,
 ) -> GeneMembershipsWritten:
     """The per-genome assignment blocks (`genome_locus_assignment`), from the memberships frame.
 
@@ -989,7 +1058,10 @@ def _load_gene_memberships(
     `gene_count` entries of `-1` and two zero counts, because the picker lists every genome and a
     missing row is a genome it cannot offer. ⛔ `gene_count` is read from `genome_genes`, never
     inferred from the memberships: the block is indexed by `flat_index` and a length guessed from
-    the highest index seen would be short by exactly the unassigned tail.
+    the highest index seen would be short by exactly the unassigned tail. ⚠ A genome NAMED as holding
+    no gene table (`genome.gene_table_omitted_reason`) takes `genome.coding_gene_count` — the `_meta`
+    parquet's row count, checked as `0..n-1` at the genome stage — and is written like any other;
+    it has no `.loci`, so it falls under the oracle's "absent" count.
 
     ⛔ **The catalogue ordinal has ONE source**, `frames.loci["catalogue_ordinal"]` — the same column
     `_locus_rows` writes to `locus.catalogue_ordinal` — so a `.loci` written by nuna and the block
@@ -1011,7 +1083,9 @@ def _load_gene_memberships(
     if memberships is None:
         return GeneMembershipsWritten()
     genome_ids_in_collection = [genome_id_by_sample[sample] for sample in frames.samples]
-    gene_count_by_genome = _gene_counts_by_genome(session, genome_ids_in_collection, frames.samples)
+    if gene_counts is None:
+        gene_counts = _gene_counts_by_genome(session, genome_ids_in_collection, frames.samples)
+    gene_count_by_genome = gene_counts.by_genome
 
     # ── the frame as four aligned arrays ──────────────────────────────────────────────────────
     ordinals = _catalogue_ordinals_of(memberships["node"], frames.loci)
@@ -1073,25 +1147,49 @@ def _load_gene_memberships(
     return written
 
 
-def _gene_counts_by_genome(session, genome_ids: list, samples: list) -> dict:
-    """`{genome_id: genome_genes.gene_count}` for every collection genome — refusing by name on a gap.
+def _gene_counts_by_genome(session, genome_ids: list, samples: list) -> GeneCounts:
+    """Every collection genome's gene count — from its block, or for a NAMED genome from `genome`.
 
     ⛔ The genome stage writes `genome_genes`; a genome it has not reached has no block length, and
-    inferring one from the memberships would silently shorten the block by its unassigned tail.
+    inferring one from the memberships would silently shorten the block by its unassigned tail. So a
+    genome with no block is accepted ONLY where the genome stage recorded why
+    (`gene_table_omitted_reason` non-NULL), and then its count is `genome.coding_gene_count` — the
+    `_meta` parquet's own row count. Every other gap is refused by name.
+
+    ⚠ `= ANY(array)`, never `IN (…)`: at 71,435 genomes an `IN` list is 71,435 bind parameters and
+    Postgres' wire protocol carries at most 65,535 — measured, psycopg refuses before sending.
     """
-    found = dict(
-        session.execute(
-            select(GenomeGenes.genome_id, GenomeGenes.gene_count).where(GenomeGenes.genome_id.in_(genome_ids))
-        ).all()
-    )
-    missing = [sample for sample, genome_id in zip(samples, genome_ids, strict=True) if genome_id not in found]
+    rows = session.execute(
+        select(
+            Genome.genome_id,
+            GenomeGenes.gene_count,
+            Genome.gene_table_omitted_reason,
+            Genome.coding_gene_count,
+        )
+        .outerjoin(GenomeGenes, GenomeGenes.genome_id == Genome.genome_id)
+        .where(Genome.genome_id == any_(literal(list(genome_ids), ARRAY(Integer))))
+    ).all()
+    found = {genome_id: (block_count, reason, coding) for genome_id, block_count, reason, coding in rows}
+    by_genome: dict = {}
+    omitted_reasons: dict = {}
+    missing: list[str] = []
+    for sample, genome_id in zip(samples, genome_ids, strict=True):
+        block_count, reason, coding = found.get(genome_id, (None, None, None))
+        if block_count is not None:
+            by_genome[genome_id] = block_count
+        elif reason is not None and coding is not None:
+            by_genome[genome_id] = coding
+            omitted_reasons[sample] = reason
+        else:
+            missing.append(sample)
     if missing:
         raise KeyError(
-            f"{len(missing)} of {len(samples)} collection genomes have no `genome_genes` row "
-            f"({missing[:5]}). `genome_locus_assignment.gene_count` must equal it, so the genome "
-            "stage has to have written the block before the pangenome stage can index it."
+            f"{len(missing)} of {len(samples)} collection genomes have no `genome_genes` row and are not "
+            f"named as holding none ({missing[:5]}). `genome_locus_assignment.gene_count` must equal "
+            "the block's, so the genome stage has to have written the block — or recorded why there is "
+            "none (`--genomes-without-gene-table`) — before the pangenome stage can index it."
         )
-    return found
+    return GeneCounts(by_genome=by_genome, omitted_reasons=omitted_reasons)
 
 
 def _catalogue_ordinals_of(nodes, loci):
@@ -1205,12 +1303,13 @@ def _refuse_unless_loci_agree(path: Path, sample: str, gene_count: int, ordinals
 
 
 def _genome_ids_by_sample(session, samples: list[str]) -> dict:
-    from bacatlas_backend.models.genome import Genome
-
+    # ⚠ `= ANY(array)`, never `IN (…)`: the bind-parameter limit, as in `_gene_counts_by_genome`.
     return {
         sample_id: genome_id
         for sample_id, genome_id in session.execute(
-            select(Genome.sample_id, Genome.genome_id).where(Genome.sample_id.in_(samples))
+            select(Genome.sample_id, Genome.genome_id).where(
+                Genome.sample_id == any_(literal(list(samples), ARRAY(String)))
+            )
         ).all()
     }
 

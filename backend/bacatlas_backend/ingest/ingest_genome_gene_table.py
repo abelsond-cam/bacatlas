@@ -22,7 +22,18 @@ dataset directory, and a `.nseq` in the named tree (`CatalogueArtifacts.nseq_roo
 | yes | yes | the file's block; the GFF's encoding must equal it byte for byte | `nseq+encoded_checked` |
 | yes | no | the block encoded from the GFF | `encoded` |
 | no | yes | the genome layer from the `.nseq` header, the block copied verbatim | `nseq` |
+| no | no, and NAMED as having no gene table | the `genome` row only — no block, no contigs | — |
 | no | no | nothing — refused by name | — |
+
+⛔ **The fourth row is a named allowlist, never a default.** nuna's `.nseq` acceptance gate refuses a
+genome whose stored proteins do not reproduce from its assembly — 17 of the 71,435-genome cohort.
+They are still MODELLED genomes: the clustering, the assignment and every per-locus number include
+them, so the catalogue needs their `genome` row and their gene count. The caller names them
+(`--genomes-without-gene-table`); this then reads only `flat_index` from the `_meta` parquet, requires
+it to be exactly `0..n-1`, stores `coding_gene_count = n` and the reason in
+`genome.gene_table_omitted_reason`, and writes no block. A genome with neither file that is NOT named
+is still refused by name, and a named genome that HAS a GFF or a `.nseq` is refused — the name claims
+the gate refused a genome that has a table, so the list is stale.
 
 The third route is the 71,435-genome cohort, which holds no GFFs for the gene layer. ⛔ **No route
 writes per-gene rows**: the per-gene tables were dropped (D8, migration `013b739e04ef`), and the
@@ -94,6 +105,10 @@ class GenomeIngestReport:
     #: load that checked every block against nuna's file from one that read no file at all.
     gene_spans_written: int = 0
     gene_spans_source: GeneSpansSource | None = None
+    #: ⭐ Non-None exactly when this genome was loaded WITHOUT a gene table, named by the caller —
+    #: the reason stored on `genome.gene_table_omitted_reason`. Then `gene_count` is the `_meta`
+    #: parquet's row count and nothing was written to `genome_genes`.
+    gene_table_omitted_reason: str | None = None
     notes: list[str] = field(default_factory=list)
 
 
@@ -175,6 +190,7 @@ def ingest_one_genome(
     pathogen_species_ids: dict[str, int],
     species_key: str | None = None,
     nseq_path: Path | None = None,
+    gene_table_omitted_reason: str | None = None,
 ) -> GenomeIngestReport:
     """Load one genome: its `genome` row, assembly, contigs and gene-span block — or raise before writing.
 
@@ -194,6 +210,10 @@ def ingest_one_genome(
     both from one walk each (`discover_genomes`, `nseq_present`); this never stats a tree to find
     out. ⛔ Both ``None`` is refused **by name** rather than dropped, because the roster is the gene
     universe now and a genome missing from it is a different fact than a genome missing a file.
+
+    ⭐ ``gene_table_omitted_reason`` non-None is the caller NAMING this genome as one that holds no
+    gene table, and why (module table, fourth row). It is honoured only where both files are absent;
+    a named genome with a GFF or a `.nseq` is refused, because the name is then stale.
     """
     import pandas  # the `ingest` extra, deliberately not a serving dependency
 
@@ -204,6 +224,20 @@ def ingest_one_genome(
     # ⭐ The route, decided before a byte is read — so the `.nseq`-only route never asks the parquet
     # for the protein strings it has no use for.
     has_gff = bakrep_dataset_id is not None
+    if gene_table_omitted_reason is not None:
+        if has_gff or nseq_path is not None:
+            held = " and ".join(
+                name for name, present in (("a GFF", has_gff), ("a .nseq", nseq_path is not None)) if present
+            )
+            raise GenomeIngestError(
+                f"{sample_id}: named as holding no gene table ({gene_table_omitted_reason}), but this "
+                f"data root holds {held} for it. ⛔ The list is stale — it claims the gate refused a "
+                "genome that has a table — so it is refused rather than either half being believed."
+            )
+        return _ingest_named_without_gene_table(
+            session, meta_path, sample_id=sample_id, species_key=species_key,
+            pathogen_species_ids=pathogen_species_ids, reason=gene_table_omitted_reason,
+        )
     if not has_gff and nseq_path is None:
         raise GenomeIngestError(
             f"{sample_id}: in the roster but under no dataset directory in "
@@ -296,6 +330,65 @@ def ingest_one_genome(
     )
     report.gene_spans_source = source
     return report
+
+
+def _ingest_named_without_gene_table(
+    session: Session,
+    meta_path: Path,
+    *,
+    sample_id: str,
+    species_key: str | None,
+    pathogen_species_ids: dict[str, int],
+    reason: str,
+) -> GenomeIngestReport:
+    """The fourth route: a `genome` row, the gene count, the reason — and NO block.
+
+    ⛔ The gene count is the `_meta` parquet's, and `flat_index` must be exactly `0..n-1`: that count
+    is what `genome_locus_assignment.gene_count` is written at and what every membership's
+    `flat_index` is range-checked against, so a parquet with a hole would size the block wrong.
+    ⚠ The species must be NAMED, exactly as on the `.nseq`-only route — the cohort this exists for
+    has no `species` column to read one from.
+
+    ⚠ Any `genome_genes` / `genome_contig` row left by an earlier load is DELETED: a stale block would
+    otherwise sit beside the mark, and the publish gate refuses a genome carrying both.
+    """
+    import numpy  # the `ingest` extra, function-local like every numpy import in this package
+    import pandas
+
+    if species_key is None:
+        raise GenomeIngestError(
+            f"{sample_id}: a genome named as holding no gene table needs `species_key` named. The "
+            "cohort it exists for carries no `species` column in its `_meta` parquets."
+        )
+    if species_key not in pathogen_species_ids:
+        raise GenomeIngestError(
+            f"{sample_id}: species {species_key!r} has no row. Run ingest_pathogen_species first."
+        )
+    flat_index = pandas.read_parquet(meta_path, columns=["flat_index"])["flat_index"].to_numpy()
+    gene_count = len(flat_index)
+    if gene_count == 0:
+        raise GenomeIngestError(f"{sample_id}: the meta parquet is empty")
+    if not numpy.array_equal(numpy.sort(flat_index), numpy.arange(gene_count)):
+        raise GenomeIngestError(
+            f"{sample_id}: the meta parquet's flat_index is not exactly 0..{gene_count - 1} "
+            f"({gene_count:,} rows), so its row count is not this genome's gene count. ⛔ Refused: "
+            "the assignment block is sized from it."
+        )
+    genome_id = _upsert_genome(
+        session, sample_id=sample_id, species_id=pathogen_species_ids[species_key],
+        bakrep_dataset_id=None, annotation_path=None,
+        contig_count=None, total_base_count=None, coding_gene_count=gene_count,
+        # ⚠ False: nothing was read from which a strand could be observed. No reader reaches it —
+        # the strand is served only from a gene table, which this genome does not have.
+        strand_is_observed=False,
+        gene_table_omitted_reason=reason,
+    )
+    for table in (GenomeGenes.__table__, GenomeContig.__table__):
+        session.execute(table.delete().where(table.c.genome_id == genome_id))
+    session.flush()
+    return GenomeIngestReport(
+        sample_id=sample_id, genome_id=genome_id, gene_count=gene_count, gene_table_omitted_reason=reason
+    )
 
 
 def _read_nseq_or_refuse(path: Path, sample_id: str) -> NseqFile:
@@ -432,9 +525,11 @@ def _upsert_genome(
     species_id: int,
     bakrep_dataset_id: str | None,
     annotation_path: Path | None,
-    contig_count: int,
-    total_base_count: int,
+    contig_count: int | None,
+    total_base_count: int | None,
     coding_gene_count: int,
+    strand_is_observed: bool = True,
+    gene_table_omitted_reason: str | None = None,
 ) -> int:
     """One row per genome, ever. Re-ingest refreshes the measured counts and nothing else.
 
@@ -456,7 +551,10 @@ def _upsert_genome(
     # ⛔ True because the strand was READ from GFF column 7, which every CDS line carries — not
     # because a strand parquet happens to exist. On the `.nseq` route it is the flags word, which
     # nuna set from the same GFF column when it built the file. See `Genome.strand_is_observed`.
-    genome.strand_is_observed = True
+    genome.strand_is_observed = strand_is_observed
+    # ⛔ Written on EVERY route: NULL wherever a block is about to be written, so a genome that was
+    # once named as holding no gene table and has since gained one loses the mark.
+    genome.gene_table_omitted_reason = gene_table_omitted_reason
     session.flush()
 
     assembly = next(

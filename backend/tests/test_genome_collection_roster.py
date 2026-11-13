@@ -90,6 +90,20 @@ def test_a_roster_genome_with_no_genome_row_is_REFUSED_rather_than_skipped(sessi
         )
 
 
+def test_a_roster_LARGER_than_postgres_bind_parameter_limit_is_resolved_not_crashed(session, tmp_path):
+    """⛔ 71,435 genomes: an `IN (…)` of the roster is one bind parameter per genome and Postgres carries
+    at most 65,535, so the pangenome stage died in psycopg before its own refusal could name anything."""
+    species_ids = ingest_pathogen_species(session)
+    session.flush()
+    _stage_genome_rows(session, species_ids["ecoli"], ["SAM_A"])
+    artifacts = _fake_universe(tmp_path, ["SAM_A", *(f"SAM_MISSING_{index:05d}" for index in range(70_000))])
+    with pytest.raises(RosterError, match="70000 of 70001 roster genomes have no `genome` row"):
+        ingest_genome_collection(
+            session, artifacts, pathogen_species_id=species_ids["ecoli"],
+            collection_key="probe100", collection_label="E. coli probe",
+        )
+
+
 def test_ordinals_with_a_hole_in_them_are_refused_by_the_READER_too(session, seeded):
     """Written straight to the table, because that is the state a partial delete would leave."""
     collection = session.get(GenomeCollection, seeded["collection"].genome_collection_id)

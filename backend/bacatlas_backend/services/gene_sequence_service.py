@@ -123,7 +123,9 @@ def _genome_at_locus(session: Session, *, pangenome_id: int, node_label: str, sa
 
     ⚠ `genome_genes` is an OUTER join, the one place a missing row is a fault rather than an answer:
     a genome placed in a catalogue whose coordinates were never loaded is a database defect, and the
-    caller refuses it by name instead of reporting "no gene here".
+    caller refuses it by name instead of reporting "no gene here" — UNLESS `genome.gene_table_omitted_reason`
+    says why there is none (the genome was named at ingest as one nuna's `.nseq` gate refused). That
+    reason rides on this same statement, so the named state costs no second one.
 
     ⭐ The contig map rides along as a correlated `json_agg` over `genome_contig` — O(this genome's
     contigs with a CDS, ~300 on a draft assembly) and a fraction of the blocks' own size. Reading it
@@ -154,6 +156,7 @@ def _genome_at_locus(session: Session, *, pangenome_id: int, node_label: str, sa
             Genome.sample_id_kind,
             Genome.bare_accession,
             Genome.strand_is_observed,
+            Genome.gene_table_omitted_reason,
             GenomeGenes.gene_count,
             GenomeGenes.span_encoding,
             GenomeGenes.gene_spans,
@@ -193,6 +196,30 @@ def _contigs_by_index(sample_id: str, contigs: list[dict] | None) -> dict[int, t
     return out
 
 
+def _refuse_named_genome_without_gene_table(sample_id: str, found) -> list[GeneSequenceRow]:
+    """A genome NAMED as holding no gene table: no gene here is `[]`, a gene here is a named 503.
+
+    `SequenceUnavailable`, NOT retryable, carrying the stored reason.
+
+    ⭐ The assignment block is still this genome's — written at `genome.coding_gene_count`, its `_meta`
+    row count — so *"this genome has no gene at this locus"* stays an answer it can give truthfully.
+    Where it has one, the bases cannot be read because the coordinates were never held, and that is
+    said in those words: a 503 without `Retry-After`, because no retry will ever produce a table.
+    """
+    ordinals = decode_int32_vector(
+        found.gene_locus_ordinals, name="gene_locus_ordinals", expected_count=found.assigned_gene_count
+    )
+    copies = len(positions_of(ordinals, found.catalogue_ordinal))
+    if not copies:
+        return []
+    raise SequenceUnavailable(
+        f"{sample_id} has {'a gene' if copies == 1 else f'{copies} genes'} at this locus, but BacAtlas "
+        f"holds no gene table for this genome — {found.gene_table_omitted_reason} — so "
+        f"{'its' if copies == 1 else 'their'} coordinates and bases cannot be shown",
+        is_retryable=False,
+    )
+
+
 def load_gene_sequences(
     session: Session,
     *,
@@ -209,7 +236,8 @@ def load_gene_sequences(
     `genome_locus_assignment` row) and a locus the catalogue lacks: the endpoint has already turned
     an unknown genome or locus into a named 404 before calling this. It RAISES `SequenceUnavailable`
     only where a gene exists and its bases could not be read, which is a different thing and must
-    read differently on the page.
+    read differently on the page — including a genome NAMED as holding no gene table, which raises
+    it non-retryably with the stored reason.
 
     ⛔ **A malformed row is REFUSED BY NAME, never served as "no gene here".** A `genome_genes` row
     that is missing, in a layout this decoder does not know, or whose length disagrees with its own
@@ -229,6 +257,8 @@ def load_gene_sequences(
     found = _genome_at_locus(session, pangenome_id=pangenome_id, node_label=node_label, sample_id=sample_id)
     if found is None:
         return []
+    if found.gene_count is None and found.gene_table_omitted_reason is not None:
+        return _refuse_named_genome_without_gene_table(sample_id, found)
     if found.gene_count is None:
         raise GeneBlockError(
             f"{sample_id} is placed in pangenome {pangenome_id} but has no genome_genes row, so its "

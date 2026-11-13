@@ -22,7 +22,7 @@ import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 
-from sqlalchemy import select
+from sqlalchemy import ARRAY, String, any_, literal, select
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
@@ -148,7 +148,11 @@ def ingest_genome_collection(
     genome_ids = {
         sample_id: genome_id
         for sample_id, genome_id in session.execute(
-            select(Genome.sample_id, Genome.genome_id).where(Genome.sample_id.in_(samples))
+            # ⚠ `= ANY(array)`, never `IN (…)`: at 71,435 genomes an `IN` list is 71,435 bind
+            # parameters and Postgres' wire protocol carries at most 65,535 — psycopg refuses it.
+            select(Genome.sample_id, Genome.genome_id).where(
+                Genome.sample_id == any_(literal(list(samples), ARRAY(String)))
+            )
         ).all()
     }
     unresolved = [sample_id for sample_id in samples if sample_id not in genome_ids]
