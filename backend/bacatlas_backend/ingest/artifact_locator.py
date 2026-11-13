@@ -28,6 +28,7 @@ supplied, so one look is enough.
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -72,10 +73,16 @@ class CatalogueArtifacts:
     #: load-bearing in six places; a filename is one.
     gene_universe_path: Path | None = None
     assignment_path: Path | None = None
+    #: ⭐ Where nuna published `{BS}.nseq` / `{BS}.loci` — the gene table the ingest COPIES rather than
+    #: re-encodes. ⛔ Not derived from `data_root`: the probe's 200 live in the bacatlas repo under
+    #: `data/seq/`, the 71,435-genome cohort's under the model's own tree on CSD3, and neither is under
+    #: `proc/`. `None` means no tree was named, and then nothing is read from one — the probe's loads
+    #: encode the block from the GFF exactly as before.
+    nseq_root: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data_root", Path(self.data_root).expanduser())
-        for field_name in ("gene_universe_path", "assignment_path"):
+        for field_name in ("gene_universe_path", "assignment_path", "nseq_root"):
             value = getattr(self, field_name)
             if value is not None:
                 object.__setattr__(self, field_name, Path(value).expanduser())
@@ -275,6 +282,45 @@ class CatalogueArtifacts:
     def genome_annotation(self, sample_id: str, bakrep_dataset_id: str) -> Path:
         """The gzipped Bakta GFF — annotation AND, in its `##FASTA` block, the bases."""
         return self.annotation_root / bakrep_dataset_id / sample_id / f"{sample_id}.bakta.gff3.gz"
+
+    # ── the published sequence files ──────────────────────────────────────────────────────────
+    def _nseq_root_or_refuse(self) -> Path:
+        if self.nseq_root is None:
+            raise ValueError(
+                "no .nseq tree was named (`nseq_root` / `--nseq-dir`), so there is no per-genome "
+                ".nseq or .loci path to give. A caller that wants one must have been told where they "
+                "are; a guessed path would resolve to nothing and read as a cohort with no sequences."
+            )
+        return self.nseq_root
+
+    def per_genome_nseq(self, sample_id: str) -> Path:
+        """`<nseq_root>/<BS>.nseq` — the genome: contig names, the gene table, the 2-bit bases."""
+        return self._nseq_root_or_refuse() / f"{sample_id}.nseq"
+
+    def per_genome_loci(self, sample_id: str) -> Path:
+        """`<nseq_root>/<BS>.loci` — the model: which catalogue locus each gene landed in."""
+        return self._nseq_root_or_refuse() / f"{sample_id}.loci"
+
+    def nseq_present(self) -> frozenset[str]:
+        """Which genomes have a `.nseq` under `nseq_root`, from ONE directory listing.
+
+        ⛔ Never a per-genome `exists()`. A cold `stat` on Lustre costs ~28–48 ms, and the cohort this
+        exists for has 71,435 genomes — an hour of metadata latency to learn what one `readdir` says in
+        a second. Callers hold the set and look up in it.
+
+        ⚠ `None` root → an empty set, not an error: the probe names no tree and loads as it always has.
+        A NAMED root that is not a directory IS refused — that is a misconfiguration, and letting it
+        read as "no genome has a .nseq" is the silent success this locator exists to prevent.
+        """
+        if self.nseq_root is None:
+            return frozenset()
+        if not self.nseq_root.is_dir():
+            raise FileNotFoundError(
+                f"the .nseq tree was named as {self.nseq_root} and it is not a directory. Refused "
+                "rather than read as a cohort with no sequences."
+            )
+        suffix = ".nseq"
+        return frozenset(name[: -len(suffix)] for name in os.listdir(self.nseq_root) if name.endswith(suffix))
 
     # ── checking ──────────────────────────────────────────────────────────────────────────────
     def required(self) -> list[tuple[str, Path, str]]:

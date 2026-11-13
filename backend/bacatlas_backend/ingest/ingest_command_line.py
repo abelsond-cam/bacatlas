@@ -30,7 +30,11 @@ from bacatlas_backend.ingest.ingest_genome_collection_roster import (
     ingest_genome_collection,
     read_genome_vocabulary,
 )
-from bacatlas_backend.ingest.ingest_genome_gene_table import GenomeIngestError, ingest_one_genome
+from bacatlas_backend.ingest.ingest_genome_gene_table import (
+    GENE_SPANS_SOURCES,
+    GenomeIngestError,
+    ingest_one_genome,
+)
 from bacatlas_backend.ingest.ingest_locus_catalogue import ingest_locus_catalogue
 from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for, ingest_pangenome_run
 from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_species
@@ -39,6 +43,7 @@ from bacatlas_backend.ingest.ingest_reference_vocabularies import load_reference
 from bacatlas_backend.ingest.publish_pangenome import PublishRefused, publish_pangenome
 from bacatlas_backend.models.gene import Gene, GeneFunctionalAnnotation, GenomeNoncodingFeature
 from bacatlas_backend.models.genome import Genome, GenomeContig
+from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.pangenome import Pangenome
 
@@ -53,6 +58,11 @@ class GenomeLayerReport:
     contigs: int = 0
     functional_annotations: int = 0
     noncoding_features: int = 0
+    #: ⭐ `genome_genes` rows written, and by which ROUTE. The three route counts add up to
+    #: `genomes_loaded`, and a reader needs them apart: a load where every genome reads `encoded`
+    #: is a load that checked no block against nuna's file, which one total could not say.
+    gene_spans: int = 0
+    gene_spans_routes: dict[str, int] = field(default_factory=lambda: dict.fromkeys(GENE_SPANS_SOURCES, 0))
     seconds: float = 0.0
     refusals: list[tuple[str, str]] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -70,6 +80,9 @@ class GenomeLayerReport:
             f"  contigs                {self.contigs:,}",
             f"  functional annotations {self.functional_annotations:,}",
             f"  non-coding features    {self.noncoding_features:,}",
+            f"  gene_spans blocks      {self.gene_spans:,}  ("
+            + " · ".join(f"{route} {self.gene_spans_routes.get(route, 0):,}" for route in GENE_SPANS_SOURCES)
+            + ")",
         ]
         for sample_id, reason in self.refusals:
             lines.append(f"  REFUSED {sample_id}: {reason}")
@@ -132,22 +145,31 @@ def discover_genomes(artifacts: CatalogueArtifacts) -> list[tuple[str, str | Non
       the catalogue's own roster will never name. Measured on the probe store: 280 GFFs, 200
       genomes across the two universes, and **10 of the other 80 are the placed genomes**.
 
+    * the **`.nseq` tree** (`artifacts.nseq_root`, when one is named) is the third thing this data
+      root can hold, and the ONLY thing it holds for the 71,435-genome cohort, which has no GFFs for
+      the gene layer. A genome there is LOCATED — `ingest_one_genome` loads it from the file — so
+      it joins the roster on the same footing as a genome in the annotation tree. ⚠ Read from ONE
+      directory listing (`nseq_present`), never a per-genome `exists()`.
+
     ⛔ An empty UNION is refused by name. That is the silent success, and it is the only case
     where loading nothing and finding nothing look the same.
 
-    ⚠ A universe genome the tree does not hold gets `None` and is **refused by name** by
-    `ingest_one_genome` rather than dropped. Missing and absent must not look the same.
+    ⚠ A universe genome neither tree holds gets `None` here and is **refused by name** by
+    `ingest_one_genome` rather than dropped. Missing and absent must not look the same. The
+    dataset id is the GFF's; whether a `.nseq` exists is a separate fact the loader resolves from
+    the same listing, so one pair still means one thing.
     """
     roster, _ = read_genome_vocabulary(artifacts)
     index = annotation_index(artifacts)
+    present = artifacts.nseq_present()
     in_universe = set(roster)
-    roster += sorted(sample_id for sample_id in index if sample_id not in in_universe)
+    roster += sorted((set(index) | present) - in_universe)
     if not roster:
         raise EmptyRoster(
-            f"neither the gene universe at {artifacts.gene_universe} nor the annotation tree at "
-            f"{artifacts.annotation_root} names a genome. A roster of zero loads zero genomes and "
-            "reports success, which is indistinguishable from a cohort that has none — so it is "
-            "refused here instead."
+            f"neither the gene universe at {artifacts.gene_universe}, nor the annotation tree at "
+            f"{artifacts.annotation_root}, nor the .nseq tree at {artifacts.nseq_root} names a "
+            "genome. A roster of zero loads zero genomes and reports success, which is "
+            "indistinguishable from a cohort that has none — so it is refused here instead."
         )
     return [(sample_id, index.get(sample_id)) for sample_id in roster]
 
@@ -180,14 +202,21 @@ def load_genome_layer(
         )
 
     genomes = discover_genomes(artifacts)
-    # ⭐ The frame, stated. Two sources make one roster, and a reader cannot otherwise tell a
-    # 280-genome load of a 100-genome cohort from a 280-genome cohort.
-    located = sum(1 for _, dataset_id in genomes if dataset_id is not None)
+    # ⭐ ONE listing of the .nseq tree for the whole run — never a stat per genome.
+    present = artifacts.nseq_present()
+    # ⭐ The frame, stated. Three sources make one roster, and a reader cannot otherwise tell a
+    # 280-genome load of a 100-genome cohort from a 280-genome cohort — nor a load that copied
+    # every block from nuna's files from one that encoded every block itself.
+    with_gff = sum(1 for _, dataset_id in genomes if dataset_id is not None)
+    with_nseq = sum(1 for sample_id, _ in genomes if sample_id in present)
+    with_both = sum(1 for sample_id, dataset_id in genomes if dataset_id is not None and sample_id in present)
+    located = with_gff + with_nseq - with_both
     in_universe, _ = read_genome_vocabulary(artifacts)
     report.notes.append(
         f"roster: {len(genomes):,} genomes — {len(in_universe):,} in the gene universe, "
-        f"{len(genomes) - len(in_universe):,} in the annotation tree only; "
-        f"{located:,} located under a dataset directory"
+        f"{len(genomes) - len(in_universe):,} held by this data root only; "
+        f"located {located:,}: {with_gff:,} with a GFF, {with_nseq:,} with a .nseq, "
+        f"{with_both:,} with both, {len(genomes) - located:,} with neither (refused by name)"
     )
     if only:
         genomes = [pair for pair in genomes if pair[0] in only]
@@ -200,6 +229,7 @@ def load_genome_layer(
             one = ingest_one_genome(
                 session, artifacts, sample_id=sample_id, bakrep_dataset_id=dataset_id,
                 pathogen_species_ids=species_ids, species_key=species_key,
+                nseq_path=artifacts.per_genome_nseq(sample_id) if sample_id in present else None,
                 write_functional_annotations=write_functional_annotations,
                 write_noncoding_features=write_noncoding_features,
             )
@@ -220,6 +250,9 @@ def load_genome_layer(
         report.contigs += one.contigs_written
         report.functional_annotations += one.functional_annotations_written
         report.noncoding_features += one.noncoding_features_written
+        report.gene_spans += one.gene_spans_written
+        if one.gene_spans_source is not None:
+            report.gene_spans_routes[one.gene_spans_source] = report.gene_spans_routes.get(one.gene_spans_source, 0) + 1
         report.notes.extend(one.notes)
         if progress_every and index % progress_every == 0:
             print(
@@ -263,11 +296,15 @@ def reconcile(session: Session, report: GenomeLayerReport) -> list[str]:
         "genomes": session.execute(
             select(func.count()).select_from(Genome).where(Genome.genome_id == any_(scope))
         ).scalar_one(),
+        "gene_spans": session.execute(
+            select(func.count()).select_from(GenomeGenes).where(GenomeGenes.genome_id == any_(scope))
+        ).scalar_one(),
     }
     written = {
         "genes": report.genes, "contigs": report.contigs,
         "functional_annotations": report.functional_annotations,
         "noncoding_features": report.noncoding_features, "genomes": report.genomes_loaded,
+        "gene_spans": report.gene_spans,
     }
     return [
         f"{key}: wrote {written[key]:,} but the table holds {held[key]:,} "
@@ -460,6 +497,13 @@ def build_parser() -> argparse.ArgumentParser:
                              "`analysis/step4_global_merge/assignments/{run_id}.tsv` does not name "
                              "it \u2014 a big run writes under `comparison/nuna/<model>/<run>/step4/`. "
                              "Either the .tsv or its .parquet sidecar")  # fmt: skip
+    parser.add_argument("--nseq-dir", type=Path, default=None,
+                        help="where nuna published `{BS}.nseq` / `{BS}.loci`. \u2b50 A genome with a "
+                             ".nseq has its gene_spans block COPIED from the file (and, where it also "
+                             "has a GFF, checked byte for byte against the GFF's encoding); a genome "
+                             "with a .nseq and NO GFF is loaded from the header alone, with no per-gene "
+                             "rows. \u26d4 Listed ONCE, never stat-ed per genome. Unset, nothing is read "
+                             "from one and the block is encoded from the GFF as before")  # fmt: skip
     parser.add_argument("--no-functional-annotations", action="store_true",
                         help="\u2b50 do not write `gene_functional_annotation`. The per-node rollups "
                              "in `locus_annotation_entry` are what the page reads; the per-gene "
@@ -512,6 +556,7 @@ def main(argv: list[str] | None = None) -> int:
         data_root=args.data_root, set_key=args.set_key,
         model_label=args.model_label, run_id=args.run_id,
         gene_universe_path=args.gene_universe, assignment_path=args.assignment,
+        nseq_root=args.nseq_dir,
     )
     optional = artifacts.verify()
     print(f"artifacts: all {len(artifacts.required())} required present; optional {optional}")

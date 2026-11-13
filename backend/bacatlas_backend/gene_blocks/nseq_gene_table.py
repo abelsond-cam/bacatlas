@@ -12,6 +12,13 @@ decoded fields, over all 200 committed genomes.
 page's business; the database holds no bases and this module does not change that. Only the header,
 the gene table and the locus vector are read.
 
+⭐ **Two readers, one set of checks.** `read_nseq` reads the whole file and measures it by its
+bytes; `read_nseq_gene_table` reads the 12-byte prefix, the header and the table, and measures the
+file with one `stat`. They return the same `NseqFile` and share every check, and the second is the
+one the ingest calls: the 71,435-genome cohort's `.nseq` tree is 99.5 GB of which 94 % is DNA, and
+the gene table the ingest copies is ~83 kB a genome. Reading whole files to get it would be ~94 GB
+of reads that end in the bin.
+
 ⚠ **`app.js` validates seven bytes of the eight-byte magic.** `decodeNseq` tests
 `utf8(u8.subarray(0, 7)) !== "NUNASEQ"`, so the trailing container-version byte is never looked at —
 while `nuna/schemas/genome_sequence.schema.md` says *"the page tests the version to decide whether
@@ -23,6 +30,7 @@ though nothing happened.
 from __future__ import annotations
 
 import json
+import os
 import struct
 from array import array
 from dataclasses import dataclass
@@ -71,44 +79,50 @@ class NseqFile:
         return tuple(offsets)
 
 
-def read_nseq(path: str | Path, *, expect_sample: str | None = None) -> NseqFile:
-    """Read one `.nseq` up to and including its gene table.
-
-    ⭐ `expect_sample` is what makes the header's `sample` key do the job the format spec gives
-    it — *"the BioSample accession, so a mis-served file names itself"*. Without it the key is
-    read and never compared to anything, so a file published under the wrong name decodes
-    perfectly and serves another genome's coordinates. Pass the name you asked for.
-
-    ⚠ Every length is cross-checked against the file's own size before a slice is taken. A truncated
-    download is the realistic failure, and a short gene table sliced without checking yields a table
-    that is a whole number of rows and simply stops early.
-    """
-    path = Path(path)
-    raw = path.read_bytes()
-    if len(raw) < _HEADER_OFFSET:
-        raise GeneBlockError(f"{path}: {len(raw)} bytes is shorter than the 12-byte container header")
-    if raw[:8] != NSEQ_MAGIC:
+def _header_length(path: Path, prefix: bytes, file_length: int) -> int:
+    """The 12-byte container prefix → the JSON header's length, refusing a wrong magic or a short file."""
+    if file_length < _HEADER_OFFSET or len(prefix) < _HEADER_OFFSET:
+        raise GeneBlockError(f"{path}: {file_length} bytes is shorter than the 12-byte container header")
+    if prefix[:8] != NSEQ_MAGIC:
         raise GeneBlockError(
-            f"{path}: magic is {raw[:8]!r}, not {NSEQ_MAGIC!r}. ⚠ A container-version bump changes "
+            f"{path}: magic is {prefix[:8]!r}, not {NSEQ_MAGIC!r}. ⚠ A container-version bump changes "
             "the eighth byte, and the layout with it."
         )
-
-    (header_length,) = struct.unpack_from("<I", raw, _HEADER_LENGTH_OFFSET)
-    header_end = _HEADER_OFFSET + header_length
-    if header_end > len(raw):
+    (header_length,) = struct.unpack_from("<I", prefix, _HEADER_LENGTH_OFFSET)
+    if _HEADER_OFFSET + header_length > file_length:
         raise GeneBlockError(
-            f"{path}: the header claims {header_length} bytes, which runs past the file's {len(raw)}"
+            f"{path}: the header claims {header_length} bytes, which runs past the file's {file_length}"
         )
-    header = json.loads(raw[_HEADER_OFFSET:header_end].decode("utf-8"))
+    return header_length
 
-    gene_count = int(header["n_genes"])
+
+def _table_end(path: Path, gene_count: int, header_end: int, file_length: int) -> int:
+    """Where the gene table ends, refusing a count that would read past the file."""
     table_end = header_end + gene_count * GENE_SPAN_STRIDE
-    if table_end > len(raw):
+    if table_end > file_length:
         raise GeneBlockError(
             f"{path}: n_genes {gene_count} needs a gene table ending at {table_end}, past the "
-            f"file's {len(raw)} bytes"
+            f"file's {file_length} bytes"
         )
-    gene_table = raw[header_end:table_end]
+    return table_end
+
+
+def _assemble(
+    path: Path,
+    header: dict,
+    gene_table: bytes,
+    *,
+    file_length: int,
+    table_end: int,
+    expect_sample: str | None,
+) -> NseqFile:
+    """The checks both readers share, applied to what each read — so neither can be laxer than the other.
+
+    ⚠ Every length is cross-checked against the file's own size. A truncated download is the realistic
+    failure, and a short gene table sliced without checking yields a table that is a whole number of
+    rows and simply stops early.
+    """
+    gene_count = int(header["n_genes"])
     check_block_length(gene_table, GENE_SPAN_STRIDE, gene_count, name=f"{path.name} gene table")
 
     contig_names = tuple(str(name) for name in header["cname"])
@@ -125,7 +139,7 @@ def read_nseq(path: str | Path, *, expect_sample: str | None = None) -> NseqFile
             "contig base offsets are the prefix sum of clen, so the two disagreeing moves every base"
         )
     expected_packed = -(-base_count // 4)
-    packed = len(raw) - table_end
+    packed = file_length - table_end
     if packed != expected_packed:
         raise GeneBlockError(
             f"{path}: {packed} packed bytes after the gene table, but n_bases {base_count} needs "
@@ -150,6 +164,55 @@ def read_nseq(path: str | Path, *, expect_sample: str | None = None) -> NseqFile
         ambiguous_runs=tuple((int(start), int(length)) for start, length in header.get("ambiguous", [])),
         gene_table=gene_table,
         packed_base_bytes=packed,
+    )
+
+
+def read_nseq(path: str | Path, *, expect_sample: str | None = None) -> NseqFile:
+    """Read one `.nseq` up to and including its gene table, having read the WHOLE file.
+
+    ⭐ `expect_sample` is what makes the header's `sample` key do the job the format spec gives
+    it — *"the BioSample accession, so a mis-served file names itself"*. Without it the key is
+    read and never compared to anything, so a file published under the wrong name decodes
+    perfectly and serves another genome's coordinates. Pass the name you asked for.
+
+    ⚠ This measures the file by reading all of it — the right oracle for a 200-genome suite and
+    the wrong cost for a cohort. `read_nseq_gene_table` returns the same fields from one `stat` and
+    three reads, and is what the ingest calls.
+    """
+    path = Path(path)
+    raw = path.read_bytes()
+    header_end = _HEADER_OFFSET + _header_length(path, raw[:_HEADER_OFFSET], len(raw))
+    header = json.loads(raw[_HEADER_OFFSET:header_end].decode("utf-8"))
+    table_end = _table_end(path, int(header["n_genes"]), header_end, len(raw))
+    return _assemble(
+        path, header, raw[header_end:table_end],
+        file_length=len(raw), table_end=table_end, expect_sample=expect_sample,
+    )
+
+
+def read_nseq_gene_table(path: str | Path, *, expect_sample: str | None = None) -> NseqFile:
+    """Read one `.nseq`'s header and gene table — and NOT its bases — with one `stat` and three reads.
+
+    ⭐ The same `NseqFile` as `read_nseq`, the same checks, a hundredth of the I/O. The gene table
+    ends at `12 + header + 16·n_genes`, ~83 kB into a ~1.3 MB file; everything after it is the
+    2-bit DNA the page decodes and the database never holds. The packed-bases length is still
+    cross-checked, from `os.stat` rather than from a read — a truncated file is refused here exactly
+    as `read_nseq` refuses it.
+
+    ⚠ One `stat` and one `open` per genome is the floor, not a target to beat: on Lustre a cold
+    `stat` is ~28 ms and an `open` costs several, which is why the caller lists the directory once
+    (`CatalogueArtifacts.nseq_present`) instead of asking `exists()` before calling this.
+    """
+    path = Path(path)
+    file_length = os.stat(path).st_size
+    with path.open("rb") as handle:
+        header_length = _header_length(path, handle.read(_HEADER_OFFSET), file_length)
+        header_end = _HEADER_OFFSET + header_length
+        header = json.loads(handle.read(header_length).decode("utf-8"))
+        table_end = _table_end(path, int(header["n_genes"]), header_end, file_length)
+        gene_table = handle.read(table_end - header_end)
+    return _assemble(
+        path, header, gene_table, file_length=file_length, table_end=table_end, expect_sample=expect_sample
     )
 
 

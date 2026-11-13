@@ -25,6 +25,7 @@ from bacatlas_backend.gene_blocks.nseq_gene_table import (
     NseqFile,
     read_loci,
     read_nseq,
+    read_nseq_gene_table,
 )
 from bacatlas_backend.gene_blocks.packed_gene_blocks import (
     DEFINED_FLAG_BITS,
@@ -74,4 +75,5 @@ __all__ = [
     "positions_of",
     "read_loci",
     "read_nseq",
+    "read_nseq_gene_table",
 ]

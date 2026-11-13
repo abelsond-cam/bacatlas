@@ -22,9 +22,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from sqlalchemy import exists, func, select, update
+from sqlalchemy import case, exists, func, select, update
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.gene_blocks import GENE_SPAN_STRIDE
 from bacatlas_backend.models.enumerations import EmbeddingRepresentation
 from bacatlas_backend.models.genome_collection import GenomeCollection, GenomeCollectionMembership
 from bacatlas_backend.models.genome_genes import GenomeGenes
@@ -227,6 +228,64 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
         f"{uncounted:,} collection genomes have no row and {stray:,} rows name a genome outside the "
         "collection — the anchor picker would drop or invent them",
     )
+
+    # ⭐ The gene layer, at the genome grain. The Sequence tab reads `genome_genes` for every genome
+    # the picker can offer, so a collection genome with no block is a genome whose every gene has no
+    # coordinates — and nothing above would notice. ONE aggregate over the collection, LEFT-joined to
+    # the blocks: O(genomes), never a row per gene, and `octet_length` on bytea reads the stored size
+    # without detoasting. ⚠ The length is the table's own CHECK, re-asked here because a row that got
+    # in around the constraint would otherwise be found by the first reader of its last gene.
+    # ⚠ Not `members`: that name is the collection subquery the assignment checks below still use.
+    collection_genomes, with_block, malformed, genes_in_blocks = session.execute(
+        select(
+            func.count(),
+            func.count(GenomeGenes.genome_id),
+            func.coalesce(
+                func.sum(
+                    case(
+                        (
+                            func.octet_length(GenomeGenes.gene_spans)
+                            != GenomeGenes.gene_count * GENE_SPAN_STRIDE,
+                            1,
+                        ),
+                        else_=0,
+                    )
+                ),
+                0,
+            ),
+            func.coalesce(func.sum(GenomeGenes.gene_count), 0),
+        )
+        .select_from(GenomeCollectionMembership)
+        .outerjoin(GenomeGenes, GenomeGenes.genome_id == GenomeCollectionMembership.genome_id)
+        .where(GenomeCollectionMembership.genome_collection_id == pangenome.genome_collection_id)
+    ).one()
+    check(
+        "every collection genome has a gene_spans block",
+        collection_genomes - with_block == 0,
+        f"{collection_genomes - with_block:,} of {collection_genomes:,} collection genomes have no "
+        "genome_genes row — the "
+        "Sequence tab would have no coordinates for any of their genes",
+    )
+    check(
+        "every gene_spans block is 16 bytes per gene",
+        malformed == 0,
+        f"{malformed:,} block(s) whose octet_length is not gene_count × {GENE_SPAN_STRIDE} — a short "
+        "block reads every gene after the gap as the one before it",
+    )
+    if pangenome.gene_count is not None and pangenome.gene_count > 0:
+        check(
+            "the gene_spans blocks hold the pangenome's gene_count",
+            genes_in_blocks == pangenome.gene_count,
+            f"the blocks hold {genes_in_blocks:,} genes and the pangenome row claims "
+            f"{pangenome.gene_count:,}",
+        )
+    else:
+        # ⚠ Stated, not skipped: a reader must be able to tell "compared and equal" from "there was
+        # nothing to compare against". It goes under passed because it is not a refusal.
+        passed.append(
+            f"the gene_spans block total ({genes_in_blocks:,} genes) was NOT compared: "
+            f"pangenome.gene_count is {pangenome.gene_count!r}"
+        )
 
     # ── the genome-grain gene layer ────────────────────────────────────────────────────────────
     # ⭐ `genome_locus_assignment` is what the Sequence tab reads a genome's loci from, and

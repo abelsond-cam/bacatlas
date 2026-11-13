@@ -541,3 +541,110 @@ def test_the_gate_REFUSES_a_locus_whose_present_genomes_are_not_member_genome_co
         f.startswith("every locus lists exactly member_genome_count present genomes: 1 loci have")
         for f in failed
     ), failed
+
+
+# ── the gene layer in the publish gate: the blocks themselves ─────────────────────────────────
+#: The three checks by name, as `verify_pangenome_is_servable` spells them. ⚠ `small_catalogue` seeds
+#: the blocks these read — a: 3 genes, b: 2, c: 0 (a row, not a missing row) — so the total is 5, and
+#: each test below tells the pangenome row the number it wants compared against.
+GENE_LAYER_CHECKS = (
+    "every collection genome has a gene_spans block",
+    "every gene_spans block is 16 bytes per gene",
+    "the gene_spans blocks hold the pangenome's gene_count",
+)
+
+
+def _gene_layer_lines(passed, failed):
+    return (
+        [line for line in passed if line.startswith(GENE_LAYER_CHECKS) or "NOT compared" in line],
+        [line for line in failed if line.startswith(GENE_LAYER_CHECKS)],
+    )
+
+
+def test_the_publish_gate_PASSES_the_gene_layer_when_the_blocks_add_up_to_the_pangenomes_gene_count(
+    session, small_catalogue
+):
+    """The positive case, so a check that can only ever fail is told from one that is failing unnoticed."""
+    pangenome, _genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+
+    passed_lines, failed_lines = _gene_layer_lines(*_gate(session, pangenome))
+    assert sorted(passed_lines) == sorted(GENE_LAYER_CHECKS), (passed_lines, failed_lines)
+    assert failed_lines == []
+
+
+def test_the_publish_gate_REFUSES_a_collection_genome_with_no_gene_spans_block(session, small_catalogue):
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    session.flush()
+    session.execute(GenomeGenes.__table__.delete().where(GenomeGenes.genome_id == genome["c"]))
+
+    passed, failed = _gate(session, pangenome)
+    assert "every collection genome has a gene_spans block" not in passed
+    assert any(
+        failure.startswith("every collection genome has a gene_spans block: 1 of 3 collection genomes")
+        for failure in failed
+    ), failed
+    # The other two still hold: the blocks that remain are well-formed, and C held no genes.
+    assert "every gene_spans block is 16 bytes per gene" in passed
+    assert "the gene_spans blocks hold the pangenome's gene_count" in passed
+
+
+def test_the_publish_gate_REFUSES_a_block_total_that_is_not_the_pangenomes_gene_count_and_SAYS_both(
+    session, small_catalogue
+):
+    pangenome, _genome = small_catalogue
+    pangenome.gene_count = 6
+    session.flush()
+
+    passed, failed = _gate(session, pangenome)
+    assert "the gene_spans blocks hold the pangenome's gene_count" not in passed
+    assert (
+        "the gene_spans blocks hold the pangenome's gene_count: the blocks hold 5 genes and the "
+        "pangenome row claims 6"
+    ) in failed, failed
+
+
+def test_the_publish_gate_SAYS_when_the_block_total_was_not_compared(session, small_catalogue):
+    """⚠ A zero `gene_count` is nothing to compare against — stated in the report, never a silent pass."""
+    pangenome, _genome = small_catalogue
+    pangenome.gene_count = 0
+    session.flush()
+
+    passed, failed = _gate(session, pangenome)
+    assert any(
+        line == "the gene_spans block total (5 genes) was NOT compared: pangenome.gene_count is 0" for line in passed
+    ), passed
+    assert "the gene_spans blocks hold the pangenome's gene_count" not in passed
+    assert not any(line.startswith("the gene_spans blocks hold") for line in failed)
+
+
+def test_the_publish_gate_REFUSES_a_block_that_is_not_16_bytes_per_gene(session, small_catalogue):
+    """The table's own CHECK forbids such a row, so it is dropped for THIS transaction only — DDL is
+    transactional in Postgres and the session fixture rolls back — to prove the gate re-asks it."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 6
+    session.flush()
+    # ⚠ Looked up by what it CHECKS, not by name: the metadata's naming convention prefixes it.
+    (constraint_name,) = session.execute(text(
+        "SELECT conname FROM pg_constraint WHERE conrelid = 'genome_genes'::regclass AND contype = 'c' "
+        "AND pg_get_constraintdef(oid) LIKE '%octet_length%'"
+    )).one()
+    session.execute(text(f'ALTER TABLE genome_genes DROP CONSTRAINT "{constraint_name}"'))
+    # C now claims one gene and carries fifteen bytes.
+    session.execute(
+        GenomeGenes.__table__.update().where(GenomeGenes.genome_id == genome["c"]).values(
+            gene_count=1, gene_spans=b"\x00" * 15
+        )
+    )
+
+    passed, failed = _gate(session, pangenome)
+    assert "every gene_spans block is 16 bytes per gene" not in passed
+    assert any(
+        failure.startswith("every gene_spans block is 16 bytes per gene: 1 block(s) whose octet_length")
+        for failure in failed
+    ), failed
+    # Every genome HAS a row and the counts add to 6 — only the length is wrong, and only that is said.
+    assert "every collection genome has a gene_spans block" in passed
+    assert "the gene_spans blocks hold the pangenome's gene_count" in passed

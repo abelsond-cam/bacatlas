@@ -22,6 +22,7 @@ import hashlib
 import json
 import os
 import shutil
+import struct
 import subprocess
 from collections import Counter
 from pathlib import Path
@@ -45,6 +46,7 @@ from bacatlas_backend.gene_blocks import (
     positions_of,
     read_loci,
     read_nseq,
+    read_nseq_gene_table,
 )
 from tests.conftest import PUBLISHED_SITE_CATALOGUE_DIR, require_oracle
 
@@ -202,6 +204,89 @@ def test_a_file_that_names_another_sample_is_refused_when_a_name_is_expected():
     assert read_nseq(one, expect_sample=one.stem).sample == one.stem
     with pytest.raises(GeneBlockError, match="was asked for"):
         read_nseq(one, expect_sample="SAMEA_SOMETHING_ELSE")
+
+
+# ── the header+table reader: the same NseqFile from a hundredth of the I/O ────────────────────
+def test_the_header_and_table_reader_returns_what_the_whole_file_reader_returns():
+    """⭐ Field for field over all 200 — the seek arithmetic against the slice arithmetic.
+
+    The two readers share every check (`_assemble`), so what this compares is the I/O: that reading
+    `12 + header + 16·n_genes` bytes and `stat`-ing the rest lands on the same bytes as slicing them
+    out of the whole file. `NseqFile` is a frozen dataclass, so `==` is every field, gene table included.
+    """
+    require_oracle(
+        SEQUENCE_DIR.is_dir(),
+        f"the committed .nseq files are not at {SEQUENCE_DIR}",
+        supplies="whether the ingest's header+table reader reads the same gene table as the whole-file oracle",
+    )
+    files = sorted(SEQUENCE_DIR.glob("*.nseq"))
+    assert len(files) == 200, "the probe store is 200 .nseq — the premise of this test moved"
+    compared = genes = 0
+    for path in files:
+        whole = read_nseq(path, expect_sample=path.stem)
+        table = read_nseq_gene_table(path, expect_sample=path.stem)
+        assert table == whole, path.name
+        assert len(table.gene_table) == table.gene_count * GENE_SPAN_STRIDE
+        compared += 1
+        genes += table.gene_count
+    assert compared == 200 and genes > 900_000, (compared, genes)
+    # And the one check that is about the NAME rather than the bytes still fires.
+    with pytest.raises(GeneBlockError, match="was asked for"):
+        read_nseq_gene_table(files[0], expect_sample="SAMEA_SOMETHING_ELSE")
+
+
+class _CountingHandle:
+    """A file object that counts the bytes it hands out — what the reader READ, not what it opened."""
+
+    def __init__(self, handle):
+        self._handle = handle
+        self.bytes_read = 0
+
+    def read(self, size=-1):
+        data = self._handle.read(size)
+        self.bytes_read += len(data)
+        return data
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return self._handle.__exit__(*exc)
+
+    def __getattr__(self, name):
+        return getattr(self._handle, name)
+
+
+def test_the_header_and_table_reader_never_reads_the_bases(monkeypatch):
+    """⛔ 94 % of a `.nseq` is DNA the database never holds; the 71k tree is 99.5 GB of it.
+
+    Asserted on the bytes READ, exactly: `12 + header + 16·n_genes`, from one `open`. A reader that
+    `read()` the file and sliced it would return identical fields and fail only here.
+    """
+    require_oracle(
+        SEQUENCE_DIR.is_dir(),
+        f"the committed .nseq files are not at {SEQUENCE_DIR}",
+        supplies="that the ingest's .nseq reader stops at the gene table instead of reading the bases",
+    )
+    path = sorted(SEQUENCE_DIR.glob("*.nseq"))[0]
+    file_size = path.stat().st_size
+    (header_length,) = struct.unpack_from("<I", path.read_bytes()[:12], 8)
+
+    handles: list[_CountingHandle] = []
+    original_open = Path.open
+
+    def counting_open(self, *args, **kwargs):
+        handle = _CountingHandle(original_open(self, *args, **kwargs))
+        handles.append(handle)
+        return handle
+
+    monkeypatch.setattr(Path, "open", counting_open)
+    found = read_nseq_gene_table(path, expect_sample=path.stem)
+
+    assert len(handles) == 1, "one open per genome — the cold-metadata cost on Lustre is the open, not the read"
+    assert handles[0].bytes_read == 12 + header_length + found.gene_count * GENE_SPAN_STRIDE
+    assert handles[0].bytes_read < file_size // 10, (handles[0].bytes_read, file_size)
+    assert found.packed_base_bytes == file_size - handles[0].bytes_read, "the bases were measured by stat, not read"
 
 
 # ── the 200-genome differential oracle ────────────────────────────────────────────────────────

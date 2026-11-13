@@ -17,6 +17,7 @@ override that resolves to the wrong file is the next silent success.
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import pandas
@@ -195,6 +196,92 @@ def test_a_species_key_with_no_row_is_refused_naming_what_is_known(tmp_path):
         )
 
 
+# ── R6 · the .nseq tree: a third roster source, listed ONCE ───────────────────────────────────
+def _nseq_tree(tmp_path: Path, samples: list[str]) -> Path:
+    """A directory of `{BS}.nseq` — presence is all the listing reads, so the files are empty."""
+    directory = tmp_path / "seq"
+    directory.mkdir(exist_ok=True)
+    for sample_id in samples:
+        (directory / f"{sample_id}.nseq").write_bytes(b"")
+        (directory / f"{sample_id}.loci").write_bytes(b"")
+    (directory / "README.txt").write_text("not a genome")
+    return directory
+
+
+def test_a_genome_in_the_nseq_tree_and_in_no_universe_is_STILL_in_the_roster(tmp_path):
+    """⭐ The 71k cohort holds its genomes as `.nseq` and nothing else; the tree is a roster source."""
+    universe = _universe(tmp_path / "u.parquet", ["SAMN1"])
+    artifacts = _artifacts(tmp_path, gene_universe_path=universe, nseq_root=_nseq_tree(tmp_path, ["SAMN2"]))
+    # ⚠ The pair's second half is the GFF's dataset id, which neither genome has. Whether a .nseq
+    # exists is a separate fact the loader resolves from the same listing.
+    assert discover_genomes(artifacts) == [("SAMN1", None), ("SAMN2", None)]
+
+
+def test_nseq_present_lists_the_directory_ONCE_and_never_stats_a_genome(tmp_path, monkeypatch):
+    """⛔ A cold stat on Lustre costs ~28–48 ms and the cohort has 71,435 genomes: one readdir, no exists()."""
+    artifacts = _artifacts(tmp_path, nseq_root=_nseq_tree(tmp_path, ["SAMN1", "SAMN2", "SAMN3"]))
+    listings: list = []
+    original_listdir = os.listdir
+    monkeypatch.setattr(os, "listdir", lambda path: listings.append(path) or original_listdir(path))
+
+    def refuse(self, *args, **kwargs):
+        raise AssertionError(f"a per-path stat was issued for {self}")
+
+    monkeypatch.setattr(Path, "exists", refuse)
+    monkeypatch.setattr(Path, "is_file", refuse)
+    assert artifacts.nseq_present() == frozenset({"SAMN1", "SAMN2", "SAMN3"})
+    assert len(listings) == 1, listings
+
+
+def test_a_NAMED_nseq_tree_that_does_not_exist_is_refused_rather_than_read_as_empty(tmp_path):
+    """⚠ Named and absent is a misconfiguration; reading it as "no genome has a .nseq" is the silent success."""
+    artifacts = _artifacts(tmp_path, nseq_root=tmp_path / "nowhere")
+    with pytest.raises(FileNotFoundError, match="not a directory"):
+        artifacts.nseq_present()
+
+
+def test_without_an_nseq_tree_nothing_is_present_and_a_path_is_refused_by_name(tmp_path):
+    """The probe names no tree: the listing is empty (not an error) and a per-genome path cannot be given."""
+    artifacts = _artifacts(tmp_path)
+    assert artifacts.nseq_root is None
+    assert artifacts.nseq_present() == frozenset()
+    with pytest.raises(ValueError, match="no .nseq tree was named"):
+        artifacts.per_genome_nseq("SAMN1")
+    with pytest.raises(ValueError, match="no .nseq tree was named"):
+        artifacts.per_genome_loci("SAMN1")
+
+
+def test_the_per_genome_sequence_paths_are_under_the_named_tree_with_a_tilde_expanded(tmp_path):
+    artifacts = _artifacts(tmp_path, nseq_root="~/seq")
+    assert artifacts.per_genome_nseq("SAMN1") == Path("~/seq").expanduser() / "SAMN1.nseq"
+    assert artifacts.per_genome_loci("SAMN1") == Path("~/seq").expanduser() / "SAMN1.loci"
+
+
+def test_the_nseq_dir_flag_REACHES_the_locator(monkeypatch, tmp_path):
+    """⛔ A flag parsed and never threaded is a silent success: every block would read `encoded`."""
+    from bacatlas_backend.ingest import ingest_command_line
+
+    seen: dict = {}
+
+    class Sentinel(Exception):
+        pass
+
+    class Recording:
+        def __init__(self, **kwargs):
+            seen.update(kwargs)
+
+        def verify(self):
+            raise Sentinel
+
+    monkeypatch.setattr(ingest_command_line, "CatalogueArtifacts", Recording)
+    with pytest.raises(Sentinel):
+        ingest_command_line.main([
+            "--database-url", "postgresql://nowhere", "--model-label", "kp_x", "--run-id", "r",
+            "--nseq-dir", str(tmp_path),
+        ])
+    assert seen["nseq_root"] == tmp_path
+
+
 # ── R4/R5 · the two overrides, and that neither changes the derived path ──────────────────────
 def test_the_derived_paths_are_unchanged_when_no_override_is_given(tmp_path):
     """⛔ An override must be an override. A second naming rule would move every probe catalogue."""
@@ -241,6 +328,7 @@ def test_the_parquet_sidecar_resolves_ONLY_when_the_tsv_is_absent(tmp_path):
         ("--gene-universe", "gene_universe"),
         ("--assignment", "assignment"),
         ("--species-key", "species_key"),
+        ("--nseq-dir", "nseq_dir"),
     ],
 )
 def test_every_override_is_reachable_from_the_command_line(flag, attribute):
