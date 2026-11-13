@@ -94,6 +94,32 @@ if [ "$dump_rev" != "$code_rev" ]; then
   exit 2
 fi
 
+# ⛔ THE DISK MUST HOLD THE RESTORE, and this too is checked BEFORE anything is deleted.
+# `docker compose down -v` deletes the serving database first and restores second, so a restore that
+# runs out of disk destroys the live database and leaves nothing — the vintage gate above cannot see
+# that, and neither can the health check until it is too late. Measured on the 100-genome probe: the
+# restored database is ~4x the compressed dump (`pg_dump -Fc` emits bytea as hex and omits every
+# index), and a restore peaks at ~1.6x the finished database while WAL and the index builds overlap.
+# So the free space on the volume's disk must cover the dump itself plus FACTOR x its size, where the
+# factor defaults to 8 (= 1 + 4 x 1.6, rounded up) and is overridable for a cohort measured otherwise.
+factor="${BACATLAS_RESTORE_SIZE_FACTOR:-8}"
+docker_root=$(docker info --format '{{.DockerRootDir}}' 2>/dev/null || echo /var/lib/docker)
+[ -d "$docker_root" ] || docker_root=/
+dump_kb=$(du -k "$dump" | cut -f1)
+free_kb=$(df -Pk "$docker_root" | awk 'NR==2 {print $4}')
+need_kb=$(( dump_kb * (factor + 1) ))
+if [ "${free_kb:-0}" -lt "$need_kb" ]; then
+  echo "⛔ NOT ENOUGH DISK FOR THE RESTORE — refusing, and nothing has been deleted."
+  echo "     dump            $(( dump_kb / 1024 )) MB at $dump"
+  echo "     needed          $(( need_kb / 1024 )) MB  (dump x (1 + $factor); BACATLAS_RESTORE_SIZE_FACTOR=$factor)"
+  echo "     free            $(( ${free_kb:-0} / 1024 )) MB on $docker_root"
+  echo "   A restore that fills the disk destroys the serving database and restores nothing. Free space"
+  echo "   first (old dumps under $dump_dir, docker system prune), or lower the factor only with a measured"
+  echo "   database:dump ratio for THIS cohort."
+  exit 2
+fi
+echo "  disk    $(( ${free_kb:-0} / 1024 )) MB free on $docker_root for a $(( dump_kb / 1024 )) MB dump (x$((factor + 1)) needed)"
+
 base="${BACATLAS_PUBLIC_BASE:-/}"
 host="${BACATLAS_HTTP_BIND:-127.0.0.1}"
 [ "$host" = "0.0.0.0" ] && host=127.0.0.1
