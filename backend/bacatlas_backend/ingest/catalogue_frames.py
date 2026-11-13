@@ -413,13 +413,24 @@ def _family_named_symbol_counts(annotation, pandas):
     )
 
 
-def _values_by_node(annotation, column, convert, node_keys):
-    """Node → one value per gene that CARRIES `column`, in the shape the database stores it.
+def _values_by_node(annotation, column, convert, node_keys, node_codes=None):
+    """Node → the DISTINCT values its carrying genes hold, each with how many genes hold it.
 
-    ⛔ **Genes that do not carry it are DROPPED, not carried as `None`.**
-    `within_node_propagation.propagation_verdict` counts this list's length, and that length is the
-    `one_gene` population the whole propagation claim is about — a `None` per unannotated gene would
+    Returns `{node key: [(parsed value, gene count), …]}`, values in order of first appearance in the
+    frame. The parse is `convert` (`split_set_value` / `scalar_or_none`) — the shape the database stores.
+
+    ⛔ **Genes that do not carry it are DROPPED, not carried as `None`.** The counts sum to the node's
+    carrying-gene total, and that total is what `within_node_propagation.propagation_verdict` reads as
+    the `one_gene` population the whole propagation claim is about — a `None` per unannotated gene would
     turn every node into a many-gene node and empty the `one_gene` column.
+
+    ⭐ **Distinct values, not one entry per gene — and this is exact, not an approximation.** The per-gene
+    list it replaced held 374 M Python objects at the 71,435-genome cohort (~94 GB retained, 128 GB at
+    peak, for all four vocabularies at once). Both consumers depend on a node's genes only through the
+    distinct values and their counts: the propagation verdict through *how many genes* (none, one, more)
+    and *which distinct values* (an all/intersection over the folded values, unchanged by repeats), and
+    the claim count through a per-value sum. So the column is factorised once, each distinct string is
+    parsed once, and the only Python left is per distinct (node, value) pair.
 
     ⛔⛔ **It asserts its own coverage, because the failure is silent and total.** Node labels look
     numeric and are not: read back through numpy a label can arrive as `2811` or `2811.0` while
@@ -427,20 +438,32 @@ def _values_by_node(annotation, column, convert, node_keys):
     `no_coverage` — a full column of plausible measured zeros, no error anywhere. So the grouped gene
     count is compared against the column's own non-null count and every key against the node set.
     """
-    grouped: dict[str, list] = {}
-    grouped_genes = 0
-    for node, value in zip(annotation["node"].to_numpy(), annotation[column].to_numpy(), strict=True):
-        converted = convert(value)
-        if converted is None:
-            continue
-        grouped.setdefault(str(node), []).append(converted)
-        grouped_genes += 1
+    import numpy
+    import pandas
+
+    if node_codes is None:
+        node_codes = pandas.factorize(annotation["node"], use_na_sentinel=False)
+    node_code, node_uniques = node_codes
+    value_code, uniques = pandas.factorize(annotation[column])  # a null is -1
+    parsed = [convert(value) for value in uniques]
+    dropped = numpy.fromiter((value is None for value in parsed), dtype=bool, count=len(parsed))
+    keep = value_code >= 0
+    keep[keep] = ~dropped[value_code[keep]]
     carried = int(annotation[column].notna().sum())
+    grouped_genes = int(keep.sum())
     if grouped_genes != carried:
         raise CatalogueFrameError(
             f"`{column}` grouped {grouped_genes:,} genes but {carried:,} rows are non-null — the "
             "parser and the frame disagree about what counts as carried"
         )
+    width = max(len(uniques), 1)
+    pair, genes = numpy.unique(
+        node_code[keep].astype(numpy.int64) * width + value_code[keep], return_counts=True
+    )
+    node_labels = node_uniques.to_numpy()
+    grouped: dict[str, list] = {}
+    for node, value, count in zip((pair // width).tolist(), (pair % width).tolist(), genes.tolist(), strict=True):
+        grouped.setdefault(str(node_labels[node]), []).append((parsed[value], count))
     unknown = set(grouped) - set(node_keys)
     if unknown:
         raise CatalogueFrameError(
@@ -448,6 +471,52 @@ def _values_by_node(annotation, column, convert, node_keys):
             f"{sorted(unknown)[:3]} — the node label was coerced on one side and not the other"
         )
     return grouped
+
+
+def _propagation_columns(annotation, node_keys, annotation_fold, annotation_measured):
+    """The four `propagation_verdict_*` columns and the three `go_claiming_member_count_*` columns.
+
+    ⚠ **One vocabulary at a time**, each one's grouped values dropped before the next is built: the
+    four held together are what made this block the second-largest live set of the ingest. The node
+    column is factorised once and shared.
+
+    ⛔ Read from the SAME frame every rollup reads, through the two parsers that define a dbxref
+    value's shape (`ingest_genome_gene_table.split_set_value` / `scalar_or_none`). `ec` and `go` are
+    comma-joined in the frame and ARRAYS in the database, so they are split to the stored shape;
+    `cog_id` and `kegg_ko` are scalars in both. ⛔ `go` must be split and `ec` need not be —
+    `ec_levels` re-joins its list with commas, so the round trip is a no-op there — but both go through
+    the one splitter, because "this one happens not to need it" is how the other one ends up not
+    getting it either.
+    """
+    import pandas
+
+    parsed_by = {
+        "cog": ("cog_id", scalar_or_none),
+        "ec": ("ec", split_set_value),
+        "kegg": ("kegg_ko", scalar_or_none),
+        "go": ("go", split_set_value),
+    }
+    node_codes = pandas.factorize(annotation["node"], use_na_sentinel=False)
+    verdicts: dict[str, list] = {}
+    claiming: dict[str, list] = {}
+    for suffix, annotation_kind in PROPAGATION_VOCABULARIES.items():
+        column, convert = parsed_by[suffix]
+        carried = _values_by_node(annotation, column, convert, node_keys, node_codes)
+        verdicts[f"propagation_verdict_{suffix}"] = propagation_verdicts(
+            node_keys,
+            carried,
+            annotation_kind=annotation_kind,
+            fold=annotation_fold,
+            # ⚠ GO alone is withheld without a fold. The other three use none, so a deployment with
+            # no GO reference must not lose them.
+            measured=annotation_measured and (suffix != "go" or annotation_fold is not None),
+        )
+        if suffix == "go":
+            claiming = go_claiming_counts(
+                node_keys, carried, fold=annotation_fold if annotation_measured else None
+            )
+        del carried
+    return verdicts, claiming
 
 
 # ── the catalogue ──────────────────────────────────────────────────────────────────────────────
@@ -726,31 +795,13 @@ def build_catalogue_frames(
         )
 
     # ── propagation: does each node's own call agree with itself? ──────────────────────────────
-    # ⛔ Read from the SAME frame every rollup above reads, through the two parsers that define a
-    # dbxref value's shape (`ingest_genome_gene_table.split_set_value` / `scalar_or_none`).
     annotation_measured = source["dbxrefs"] is not None
     node_keys = [str(node) for node in nodes]
-    # ⚠ `ec` and `go` are comma-joined in the frame and ARRAYS in the database, so they are split to
-    # the stored shape; `cog_id` and `kegg_ko` are scalars in both. ⛔ `go` must be split and `ec`
-    # need not be — `ec_levels` re-joins its list with commas, so the round trip is a no-op there —
-    # but both go through the one splitter, because "this one happens not to need it" is how the
-    # other one ends up not getting it either.
-    carried_values = {
-        "cog": _values_by_node(annotation, "cog_id", scalar_or_none, node_keys),
-        "ec": _values_by_node(annotation, "ec", split_set_value, node_keys),
-        "kegg": _values_by_node(annotation, "kegg_ko", scalar_or_none, node_keys),
-        "go": _values_by_node(annotation, "go", split_set_value, node_keys),
-    }
-    for suffix, annotation_kind in PROPAGATION_VOCABULARIES.items():
-        loci[f"propagation_verdict_{suffix}"] = propagation_verdicts(
-            node_keys,
-            carried_values[suffix],
-            annotation_kind=annotation_kind,
-            fold=annotation_fold,
-            # ⚠ GO alone is withheld without a fold. The other three use none, so a deployment with
-            # no GO reference must not lose them.
-            measured=annotation_measured and (suffix != "go" or annotation_fold is not None),
-        )
+    verdicts, claiming = _propagation_columns(
+        annotation, node_keys, annotation_fold, annotation_measured
+    )
+    for column, values in verdicts.items():
+        loci[column] = values
     # ⛔ Genes carrying ANY GO term — NOT the sum of the three namespace counts above, which
     # double-counts every gene annotated in more than one. See `models/locus.py`, where the
     # measured factor is recorded.
@@ -758,9 +809,6 @@ def build_catalogue_frames(
         annotation.groupby("node")["go"].count().reindex(nodes).fillna(0).astype("int64").to_numpy()
         if annotation_measured
         else None
-    )
-    claiming = go_claiming_counts(
-        node_keys, carried_values["go"], fold=annotation_fold if annotation_measured else None
     )
     for namespace, counts in claiming.items():
         loci[f"go_claiming_member_count_{namespace}"] = counts

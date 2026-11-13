@@ -47,9 +47,24 @@ PROPAGATION_VOCABULARIES: dict[str, AnnotationKind] = {
 FOLDED_VOCABULARIES = frozenset({"go"})
 
 
+def _decision_values(entries: list[tuple]) -> list:
+    """A node's distinct `(value, genes)` entries → the values list `propagation_verdict` is asked about.
+
+    ⭐ **Exact, not a sample.** `propagation_verdict` reads its list's LENGTH only as none / one / more,
+    and its CONTENT only through an all-genes test and an intersection over the folded values, which no
+    repeat can change. So the distinct values give the verdict the full per-gene list gives, provided
+    the length still says how many genes there were: a node whose many genes all carry ONE value is
+    asked about that value twice, and stays a many-gene node rather than becoming `one_gene`.
+    """
+    values = [value for value, _genes in entries]
+    if len(values) == 1 and entries[0][1] >= 2:
+        return values * 2
+    return values
+
+
 def propagation_verdicts(
     nodes: list[str],
-    values_by_node: dict[str, list],
+    values_by_node: dict[str, list[tuple]],
     *,
     annotation_kind: AnnotationKind,
     fold: GeneOntologyFold | None = None,
@@ -57,20 +72,21 @@ def propagation_verdicts(
 ) -> list[PropagationVerdict | None]:
     """One verdict per node, in `nodes` order. `None` for every node when `measured` is False.
 
-    `values_by_node` holds one entry per member gene that CARRIES this vocabulary, in the shape
-    `catalogue_frames._values_by_node` parses it to — so a node absent from it has no annotated gene and gets
-    `no_coverage`, which is a measured statement rather than an absence.
+    `values_by_node` holds, per node, the DISTINCT values its carrying genes hold with how many genes
+    hold each — `catalogue_frames._values_by_node`'s shape — so a node absent from it has no annotated
+    gene and gets `no_coverage`, which is a measured statement rather than an absence.
     """
     if not measured:
         return [None] * len(nodes)
     return [
-        propagation_verdict(annotation_kind, values_by_node.get(node, []), fold) for node in nodes
+        propagation_verdict(annotation_kind, _decision_values(values_by_node.get(node, [])), fold)
+        for node in nodes
     ]
 
 
 def go_claiming_counts(
     nodes: list[str],
-    terms_by_node: dict[str, list[list[str]]],
+    terms_by_node: dict[str, list[tuple[list[str], int]]],
     *,
     fold: GeneOntologyFold | None,
 ) -> dict[str, list[int | None]]:
@@ -85,21 +101,33 @@ def go_claiming_counts(
     facets into the first (`annotation_transfer.py:308-315`), so counting there would report every
     gene's whole claim under *molecular function* and nothing under the other two: three populated,
     plausible, wrong columns. `None` says the fold was absent, which is the truth.
+
+    `terms_by_node` is `catalogue_frames._values_by_node`'s shape: per node, each distinct term list
+    with how many genes carry it. A claim is a function of the term list alone, so each distinct list
+    is folded once and its facets are counted once per gene carrying it.
     """
     if fold is None:
         return {namespace: [None] * len(nodes) for namespace in GENE_ONTOLOGY_NAMESPACE_NAMES}
     counts: dict[str, list[int | None]] = {
         namespace: [] for namespace in GENE_ONTOLOGY_NAMESPACE_NAMES
     }
+    claimed: dict[tuple[str, ...], tuple[str, ...]] = {}
     for node in nodes:
         per_namespace = dict.fromkeys(GENE_ONTOLOGY_NAMESPACE_NAMES, 0)
-        for terms in terms_by_node.get(node, []):
-            # ⚠ `go_rung` is the ONE door every GO claim passes through — the ladder, within-node
-            # propagation and this count all read the same closed, root-free sets. Its key is
-            # `(facet, depth)`, never a namespace index, whatever its return annotation says.
-            for (facet, _depth), classes in go_rung([term for term in terms if term], fold).items():
-                if classes:
-                    per_namespace[facet] += 1
+        for terms, genes in terms_by_node.get(node, []):
+            key = tuple(terms)
+            facets = claimed.get(key)
+            if facets is None:
+                # ⚠ `go_rung` is the ONE door every GO claim passes through — the ladder, within-node
+                # propagation and this count all read the same closed, root-free sets. Its key is
+                # `(facet, depth)`, never a namespace index, whatever its return annotation says.
+                facets = claimed[key] = tuple(
+                    facet
+                    for (facet, _depth), classes in go_rung([term for term in terms if term], fold).items()
+                    if classes
+                )
+            for facet in facets:
+                per_namespace[facet] += genes
         for namespace, count in per_namespace.items():
             counts[namespace].append(count)
     return counts
