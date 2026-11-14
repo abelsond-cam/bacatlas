@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from bacatlas_backend.ingest.allele_variant_symbols import fold_symbol_column
 from bacatlas_backend.ingest.artifact_locator import CatalogueArtifacts
@@ -825,6 +826,18 @@ def build_catalogue_frames(
     )
     phase("frames: assembled")
 
+    similarity = _cluster_similarity(artifacts, node_position, n_loci, pandas)
+    for representation, block in similarity.items():
+        if block["omitted_views"]:
+            omitted[f"similarity_views[{representation}]"] = (
+                " and ".join(
+                    OMITTED_VIEW_SENTENCES[view].format(representation=representation)
+                    for view in block["omitted_views"]
+                )
+                + f" — {Path(block['source']).name} declares them unmeasured"
+                + (f" (producer {block['info']['producer']})" if block["info"].get("producer") else "")
+            )
+
     return CatalogueFrames(
         loci=loci,
         annotation_entries=annotation_entries,
@@ -833,7 +846,7 @@ def build_catalogue_frames(
         offset_occupants=occupants,
         gene_memberships=gene_memberships,
         gaps=gaps,
-        similarity=_cluster_similarity(artifacts, node_position, n_loci, pandas),
+        similarity=similarity,
         samples=samples,
         n_genes=source["n_genes"],
         audit_summary=audit["audit_summary"],
@@ -1139,6 +1152,22 @@ SIMILARITY_COLUMNS = {
     "own_neighbour_fraction": "nn_own_frac",
 }
 
+#: The stems a similarity artifact may DECLARE it did not measure (`omitted=` in its `.meta`), by the view
+#: they make up. ⛔ The headline pair — `within`, `near` — is not among them: a card with no within/nearest
+#: pair is not a card. ⚠ A view goes whole or not at all: the weakest-link view is the difference of its
+#: two stems, so one without the other is refused.
+#:
+#: ⭐ **Why this exists.** nuna's lean producer (`build_bacatlas_artifacts`, the only one that runs at
+#: 71,435 genomes) cannot compute the two point views: both are gene-kNN facts with no closed form over
+#: node sums, and the gene kNN is what does not scale. It says so — `omitted=weak_intra,weak_inter,
+#: nn_own_frac` — and leaves the columns out. This reader used to demand all five and refused the artifact
+#: as *"not a form=raw artifact"*, which was found only by ingesting a lean build of the probe: the first
+#: time the two halves of that contract met.
+OMITTABLE_SIMILARITY_VIEWS = {
+    "weak_margin": ("weak_intra", "weak_inter"),
+    "own_fraction": ("nn_own_frac",),
+}
+
 
 def _cluster_similarity(artifacts: CatalogueArtifacts, node_position, n_loci: int, pandas) -> dict:
     """Per representation: one row per locus, the ranked nearest loci, and the gene-pair baseline.
@@ -1189,13 +1218,31 @@ def _cluster_similarity(artifacts: CatalogueArtifacts, node_position, n_loci: in
                 f"{csv_path.name} carries {len(unknown):,} loci this catalogue does not have (e.g. "
                 f"{sorted(unknown)[:3]}) — it was built from a different model or assignment."
             )
+        omitted_views = _omitted_similarity_views(info, metadata_path.name)
+        omitted_stems = {stem for view in omitted_views for stem in OMITTABLE_SIMILARITY_VIEWS[view]}
         missing = [
-            f"{stem}_{form}" for stem in SIMILARITY_COLUMNS.values() if f"{stem}_{form}" not in loci
+            f"{stem}_{form}"
+            for stem in SIMILARITY_COLUMNS.values()
+            if stem not in omitted_stems and f"{stem}_{form}" not in loci
         ]
         if missing:
             raise CatalogueFrameError(
                 f"{csv_path.name} has no {', '.join(missing)} — it is not a form={form} artifact"
             )
+        # ⛔ Declared omitted means ABSENT, checked: a column that is there with values in it while the
+        # `.meta` says it was not measured is two statements about one run, and one of them is wrong.
+        contradicted = [
+            f"{stem}_{form}"
+            for stem in sorted(omitted_stems)
+            if f"{stem}_{form}" in loci and loci[f"{stem}_{form}"].notna().any()
+        ]
+        if contradicted:
+            raise CatalogueFrameError(
+                f"{metadata_path.name} declares {', '.join(sorted(omitted_stems))} omitted, but "
+                f"{csv_path.name} carries values in {', '.join(contradicted)}"
+            )
+        for stem in sorted(omitted_stems):
+            loci[f"{stem}_{form}"] = float("nan")
 
         locus_sets[representation] = set(loci["node"])
         first = next(iter(locus_sets))
@@ -1214,12 +1261,49 @@ def _cluster_similarity(artifacts: CatalogueArtifacts, node_position, n_loci: in
         out[representation] = {
             "info": info,
             "form": form,
+            "omitted_views": omitted_views,
             "source": str(csv_path),
             "loci": loci,
             "nearest": nearest,
             "floor": _similarity_floor(artifacts, representation, form, info),
         }
     return out
+
+
+def _omitted_similarity_views(info: dict, metadata_name: str) -> tuple[str, ...]:
+    """The views this artifact's `.meta` declares unmeasured, as keys of `OMITTABLE_SIMILARITY_VIEWS`.
+
+    Refuses a stem that may not be omitted (the headline pair, or a name this reader does not know) and a
+    view named by half its stems — each by name, because the alternative is a column of NULLs nobody chose.
+    """
+    declared = {stem.strip() for stem in (info.get("omitted") or "").split(",") if stem.strip()}
+    if not declared:
+        return ()
+    omittable = {stem for stems in OMITTABLE_SIMILARITY_VIEWS.values() for stem in stems}
+    unknown = sorted(declared - omittable)
+    if unknown:
+        raise CatalogueFrameError(
+            f"{metadata_name} declares omitted={','.join(sorted(declared))}, and {', '.join(unknown)} "
+            f"may not be omitted — only {', '.join(sorted(omittable))} may. The headline pair is the card."
+        )
+    views = []
+    for view, stems in OMITTABLE_SIMILARITY_VIEWS.items():
+        named = [stem for stem in stems if stem in declared]
+        if named and len(named) != len(stems):
+            raise CatalogueFrameError(
+                f"{metadata_name} omits {', '.join(named)} but not {', '.join(s for s in stems if s not in declared)}"
+                f" — the {view} view is made of both, and half of it is not a measurement"
+            )
+        if named:
+            views.append(view)
+    return tuple(views)
+
+
+#: What the footer says for a view an artifact did not measure — it completes *"Not shown on this build: …"*.
+OMITTED_VIEW_SENTENCES = {
+    "weak_margin": "the weakest-link view of the {representation} similarity card",
+    "own_fraction": "the own-neighbours view of the {representation} similarity card",
+}
 
 
 def _similarity_floor(artifacts: CatalogueArtifacts, representation: str, form: str, info: dict) -> dict:

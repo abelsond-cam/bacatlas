@@ -268,7 +268,8 @@ def _derive_locus_columns(frames: CatalogueFrames, pfam_names: dict, policy: dic
             *(
                 [_clean(v) for v in block["loci"][f"{stem}_{block['form']}"]]
                 for stem in SIMILARITY_COLUMNS.values()
-            )
+            ),
+            omitted_views=block.get("omitted_views", ()),
         )
         for representation, block in frames.similarity.items()
     }

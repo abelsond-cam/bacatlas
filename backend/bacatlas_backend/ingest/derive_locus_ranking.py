@@ -122,6 +122,8 @@ def similarity_index(
     weak_own: list[float | None],
     weak_other: list[float | None],
     own_fraction: list[float | None],
+    *,
+    omitted_views: tuple[str, ...] = (),
 ) -> SimilarityIndex:
     """The three midranks a locus is ranked on, from the five stored similarities.
 
@@ -133,15 +135,24 @@ def similarity_index(
     three are absent together; `nearest` alone is present for one, which is why it is not the guard.
     A disagreement means the artifact's columns are not describing one catalogue, and the card would
     print three different denominators under three views of one locus.
+
+    ⭐ ``omitted_views`` names the views the ARTIFACT declares it did not measure (`weak_margin`,
+    `own_fraction`). Such a view must be absent from EVERY locus — asserted — and the rest must still
+    agree. Named by the caller from the artifact's own declaration, never inferred from an empty column:
+    a view that is empty and undeclared is the disagreement this function exists to refuse.
     """
     separation_pct, separation_n = midrank_percentiles(_difference(within, nearest))
     margin_pct, margin_n = midrank_percentiles(_difference(weak_own, weak_other))
     own_pct, own_n = midrank_percentiles(own_fraction)
-    if not separation_n == margin_n == own_n:
+    expected_margin = 0 if "weak_margin" in omitted_views else separation_n
+    expected_own = 0 if "own_fraction" in omitted_views else separation_n
+    if margin_n != expected_margin or own_n != expected_own:
+        declared = f" (declared omitted: {', '.join(omitted_views)})" if omitted_views else ""
         raise ValueError(
             f"the three views disagree about how many loci are measurable — separation {separation_n:,}, "
-            f"weak margin {margin_n:,}, own fraction {own_n:,}. They are absent together by "
-            "construction (a singleton has none of them), so this is not one catalogue."
+            f"weak margin {margin_n:,}, own fraction {own_n:,}{declared}. They are absent together by "
+            "construction (a singleton has none of them) unless the artifact declares a view unmeasured, "
+            "and then that view is absent everywhere — so this is not one catalogue."
         )
     return SimilarityIndex(
         separation_percentile=separation_pct,
