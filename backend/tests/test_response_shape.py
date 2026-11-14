@@ -46,7 +46,8 @@ from bacatlas_backend.models.pathogen_species import PathogenSpecies
 #: (`test_the_response_has_NONE_of_the_four_retired_fields_and_the_shape_version_moved`), which runs
 #: on the probe database rather than a loaded one.
 #: 6 (2026-11-14): each of the shell's `similarity_baselines` gained `estimator` ("mean" | "median").
-EXPECTED_RESPONSE_SHAPE_VERSION = 6
+#: 7 (2026-11-14): and `unmeasured_views` — the card views the build did not compute, which it hides.
+EXPECTED_RESPONSE_SHAPE_VERSION = 7
 
 #: Key paths whose CHILDREN are data rather than shape — walked to, never walked into.
 #: ⚠ Each is a map whose keys are values: band names, metric names, anchor source groups. Walking

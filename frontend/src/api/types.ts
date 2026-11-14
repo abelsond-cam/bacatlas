@@ -698,6 +698,12 @@ export interface SimilarityBaseline {
    * sentence are chosen by this — a mean captioned as a median is a false sentence on the page.
    */
   readonly estimator: PairEstimator;
+  /**
+   * ⛔ The card views this build did NOT compute for this representation (`"weak"`, `"own"`): a lean build's
+   * gene-kNN views. The card hides a view every baseline lists (David, 2026-11-14: "hide if not computed")
+   * rather than offering a tab that says "Not measurable for this locus" on every locus. `[]` on a full audit.
+   */
+  readonly unmeasured_views: readonly ("median" | "weak" | "own")[];
 }
 
 export type PairEstimator = "mean" | "median";

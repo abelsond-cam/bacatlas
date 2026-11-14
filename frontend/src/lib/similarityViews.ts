@@ -169,6 +169,21 @@ export function viewById(id: SimilarityViewId): SimilarityView {
  */
 export type CardEstimator = PairEstimator | "mixed";
 
+/**
+ * The views this card can offer: every view, less those EVERY baseline says the build did not compute.
+ *
+ * ⚠ Every baseline, not any: the strip is shared by both representations, so a view measured in one keeps
+ * its tab (the other block then says, per locus, that it has nothing). With no baselines at all nothing is
+ * known to be missing, and nothing is hidden.
+ */
+export function measuredViews(baselines: readonly SimilarityBaseline[]): readonly SimilarityView[] {
+  if (baselines.length === 0) return SIMILARITY_VIEWS;
+  const offered = SIMILARITY_VIEWS.filter(
+    (view) => !baselines.every((baseline) => (baseline.unmeasured_views ?? []).includes(view.id)),
+  );
+  return offered.length > 0 ? offered : SIMILARITY_VIEWS;
+}
+
 export function cardEstimator(baselines: readonly SimilarityBaseline[]): CardEstimator {
   const seen = new Set(baselines.map((baseline) => baseline.estimator));
   if (seen.size > 1) return "mixed";

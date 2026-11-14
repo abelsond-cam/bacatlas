@@ -226,3 +226,33 @@ def pair_estimator(omitted_sections: dict | None, representation: str) -> str:
     """
     note = (omitted_sections or {}).get(f"similarity_estimator[{representation}]") or ""
     return "mean" if LEAN_MEAN_ESTIMATOR_CLAUSE in note else "median"
+
+
+#: The sentence the ingest writes into `omitted_sections["similarity_views[<rep>]"]` for each card view an
+#: artifact declares unmeasured, keyed by the producer's own view name. ⭐ Here rather than in the ingest so the
+#: writer and the reader below share one string: a reworded sentence changes both or neither.
+OMITTED_VIEW_SENTENCES = {
+    "weak_margin": "the weakest-link view of the {representation} similarity card",
+    "own_fraction": "the own-neighbours view of the {representation} similarity card",
+}
+
+#: The card's id for each producer view name (`frontend/src/lib/similarityViews.ts`'s `SimilarityViewId`).
+CARD_VIEW_ID = {"weak_margin": "weak", "own_fraction": "own"}
+
+
+def unmeasured_views(omitted_sections: dict | None, representation: str) -> list[str]:
+    """The card views this build did NOT measure for one representation, as the card's own ids.
+
+    ⭐ David, 2026-11-14: *"hide if not computed"*. The weakest-member and nearest-neighbour views are gene-kNN
+    facts; nuna's lean producer (the one that runs at 71,435 genomes) cannot compute them, declares them
+    unmeasured, and the ingest records that in a note. A tab for them read "Not measurable for this locus" on
+    every locus — a statement about the locus where the truth was a statement about the build. The card hides
+    a view every baseline lists here. Read back from the stored note, like `pair_estimator`: no column, no
+    migration, no re-ingest.
+    """
+    note = (omitted_sections or {}).get(f"similarity_views[{representation}]") or ""
+    return [
+        CARD_VIEW_ID[view]
+        for view, sentence in OMITTED_VIEW_SENTENCES.items()
+        if sentence.format(representation=representation) in note
+    ]

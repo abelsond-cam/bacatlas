@@ -529,7 +529,11 @@ describe("⛔ Pfam coverage is stated AS COVERAGE", () => {
 
 // ── embedding similarity ───────────────────────────────────────────────────────────────────────
 /** The two floors, an order of magnitude apart — which is the whole reason they are per rep. */
-function baseline(representation: Representation, estimator: PairEstimator = "median"): SimilarityBaseline {
+function baseline(
+  representation: Representation,
+  estimator: PairEstimator = "median",
+  unmeasured: readonly ("median" | "weak" | "own")[] = [],
+): SimilarityBaseline {
   const floor = representation === "esm" ? ESM_FLOOR : BACFORMER_FLOOR;
   return {
     representation,
@@ -541,6 +545,7 @@ function baseline(representation: Representation, estimator: PairEstimator = "me
     measurable_locus_count: 12_104,
     neighbour_knn_k: 200,
     estimator,
+    unmeasured_views: unmeasured,
   };
 }
 
@@ -642,6 +647,21 @@ describe("⭐ three views, and they REPLACE each other rather than stacking", ()
     const strip = mountSimilarity().findAll(".sim-view");
     expect(strip.map((n) => n.text())).toEqual(["median pair", "weakest member", "nearest neighbour"]);
     expect(strip.filter((n) => n.classes("on")).map((n) => n.text())).toEqual(["median pair"]);
+  });
+
+  it("⛔ hides a view the build did not compute — never a tab that says 'Not measurable' on every locus", () => {
+    // David, 2026-11-14: "hide if not computed". The lean producer cannot compute the gene-kNN views.
+    const lean = [baseline("bacformer", "mean", ["weak", "own"]), baseline("esm", "mean", ["weak", "own"])];
+    const card = mountSimilarity({ baselines: lean, view: "weak" });
+    expect(card.findAll(".sim-view").map((n) => n.text())).toEqual(["mean pair"]);
+    // A view remembered from another catalogue falls back to one this build offers.
+    expect(card.findAll(".sim-view").filter((n) => n.classes("on")).map((n) => n.text())).toEqual(["mean pair"]);
+    // ⚠ Hidden only when EVERY representation lacks it: measured in one, the tab stays.
+    const half = [baseline("bacformer", "mean", ["weak", "own"]), baseline("esm", "mean", ["own"])];
+    expect(mountSimilarity({ baselines: half }).findAll(".sim-view").map((n) => n.text())).toEqual([
+      "mean pair",
+      "weakest member",
+    ]);
   });
 
   it("⛔ a lean build's numbers are MEANS, and the tab, its tooltip and the sentence all say so", () => {

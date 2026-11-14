@@ -39,7 +39,7 @@ from bacatlas_backend.ingest.derive_locus_propagation import (
 from bacatlas_backend.ingest.ingest_genome_gene_table import scalar_or_none, split_set_value
 from bacatlas_backend.ingest.phase_report import phase
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
-from bacatlas_backend.models.locus_similarity import LEAN_MEAN_ESTIMATOR_CLAUSE
+from bacatlas_backend.models.locus_similarity import LEAN_MEAN_ESTIMATOR_CLAUSE, OMITTED_VIEW_SENTENCES
 
 #: The signed offsets, in display order. ⛔ `0` is absent — it is the focal gene.
 #: Asserted against `export_payload.OFFSETS` at load, because `locus_offset_occupant` has a CHECK
@@ -830,13 +830,8 @@ def build_catalogue_frames(
     similarity = _cluster_similarity(artifacts, node_position, n_loci, pandas)
     for representation, block in similarity.items():
         if block["omitted_views"]:
-            omitted[f"similarity_views[{representation}]"] = (
-                " and ".join(
-                    OMITTED_VIEW_SENTENCES[view].format(representation=representation)
-                    for view in block["omitted_views"]
-                )
-                + f" — {Path(block['source']).name} declares them unmeasured"
-                + (f" (producer {block['info']['producer']})" if block["info"].get("producer") else "")
+            omitted[f"similarity_views[{representation}]"] = _similarity_views_note(
+                representation, block["omitted_views"], block["source"], block["info"]
             )
         note = _similarity_estimator_note(representation, block["info"])
         if note:
@@ -1303,6 +1298,18 @@ def _omitted_similarity_views(info: dict, metadata_name: str) -> tuple[str, ...]
     return tuple(views)
 
 
+def _similarity_views_note(representation: str, views, source, info: dict) -> str:
+    """The footer's sentence for the card views an artifact declares unmeasured.
+
+    The API reads it back (`models.locus_similarity.unmeasured_views`) to hide those tabs.
+    """
+    return (
+        " and ".join(OMITTED_VIEW_SENTENCES[view].format(representation=representation) for view in views)
+        + f" — {Path(source).name} declares them unmeasured"
+        + (f" (producer {info['producer']})" if info.get("producer") else "")
+    )
+
+
 def _similarity_estimator_note(representation: str, info: dict) -> str | None:
     """What the card's own sentence gets wrong for THIS artifact, or `None` when it is right.
 
@@ -1330,10 +1337,6 @@ def _similarity_estimator_note(representation: str, info: dict) -> str | None:
 
 
 #: What the footer says for a view an artifact did not measure — it completes *"Not shown on this build: …"*.
-OMITTED_VIEW_SENTENCES = {
-    "weak_margin": "the weakest-link view of the {representation} similarity card",
-    "own_fraction": "the own-neighbours view of the {representation} similarity card",
-}
 
 
 def _similarity_floor(artifacts: CatalogueArtifacts, representation: str, form: str, info: dict) -> dict:

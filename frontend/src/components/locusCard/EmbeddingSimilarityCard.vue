@@ -36,6 +36,7 @@ import type {
 import { percentileLabel, signedFixed } from "@/lib/locusStatistics";
 import {
   cardEstimator,
+  measuredViews,
   formatRowValue,
   isMeasurable,
   SIMILARITY_VIEWS,
@@ -73,7 +74,14 @@ const ORDER: readonly { readonly representation: Representation; readonly headin
   { representation: "esm", heading: "ESM" },
 ];
 
-const activeView = computed(() => viewById(props.view));
+/** ⭐ Only the views this build computed; a view it did not is hidden, not offered empty. */
+const offeredViews = computed(() => measuredViews(props.baselines));
+/** A view remembered from another catalogue may not be offered here: fall back to the first one that is. */
+const activeView = computed(() =>
+  offeredViews.value.some((option) => option.id === props.view)
+    ? viewById(props.view)
+    : (offeredViews.value[0] ?? viewById(props.view)),
+);
 /** ⛔ Median or mean, from the catalogue's own baselines — the card never assumes which. */
 const estimator = computed(() => cardEstimator(props.baselines));
 
@@ -198,11 +206,11 @@ function railPercent(value: number): string {
          a selector, or a stylesheet rule — or a test — can mean one and hit the other. -->
     <div class="sim-views">
       <button
-        v-for="option in SIMILARITY_VIEWS"
+        v-for="option in offeredViews"
         :key="option.id"
         type="button"
         class="sim-view"
-        :class="{ on: option.id === view }"
+        :class="{ on: option.id === activeView.id }"
         :title="viewNote(option, estimator)"
         @click="emit('selectView', option.id)"
       >{{ viewTab(option, estimator) }}</button>

@@ -251,6 +251,24 @@ def test_the_estimator_the_api_serves_is_read_back_from_the_note_the_ingest_writ
     assert pair_estimator({}, "bacformer") == "median"
 
 
+def test_the_views_the_api_hides_are_read_back_from_the_note_the_ingest_writes():
+    """⛔ David, 2026-11-14: hide a view the build did not compute. Writer and reader share one sentence."""
+    from bacatlas_backend.ingest.catalogue_frames import _similarity_views_note
+    from bacatlas_backend.models.locus_similarity import unmeasured_views
+
+    info = {"producer": "build_bacatlas_artifacts"}
+    both = _similarity_views_note("esm", ["weak_margin", "own_fraction"], "/x/kp71k_esm.csv", info)
+    one = _similarity_views_note("bacformer", ["weak_margin"], "/x/kp71k_bac.csv", {})
+    omitted = {"similarity_views[esm]": both, "similarity_views[bacformer]": one}
+    assert unmeasured_views(omitted, "esm") == ["weak", "own"]
+    assert unmeasured_views(omitted, "bacformer") == ["weak"]
+    # ⚠ The sentence names its representation: the esm note must not hide a bacformer view.
+    assert unmeasured_views({"similarity_views[esm]": both}, "bacformer") == []
+    # A full-audit build stores no such note, and a catalogue with nothing omitted stores None.
+    assert unmeasured_views({"similarity_estimator[esm]": "a mean"}, "esm") == []
+    assert unmeasured_views(None, "esm") == []
+
+
 @requires_artifacts
 def test_the_published_probe_catalogue_carries_no_estimator_note(tmp_path):
     frames = build_catalogue_frames(artifacts_for("kp"))

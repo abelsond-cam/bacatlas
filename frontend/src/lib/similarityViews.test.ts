@@ -181,7 +181,7 @@ describe("⛔ the pair view names the statistic the build actually holds", () =>
   function baseline(representation: "esm" | "bacformer", estimator: PairEstimator): SimilarityBaseline {
     return {
       representation, form: "raw", floor_median: 0.5, floor_p25: 0.4, floor_p75: 0.6, floor_p99: 0.9,
-      measurable_locus_count: 10, neighbour_knn_k: 200, estimator,
+      measurable_locus_count: 10, neighbour_knn_k: 200, estimator, unmeasured_views: [],
     };
   }
 

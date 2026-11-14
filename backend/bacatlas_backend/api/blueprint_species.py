@@ -24,7 +24,7 @@ from sqlalchemy import select
 from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
-from bacatlas_backend.models.locus_similarity import pair_estimator
+from bacatlas_backend.models.locus_similarity import pair_estimator, unmeasured_views
 from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
 from bacatlas_backend.serialisers.locus_serialiser import (
     serialise_annotation_entry,
@@ -109,7 +109,9 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     response (2026-11-13), as the gene layer moved to one row per genome and nothing rendered them.
 #: 6 — `estimator` (`"mean"` | `"median"`) ADDED to each of the shell's `similarity_baselines`
 #:     (2026-11-14), so the similarity card names the statistic it shows: a lean build's numbers are means.
-RESPONSE_SHAPE_VERSION = 6
+#: 7 — `unmeasured_views` (`["weak", "own"]` on a lean build, `[]` on a full audit) ADDED to each baseline
+#:     (2026-11-14), so the card hides a view the build did not compute instead of saying "Not measurable".
+RESPONSE_SHAPE_VERSION = 7
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
@@ -356,6 +358,9 @@ def get_species_catalogue(species_key: str):
                         # (the full audit) or the exact mean over every pair of embedded members (the
                         # lean producer). The card's sentence is chosen by this, never assumed.
                         "estimator": pair_estimator(pangenome.omitted_sections, baseline.representation.value),
+                        "unmeasured_views": unmeasured_views(
+                            pangenome.omitted_sections, baseline.representation.value
+                        ),
                     }
                     for baseline in catalogue.similarity_baselines
                 ],
