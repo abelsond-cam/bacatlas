@@ -297,11 +297,37 @@ def verify_pangenome_is_servable(session: Session, pangenome: Pangenome) -> tupl
         "block reads every gene after the gap as the one before it",
     )
     genes_counted = genes_in_blocks + named_genes
+    # ⛔ **A gene table may hold genes the catalogue never clustered, and they are set aside BY THE
+    # NUMBER THE ASSIGNMENT BLOCKS THEMSELVES RECORD — the comparison stays exact.** `pangenome.gene_count`
+    # is the gene UNIVERSE; a genome's table is its annotation. On both probe cohorts the two are the same
+    # set, so this check was written as a plain equality — and the 71,435-genome store broke it before
+    # its catalogue existed: its `_meta` parquets (hence its `.nseq` tables) keep **1,482 genes the
+    # universe does not hold, in 23 genomes** — every one a genome with more than 6,000 genes, the five
+    # largest holding exactly `gene_count - 6,000` of them (read from the 71,418 `.loci` files: 373,901,772
+    # genes, 373,900,290 placed). Such a gene is `-1` in its genome's block — `gene_count -
+    # placed_gene_count`, summed here — exactly as nuna's `.loci` writes it, and no reader dereferences
+    # it: the Sequence tab scans the block for a locus's ordinal and `-1` is never one.
+    # ⚠ Not `>=`. "At least as many" would also pass a table loaded from ANOTHER annotation store with
+    # more genes, which is the mix-up this total exists to catch. Subtracting what the blocks mark as
+    # unplaced keeps it an equality: tables − unplaced = placed = the universe.
+    unplaced_genes, genomes_with_unplaced = session.execute(
+        select(
+            func.coalesce(
+                func.sum(GenomeLocusAssignment.gene_count - GenomeLocusAssignment.placed_gene_count), 0
+            ),
+            func.count().filter(GenomeLocusAssignment.placed_gene_count < GenomeLocusAssignment.gene_count),
+        ).where(GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id)
+    ).one()
     if pangenome.gene_count is not None and pangenome.gene_count > 0:
+        set_aside = (
+            f" — {unplaced_genes:,} gene(s) in {genomes_with_unplaced:,} genome(s) are in no locus and are set aside"
+            if unplaced_genes
+            else ""
+        )
         check(
             "the gene_spans blocks, with the named genomes' coding_gene_count, hold the pangenome's "
-            "gene_count",
-            genes_counted == pangenome.gene_count,
+            f"gene_count{set_aside}",
+            genes_counted - unplaced_genes == pangenome.gene_count,
             f"the blocks hold {genes_in_blocks:,} genes and the {named_count:,} genome(s) named as "
             f"carrying none {named_genes:,} — {genes_counted:,} — and the pangenome row claims "
             f"{pangenome.gene_count:,}",

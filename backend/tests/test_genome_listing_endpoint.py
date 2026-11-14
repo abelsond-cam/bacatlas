@@ -559,6 +559,58 @@ def test_the_publish_gate_REFUSES_a_block_total_that_is_not_the_pangenomes_gene_
     ) in failed, failed
 
 
+def _give_genome_b_a_gene_in_no_locus(session, pangenome, genome) -> None:
+    """B's table gains a third gene the catalogue never clustered: `-1` in its block, placed still 2."""
+    session.execute(
+        GenomeGenes.__table__.update().where(GenomeGenes.genome_id == genome["b"]).values(
+            gene_count=3, gene_spans=b"\x00" * 48
+        )
+    )
+    session.execute(
+        GenomeLocusAssignment.__table__.update()
+        .where(
+            GenomeLocusAssignment.pangenome_id == pangenome.pangenome_id,
+            GenomeLocusAssignment.genome_id == genome["b"],
+        )
+        .values(
+            gene_count=3, placed_gene_count=2,
+            gene_locus_ordinals=encode_int32_vector([0, 1, -1]),
+            gene_arrangement_ranks=encode_int32_vector([-1, -1, -1]),
+        )
+    )
+    session.flush()
+
+
+def test_the_publish_gate_sets_aside_a_gene_the_tables_hold_in_NO_locus_and_says_how_many(
+    session, small_catalogue
+):
+    """⛔ The 71,435-genome cohort: 1,482 genes sit in gene tables and in no locus. The universe is still 5."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 5
+    _give_genome_b_a_gene_in_no_locus(session, pangenome, genome)
+
+    passed, failed = _gate(session, pangenome)
+    assert f"{BLOCK_TOTAL} — 1 gene(s) in 1 genome(s) are in no locus and are set aside" in passed, (passed, failed)
+    assert not any(line.startswith(BLOCK_TOTAL) for line in failed)
+
+
+def test_the_publish_gate_still_REFUSES_a_total_that_only_matches_because_of_a_gene_in_no_locus(
+    session, small_catalogue
+):
+    """The tables now hold 6 genes. A gate that only asked for 'at least' — or for the raw total — would
+    pass a universe of 6; it is 5, and the sixth gene is in no locus."""
+    pangenome, genome = small_catalogue
+    pangenome.gene_count = 6
+    _give_genome_b_a_gene_in_no_locus(session, pangenome, genome)
+
+    passed, failed = _gate(session, pangenome)
+    assert not any(line.startswith(BLOCK_TOTAL) for line in passed)
+    assert (
+        f"{BLOCK_TOTAL} — 1 gene(s) in 1 genome(s) are in no locus and are set aside: the blocks hold 6 genes "
+        "and the 0 genome(s) named as carrying none 0 — 6 — and the pangenome row claims 6"
+    ) in failed, failed
+
+
 def test_the_publish_gate_SAYS_when_the_block_total_was_not_compared(session, small_catalogue):
     """⚠ A zero `gene_count` is nothing to compare against — stated in the report, never a silent pass."""
     pangenome, _genome = small_catalogue
