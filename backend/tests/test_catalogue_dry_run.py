@@ -13,7 +13,21 @@ import os
 import struct
 
 import pytest
-from sqlalchemy import ARRAY, Column, Enum, Float, Integer, LargeBinary, MetaData, SmallInteger, String, Table
+from sqlalchemy import (
+    ARRAY,
+    Boolean,
+    Column,
+    Enum,
+    Float,
+    Index,
+    Integer,
+    LargeBinary,
+    MetaData,
+    SmallInteger,
+    String,
+    Table,
+    Text,
+)
 
 from bacatlas_backend.instruments import catalogue_dry_run
 from bacatlas_backend.instruments.catalogue_dry_run import DrySession, NeedsDatabase, SchemaFit
@@ -64,6 +78,8 @@ def test_rows_that_fit_are_counted_and_nothing_is_reported():
         (("ab", 7, 0.5, b"x", "GREEN", [1]), "colour", "not one of the enum's 2 names"),
         (("ab", 7, 0.5, b"x", Colour.RED, [1, None]), "members", "NULL element in an array"),
         (("ab", 7, 0.5, b"x", Colour.RED, [2**31]), "members", "array element out of range"),
+        (("ab", 7, 0.5, b"x", Colour.RED, [1.5]), "members", "array element that is not an integer"),
+        (("ab", 7, "0.5", b"x", Colour.RED, [1]), "score", "not a number in a numeric column"),
         (("ab", 7, 0.5, b"x", Colour.RED, "1,2"), "members", "not a list in an array column"),
     ],
 )
@@ -72,6 +88,45 @@ def test_each_value_postgres_would_reject_is_named_with_its_column(row, column, 
     fit.copy_rows(None, TABLE, COLUMNS, [GOOD, row, GOOD])
     assert _kinds(fit) == {(column, kind): 1}, fit.violations
     assert fit.rows["probe_rows"] == 3, "a row that does not fit is still counted: the run goes on to find the rest"
+
+
+TEXTS = Table(
+    "probe_texts",
+    MetaData(),
+    Column("id", Integer, primary_key=True, autoincrement=True),
+    Column("term", Text, nullable=True),
+    Column("note", Text, nullable=True),
+    Column("blurb", Text, nullable=True),
+    Column("flag", Boolean, nullable=True),
+    Column("names", ARRAY(String), nullable=True),
+    Index("ix_probe_texts__term", "term"),
+    Index("ix_probe_texts__blurb_trigram", "blurb", postgresql_using="gin"),
+)
+
+
+def test_unbounded_text_is_limited_ONLY_where_a_btree_holds_it():
+    """`locus_annotation_entry.term_value` is Text under a btree: 2,704 bytes an entry, and COPY refuses past it."""
+    fit = SchemaFit()
+    long = "x" * 3000
+    fit.copy_rows(None, TEXTS, ("term", "note", "blurb"), [("short", long, long), (long, "short", "short")])
+    assert _kinds(fit) == {("term", "may not fit a btree index entry (2,704 bytes)"): 1}, fit.violations
+    # bytes, not characters: 1,000 three-byte characters are 3,000 bytes
+    fit = SchemaFit()
+    fit.copy_rows(None, TEXTS, ("term",), [("語" * 1000,), ("語" * 800,)])
+    assert _kinds(fit) == {("term", "may not fit a btree index entry (2,704 bytes)"): 1}
+
+
+@pytest.mark.parametrize(
+    "columns,row,column,kind",
+    [
+        (("flag",), ("yes",), "flag", "not a boolean in a boolean column"),
+        (("names",), (["a", 3],), "names", "array element that is not text"),
+    ],
+)
+def test_booleans_and_text_arrays_are_typed(columns, row, column, kind):
+    fit = SchemaFit()
+    fit.copy_rows(None, TEXTS, columns, [row])
+    assert _kinds(fit) == {(column, kind): 1}
 
 
 def test_text_in_a_bytea_column_is_refused_as_the_real_loader_refuses_it():
@@ -111,7 +166,8 @@ def test_the_published_kp_probe_runs_CLEAN_with_the_row_counts_its_real_load_wri
     assert catalogue_dry_run.main(_arguments(SEQ)) == 0
     out = capsys.readouterr().out
     assert "DRY RUN CLEAN: 0 refusal(s), 0 column(s)" in out
-    assert "loci_checked=100, loci_absent=0" in out, "the .loci oracle must have run against all 100 genomes"
+    assert "the .loci oracle compared 100 genomes byte for byte; 0 have no .loci" in out
+    assert "gene counts: 100 genomes from their .nseq gene table, 0 from their _meta row count" in out
     for table, rows in (
         ("locus", "15,670"), ("locus_arrangement", "57,831"), ("locus_offset_occupant", "228,281"),
         ("locus_annotation_entry", "56,831"), ("genome_locus_assignment", "100"), ("locus_similarity", "31,340"),
@@ -136,3 +192,18 @@ def test_ONE_wrong_ordinal_in_one_genomes_loci_ends_the_run_1_and_names_the_geno
     assert code == 1
     assert "REFUSED genome locus assignments + the .loci oracle" in out and sample in out
     assert "DRY RUN NOT CLEAN: 1 refusal(s)" in out
+
+
+@requires_artifacts
+@pytest.mark.skipif(not SEQ.is_dir(), reason=f"the probe's .nseq/.loci are not at {SEQ}")
+def test_a_loci_of_the_WRONG_LENGTH_is_refused_because_the_count_comes_from_the_nseq(tmp_path, capsys):
+    """The gene count used to be the `.loci`'s own length, so its length check compared the file with itself."""
+    from bacatlas_backend.ingest.ingest_genome_collection_roster import read_genome_vocabulary
+
+    sample = read_genome_vocabulary(artifacts_for("kp"))[0][0]
+    os.symlink(SEQ / f"{sample}.nseq", tmp_path / f"{sample}.nseq")
+    (tmp_path / f"{sample}.loci").write_bytes((SEQ / f"{sample}.loci").read_bytes() + struct.pack("<i", -1))
+
+    assert catalogue_dry_run.main(_arguments(tmp_path)) == 1
+    out = capsys.readouterr().out
+    assert "REFUSED genome locus assignments + the .loci oracle" in out and sample in out

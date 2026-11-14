@@ -35,7 +35,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from sqlalchemy import ARRAY, BigInteger, Enum, Integer, LargeBinary, SmallInteger, String
+from sqlalchemy import ARRAY, BigInteger, Boolean, Enum, Float, Integer, LargeBinary, Numeric, SmallInteger, String
 
 #: The integer ranges Postgres enforces, by SQLAlchemy type. ⚠ Checked most-specific first: `SmallInteger`
 #: and `BigInteger` are both `Integer` subclasses.
@@ -47,6 +47,13 @@ INTEGER_RANGES = (
 
 #: How many offending values are quoted per (table, column, kind).
 EXAMPLES = 3
+
+#: ⛔ A btree index entry holds at most 2,704 bytes (Postgres 16, 8 kB pages). A `Text` column has no length
+#: of its own, so the ONLY limit on it is this one, where it sits in a btree — and COPY refuses the row with
+#: *"index row size … exceeds btree version 4 maximum 2704"*. The margin below it is for the entry's other
+#: columns and header; a value over this is named as a risk, because a compressible one may still fit.
+BTREE_ENTRY_BYTES = 2704
+BTREE_TEXT_BYTES = 2600
 
 
 class NeedsDatabase(RuntimeError):
@@ -81,6 +88,7 @@ class SchemaFit:
         self.rows: Counter = Counter()
         self.violations: Counter = Counter()
         self.examples: dict = {}
+        self._btree: dict = {}
 
     def _note(self, table: str, column: str, kind: str, value) -> None:
         key = (table, column, kind)
@@ -88,6 +96,22 @@ class SchemaFit:
         shown = self.examples.setdefault(key, [])
         if len(shown) < EXAMPLES:
             shown.append(repr(value)[:160])
+
+    def _btree_limited(self, table, column) -> bool:
+        """Is this column part of a btree — an index, the primary key or a unique constraint?"""
+        key = (table.name, column.name)
+        if key not in self._btree:
+            in_index = any(
+                column.name in index.columns and (index.dialect_options["postgresql"]["using"] or "btree") == "btree"
+                for index in table.indexes
+            )
+            in_constraint = any(
+                column.name in constraint.columns
+                for constraint in table.constraints
+                if constraint.__class__.__name__ in ("PrimaryKeyConstraint", "UniqueConstraint")
+            )
+            self._btree[key] = in_index or in_constraint
+        return self._btree[key]
 
     def _check(self, table, column, value) -> None:
         kind = column.type
@@ -102,8 +126,12 @@ class SchemaFit:
                 self._note(table.name, column.name, "NULL element in an array", value[:5])
             elif isinstance(kind.item_type, Integer):
                 bound = next(limit for kind_, limit in INTEGER_RANGES if isinstance(kind.item_type, kind_))
-                if any(not -bound <= int(item) < bound for item in value):
+                if any(isinstance(item, bool) or not isinstance(item, int) for item in value):
+                    self._note(table.name, column.name, "array element that is not an integer", value[:5])
+                elif any(not -bound <= item < bound for item in value):
                     self._note(table.name, column.name, "array element out of range", value[:5])
+            elif isinstance(kind.item_type, String) and any(not isinstance(item, str) for item in value):
+                self._note(table.name, column.name, "array element that is not text", value[:5])
             return
         if isinstance(kind, LargeBinary):
             if not isinstance(value, (bytes, bytearray, memoryview)):
@@ -122,6 +150,18 @@ class SchemaFit:
                 self._note(table.name, column.name, f"longer than String({kind.length})", shown)
             elif "\x00" in value:
                 self._note(table.name, column.name, "a NUL byte, which text cannot hold", value)
+            elif len(value) > BTREE_TEXT_BYTES // 4 and self._btree_limited(table, column):
+                size = len(value.encode("utf-8", "surrogatepass"))
+                if size > BTREE_TEXT_BYTES:
+                    shown = f"{size:,} bytes: {value[:80]}…"
+                    self._note(
+                        table.name, column.name,
+                        f"may not fit a btree index entry ({BTREE_ENTRY_BYTES:,} bytes)", shown,
+                    )  # fmt: skip
+            return
+        if isinstance(kind, Boolean):
+            if not isinstance(value, bool):
+                self._note(table.name, column.name, "not a boolean in a boolean column", value)
             return
         if isinstance(kind, Integer):
             bound = next(limit for kind_, limit in INTEGER_RANGES if isinstance(kind, kind_))
@@ -130,6 +170,10 @@ class SchemaFit:
             elif not -bound <= value < bound:
                 self._note(table.name, column.name, f"outside ±{bound:,}", value)
             return
+        if isinstance(kind, (Float, Numeric)):
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                self._note(table.name, column.name, "not a number in a numeric column", value)
+                return
         if isinstance(value, float) and (math.isnan(value) or math.isinf(value)):
             self._note(table.name, column.name, "NaN or infinity", value)
 
@@ -174,24 +218,30 @@ def _fold(path: Path | None):
 
 
 def _gene_counts(artifacts, samples: list[str], genome_id_by_sample: dict, workers: int):
-    """Each genome's gene count without a database: its `.loci` length, or its `_meta` row count."""
+    """Each genome's gene count without a database: its `.nseq` gene table's, or its `_meta` row count.
+
+    ⛔ **The `.nseq`, never the `.loci`.** The genome stage stores `genome_genes.gene_count` from the
+    `.nseq` header, and the oracle then refuses a `.loci` whose length is not `gene_count × 4`. Taking
+    the count from the `.loci` instead made that length check compare the file with itself — a `.loci`
+    of the wrong length passed the dry run and would have refused the load.
+    """
     import pyarrow.parquet as parquet
 
+    from bacatlas_backend.gene_blocks.nseq_gene_table import read_nseq_gene_table
     from bacatlas_backend.ingest.ingest_locus_catalogue import GeneCounts
 
     present = artifacts.nseq_present() if artifacts.nseq_root is not None else frozenset()
-    loci_root = None if artifacts.nseq_root is None else Path(artifacts.nseq_root).expanduser()
 
     def count(sample: str) -> tuple[str, int, bool]:
-        loci_path = None if loci_root is None else loci_root / f"{sample}.loci"
-        if loci_path is not None and sample in present and loci_path.is_file():
-            return sample, loci_path.stat().st_size // 4, True
+        if sample in present:
+            table = read_nseq_gene_table(artifacts.per_genome_nseq(sample), expect_sample=sample)
+            return sample, table.gene_count, True
         return sample, parquet.read_metadata(artifacts.per_genome(sample, "meta")).num_rows, False
 
     with ThreadPoolExecutor(max(1, workers)) as pool:
         counted = list(pool.map(count, samples))
     by_genome = {genome_id_by_sample[sample]: genes for sample, genes, _ in counted}
-    from_meta = [sample for sample, _, from_loci in counted if not from_loci]
+    from_meta = [sample for sample, _, from_nseq in counted if not from_nseq]
     return GeneCounts(by_genome=by_genome, omitted_reasons={}), from_meta
 
 
@@ -240,6 +290,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"  omitted {section}: {str(reason)[:200]}")
 
     refusals: list[str] = []
+    oracle: tuple[int, int] | None = None
     fit = SchemaFit()
     session = DrySession()
     derived = loader._derive_locus_columns(frames, load_pfam_name_table(), loader._policy())
@@ -255,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
         artifacts, frames.samples, genome_id_by_sample, args.read_workers
     )
     print(
-        f"gene counts: {len(frames.samples) - len(counted_from_meta):,} genomes from their .loci, "
+        f"gene counts: {len(frames.samples) - len(counted_from_meta):,} genomes from their .nseq gene table, "
         f"{len(counted_from_meta):,} from their _meta row count {counted_from_meta[:5]}"
     )
     phase("dry run: gene counts")
@@ -284,6 +335,8 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 result = step()
                 print(f"  ran  {name}: {result}")
+                if hasattr(result, "loci_checked"):
+                    oracle = (result.loci_checked, result.loci_absent)
             except NeedsDatabase as needs:
                 print(f"  PART {name}: {needs} — the rows before that question were checked, the rest were not")
             except Exception as error:  # noqa: BLE001 — each refusal is reported and the run goes on to the next
@@ -305,9 +358,16 @@ def main(argv: list[str] | None = None) -> int:
             shown = "; ".join(fit.examples[(table, column, kind)])
             print(f"  {table}.{column}: {kind} — {count:,} value(s), e.g. {shown}")
     verdict = "CLEAN" if not refusals and not fit.violations else "NOT CLEAN"
+    # ⚠ Said beside the verdict and not folded into it: CLEAN with no `.loci` compared is a clean run of a
+    # weaker check, and a reader must be able to tell the two apart from this line alone.
+    compared = (
+        "the .loci oracle did not run"
+        if oracle is None
+        else f"the .loci oracle compared {oracle[0]:,} genomes byte for byte; {oracle[1]:,} have no .loci"
+    )
     print(
         f"DRY RUN {verdict}: {len(refusals)} refusal(s), "
-        f"{len(fit.violations)} column(s) with values the schema would not hold"
+        f"{len(fit.violations)} column(s) with values the schema would not hold — {compared}"
     )
     print(f"peak memory of this process: {_peak_gib():.2f} GiB (pid {os.getpid()})")
     return 0 if verdict == "CLEAN" else 1

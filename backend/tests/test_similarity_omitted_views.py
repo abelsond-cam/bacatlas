@@ -203,3 +203,34 @@ def test_a_lean_shaped_copy_of_the_published_kp_similarity_changes_no_other_fram
     }
     for name in ("loci", "annotation_entries", "arrangements", "offset_occupants", "gene_memberships", "gaps"):
         pandas.testing.assert_frame_equal(getattr(full_frames, name), getattr(lean_frames, name), check_exact=True)
+
+
+# ── the estimator: the card's sentence says "median over every gene pair", and a lean build is neither ──
+def test_a_full_audit_artifact_needs_no_note_because_the_cards_sentence_is_true_of_it():
+    from bacatlas_backend.ingest.catalogue_frames import _similarity_estimator_note
+
+    assert _similarity_estimator_note("esm", {"rank_by": "sim", "n_measurable": "11272"}) is None
+    assert _similarity_estimator_note("esm", {}) is None
+
+
+def test_a_lean_artifact_says_MEAN_and_over_how_many_of_the_genes():
+    from bacatlas_backend.ingest.catalogue_frames import _similarity_estimator_note
+
+    note = _similarity_estimator_note(
+        "esm",
+        {"rank_by": "mean_cross_pair_cosine", "n_genes_scored": "97094905", "n_genes_unembedded": "276886110"},
+    )
+    assert note == (
+        "a median over every gene pair on the esm similarity card — its within-locus and nearest-locus numbers "
+        "are MEANS on this build, taken over the 97,094,905 of 373,981,015 genes that carry a esm embedding"
+    )
+    full = _similarity_estimator_note(
+        "bacformer", {"rank_by": "mean_cross_pair_cosine", "n_genes_scored": "532851", "n_genes_unembedded": "0"}
+    )
+    assert full.endswith("are MEANS on this build, taken over all 532,851 genes")
+
+
+@requires_artifacts
+def test_the_published_probe_catalogue_carries_no_estimator_note(tmp_path):
+    frames = build_catalogue_frames(artifacts_for("kp"))
+    assert not [key for key in frames.omitted if key.startswith("similarity_")], frames.omitted

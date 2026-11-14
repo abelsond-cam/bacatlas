@@ -837,6 +837,9 @@ def build_catalogue_frames(
                 + f" — {Path(block['source']).name} declares them unmeasured"
                 + (f" (producer {block['info']['producer']})" if block["info"].get("producer") else "")
             )
+        note = _similarity_estimator_note(representation, block["info"])
+        if note:
+            omitted[f"similarity_estimator[{representation}]"] = note
 
     return CatalogueFrames(
         loci=loci,
@@ -1297,6 +1300,32 @@ def _omitted_similarity_views(info: dict, metadata_name: str) -> tuple[str, ...]
         if named:
             views.append(view)
     return tuple(views)
+
+
+def _similarity_estimator_note(representation: str, info: dict) -> str | None:
+    """What the card's own sentence gets wrong for THIS artifact, or `None` when it is right.
+
+    ⛔ The similarity card says its numbers are a *median over every pair of genes in the locus*. That is
+    what the full audit computes. nuna's lean producer writes `rank_by=mean_cross_pair_cosine`: an exact
+    MEAN, and over the members that carry an embedding — and at 71,435 genomes ESM embeds a quarter of
+    them (`n_genes_scored` 97,094,905 against `n_genes_unembedded` 276,886,110). A reader shown that
+    number under that sentence is told something false, so the build says so where it says everything
+    else it does not show: the footer, which completes *"Not shown on this build: …"*.
+    """
+    unembedded = int(info.get("n_genes_unembedded") or 0)
+    if info.get("rank_by") != "mean_cross_pair_cosine" and not unembedded:
+        return None
+    scored = int(info.get("n_genes_scored") or 0)
+    parts = [f"a median over every gene pair on the {representation} similarity card"]
+    if info.get("rank_by") == "mean_cross_pair_cosine":
+        parts.append("its within-locus and nearest-locus numbers are MEANS on this build")
+    if scored and unembedded:
+        parts.append(
+            f"taken over the {scored:,} of {scored + unembedded:,} genes that carry a {representation} embedding"
+        )
+    elif scored:
+        parts.append(f"taken over all {scored:,} genes")
+    return " — ".join(parts[:2]) + (", " + parts[2] if len(parts) > 2 else "")
 
 
 #: What the footer says for a view an artifact did not measure — it completes *"Not shown on this build: …"*.
