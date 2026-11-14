@@ -16,7 +16,7 @@
  * this card was rebuilt to end.
  */
 
-import type { LocusSimilarity } from "@/api/types";
+import type { LocusSimilarity, PairEstimator, SimilarityBaseline } from "@/api/types";
 
 /** ⚠ The id is what the store keeps, so it must never be a position in the array below. */
 export type SimilarityViewId = "median" | "weak" | "own";
@@ -55,10 +55,15 @@ export interface SimilarityView {
   /** `[clean, marginal, bad]`, one parallel construction so a reader compares one thing across views. */
   readonly bands: readonly [string, string, string];
   readonly note: string;
+  /**
+   * What the tab and the note say on a build whose numbers are MEANS (`SimilarityBaseline.estimator`).
+   * Absent where the view reads the same either way. ⛔ Read through `viewTab` / `viewNote`, never directly.
+   */
+  readonly mean?: { readonly tab: string; readonly note: string };
 }
 
 /**
- * ⚠ **The median pair is FIRST and is the default.** The other two are secondary readings of the
+ * ⚠ **The pair view is FIRST and is the default** — a median or a mean as the build says (`viewTab`). The other two are secondary readings of the
  * same locus, and opening on either would make the card answer a question nobody asked.
  *
  * ⚠ The band wording qualifies the RELATION between this locus and its nearest rival — never the
@@ -87,6 +92,17 @@ export const SIMILARITY_VIEWS: readonly SimilarityView[] = [
       "The median cosine over EVERY pair of genes in this locus, against the highest such median " +
       "against another locus; separation is the difference. Both are over whole sets — no member " +
       "stands in for the locus.",
+    // ⛔ Not "centroid": the number is the mean over every PAIR, computed exactly from the centroid (the
+    // sum of the members' unit vectors) so that no pair is enumerated. A cosine TO the centroid is a
+    // different, larger number — |ū| against (n|ū|² − 1)/(n − 1).
+    mean: {
+      tab: "mean pair",
+      note:
+        "The mean cosine over every pair of this locus's embedded genes, against the highest such mean " +
+        "against another locus; separation is the difference. Both are exact averages over whole sets, " +
+        "computed from each locus's centroid — not a similarity to the centroid, which would read higher. " +
+        "Genes without an embedding are not counted; the footer says how many carry one.",
+    },
   },
   {
     id: "weak",
@@ -104,8 +120,8 @@ export const SIMILARITY_VIEWS: readonly SimilarityView[] = [
     ],
     note:
       "The single member least attached to this locus: its nearest neighbour inside the locus, " +
-      "against that same gene's nearest gene anywhere else. The point is invariant where a median " +
-      "moves with the set — and the clustering joins points, not medians.",
+      "against that same gene's nearest gene anywhere else. The point is invariant where a set " +
+      "average moves with the set — and the clustering joins points, not averages.",
   },
   {
     id: "own",
@@ -143,6 +159,36 @@ export function viewById(id: SimilarityViewId): SimilarityView {
   // ⛔ Non-null by construction rather than by luck: the union above and the table are written
   // together, and a lookup that could return `undefined` would put that `undefined` on the page.
   return SIMILARITY_VIEWS.find((view) => view.id === id) ?? (SIMILARITY_VIEWS[0] as SimilarityView);
+}
+
+/**
+ * The estimator the card speaks for: one if every representation agrees, `mixed` if they do not.
+ *
+ * ⚠ `mixed` is reachable by no served catalogue — each build runs one producer for both — and is handled
+ * so that a future one gets a sentence that is true rather than one borrowed from either side.
+ */
+export type CardEstimator = PairEstimator | "mixed";
+
+export function cardEstimator(baselines: readonly SimilarityBaseline[]): CardEstimator {
+  const seen = new Set(baselines.map((baseline) => baseline.estimator));
+  if (seen.size > 1) return "mixed";
+  return seen.has("mean") ? "mean" : "median";
+}
+
+const MIXED_TAB = "all pairs";
+const MIXED_NOTE =
+  "An average cosine over every pair of genes in this locus, against the highest such average against " +
+  "another locus; separation is the difference. On this build one representation's numbers are means " +
+  "and the other's medians.";
+
+export function viewTab(view: SimilarityView, estimator: CardEstimator): string {
+  if (!view.mean || estimator === "median") return view.tab;
+  return estimator === "mean" ? view.mean.tab : MIXED_TAB;
+}
+
+export function viewNote(view: SimilarityView, estimator: CardEstimator): string {
+  if (!view.mean || estimator === "median") return view.note;
+  return estimator === "mean" ? view.mean.note : MIXED_NOTE;
 }
 
 export type SimilarityClass = "win" | "warn" | "bad";

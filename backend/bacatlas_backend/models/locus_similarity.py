@@ -202,5 +202,27 @@ class LocusNearestLocus(Base):
     neighbour_locus_id: Mapped[int] = mapped_column(
         ForeignKey("locus.locus_id", ondelete="CASCADE"), nullable=False
     )
-    #: The median cosine over every gene pair spanning the two loci.
+    #: The cosine over every gene pair spanning the two loci: a median on a full-audit build, the exact
+    #: mean on a lean one (`pair_estimator` says which).
     cross_similarity: Mapped[float | None] = measurement()
+
+
+#: ⛔ The clause the ingest writes into `pangenome.omitted_sections["similarity_estimator[<rep>]"]` when a
+#: similarity artifact holds MEANS — nuna's lean producer, `rank_by=mean_cross_pair_cosine`. It is the one
+#: stored fact that says which estimator a catalogue's within- and nearest-locus numbers are, so the writer
+#: (`catalogue_frames._similarity_estimator_note`) and the reader (`pair_estimator`) share it here: the api
+#: package imports nothing from ingest.
+LEAN_MEAN_ESTIMATOR_CLAUSE = "its within-locus and nearest-locus numbers are MEANS on this build"
+
+
+def pair_estimator(omitted_sections: dict | None, representation: str) -> str:
+    """`"mean"` or `"median"` — what one representation's within- and nearest-locus numbers ARE.
+
+    A full-audit artifact (`rank_by=sim`) holds a median over every enumerated pair and writes no estimator
+    note. nuna's lean producer holds the exact mean cosine over every pair of embedded members, computed from
+    each locus's summed unit vectors, and the ingest says so in a note the footer renders — this reads it.
+    ⚠ The note's KEY alone is not the test: it is also written for a median artifact whose genes are not all
+    embedded. The clause is.
+    """
+    note = (omitted_sections or {}).get(f"similarity_estimator[{representation}]") or ""
+    return "mean" if LEAN_MEAN_ESTIMATOR_CLAUSE in note else "median"

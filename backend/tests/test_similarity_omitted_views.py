@@ -230,6 +230,27 @@ def test_a_lean_artifact_says_MEAN_and_over_how_many_of_the_genes():
     assert full.endswith("are MEANS on this build, taken over all 532,851 genes")
 
 
+def test_the_estimator_the_api_serves_is_read_back_from_the_note_the_ingest_writes():
+    """⛔ The writer and the reader share one clause. A note reworded on one side only reads "median"."""
+    from bacatlas_backend.ingest.catalogue_frames import _similarity_estimator_note
+    from bacatlas_backend.models.locus_similarity import pair_estimator
+
+    lean = {"rank_by": "mean_cross_pair_cosine", "n_genes_scored": "97094905", "n_genes_unembedded": "276886110"}
+    median_part_embedded = {"rank_by": "sim", "n_genes_scored": "400", "n_genes_unembedded": "100"}
+    omitted = {
+        "similarity_estimator[esm]": _similarity_estimator_note("esm", lean),
+        "similarity_estimator[bacformer]": _similarity_estimator_note("bacformer", median_part_embedded),
+    }
+    assert pair_estimator(omitted, "esm") == "mean"
+    # ⚠ The key is present here and the numbers are still medians: the KEY is not the test, the clause is.
+    assert omitted["similarity_estimator[bacformer]"] is not None
+    assert pair_estimator(omitted, "bacformer") == "median"
+    # A full-audit build stores no note at all, and a catalogue with nothing omitted stores None.
+    assert pair_estimator({"similarity_views[esm]": "weak member"}, "esm") == "median"
+    assert pair_estimator(None, "esm") == "median"
+    assert pair_estimator({}, "bacformer") == "median"
+
+
 @requires_artifacts
 def test_the_published_probe_catalogue_carries_no_estimator_note(tmp_path):
     frames = build_catalogue_frames(artifacts_for("kp"))

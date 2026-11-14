@@ -35,10 +35,13 @@ import type {
 } from "@/api/types";
 import { percentileLabel, signedFixed } from "@/lib/locusStatistics";
 import {
+  cardEstimator,
   formatRowValue,
   isMeasurable,
   SIMILARITY_VIEWS,
   viewById,
+  viewNote,
+  viewTab,
   viewValue,
   viewVerdict,
   type FloorTick,
@@ -71,6 +74,8 @@ const ORDER: readonly { readonly representation: Representation; readonly headin
 ];
 
 const activeView = computed(() => viewById(props.view));
+/** ⛔ Median or mean, from the catalogue's own baselines — the card never assumes which. */
+const estimator = computed(() => cardEstimator(props.baselines));
 
 const baselineFor = computed(() => {
   const index = new Map<string, SimilarityBaseline>();
@@ -174,7 +179,7 @@ const emptyReason = computed(() =>
 
 const note = computed(
   () =>
-    `${activeView.value.note} Embedding distance is the clustering's own objective, so this is ` +
+    `${viewNote(activeView.value, estimator.value)} Embedding distance is the clustering's own objective, so this is ` +
     "reported as consistency and diagnosis — never as corroboration. The independent evidence is " +
     "above: UniRef50, Pfam and genomic context.",
 );
@@ -198,9 +203,9 @@ function railPercent(value: number): string {
         type="button"
         class="sim-view"
         :class="{ on: option.id === view }"
-        :title="option.note"
+        :title="viewNote(option, estimator)"
         @click="emit('selectView', option.id)"
-      >{{ option.tab }}</button>
+      >{{ viewTab(option, estimator) }}</button>
     </div>
 
     <div class="sim-body">

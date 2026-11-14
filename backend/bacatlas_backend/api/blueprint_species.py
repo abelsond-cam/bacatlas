@@ -24,6 +24,7 @@ from sqlalchemy import select
 from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
+from bacatlas_backend.models.locus_similarity import pair_estimator
 from bacatlas_backend.sequence_source.provider_factory import SEQUENCE_PROVIDER_KEY
 from bacatlas_backend.serialisers.locus_serialiser import (
     serialise_annotation_entry,
@@ -106,7 +107,9 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     entries above name their exact field and a reader diffing a cached body needs the list.
 #: 5 — `protein_length_aa`, `gene_symbol`, `product` and `locus_tag` REMOVED from the gene-sequence
 #:     response (2026-11-13), as the gene layer moved to one row per genome and nothing rendered them.
-RESPONSE_SHAPE_VERSION = 5
+#: 6 — `estimator` (`"mean"` | `"median"`) ADDED to each of the shell's `similarity_baselines`
+#:     (2026-11-14), so the similarity card names the statistic it shows: a lean build's numbers are means.
+RESPONSE_SHAPE_VERSION = 6
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
@@ -349,6 +352,10 @@ def get_species_catalogue(species_key: str):
                         # ⭐ The other half of "p12 of 12,104 loci".
                         "measurable_locus_count": baseline.measurable_locus_count,
                         "neighbour_knn_k": baseline.neighbour_knn_k,
+                        # ⛔ What the within- and nearest-locus numbers ARE: a median over every pair
+                        # (the full audit) or the exact mean over every pair of embedded members (the
+                        # lean producer). The card's sentence is chosen by this, never assumed.
+                        "estimator": pair_estimator(pangenome.omitted_sections, baseline.representation.value),
                     }
                     for baseline in catalogue.similarity_baselines
                 ],

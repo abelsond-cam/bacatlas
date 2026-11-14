@@ -39,6 +39,7 @@ from bacatlas_backend.ingest.derive_locus_propagation import (
 from bacatlas_backend.ingest.ingest_genome_gene_table import scalar_or_none, split_set_value
 from bacatlas_backend.ingest.phase_report import phase
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
+from bacatlas_backend.models.locus_similarity import LEAN_MEAN_ESTIMATOR_CLAUSE
 
 #: The signed offsets, in display order. ⛔ `0` is absent — it is the focal gene.
 #: Asserted against `export_payload.OFFSETS` at load, because `locus_offset_occupant` has a CHECK
@@ -1318,7 +1319,7 @@ def _similarity_estimator_note(representation: str, info: dict) -> str | None:
     scored = int(info.get("n_genes_scored") or 0)
     parts = [f"a median over every gene pair on the {representation} similarity card"]
     if info.get("rank_by") == "mean_cross_pair_cosine":
-        parts.append("its within-locus and nearest-locus numbers are MEANS on this build")
+        parts.append(LEAN_MEAN_ESTIMATOR_CLAUSE)  # ⛔ `pair_estimator` reads this exact clause back
     if scored and unembedded:
         parts.append(
             f"taken over the {scored:,} of {scored + unembedded:,} genes that carry a {representation} embedding"

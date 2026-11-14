@@ -13228,6 +13228,7 @@
   },
   "similarity_baselines": [
    {
+    "estimator": "median",
     "floor_median": 0.7509912252426147,
     "floor_p25": 0.6330456733703613,
     "floor_p75": 0.8251201808452606,
@@ -13238,6 +13239,7 @@
     "representation": "esm"
    },
    {
+    "estimator": "median",
     "floor_median": 0.06415596604347229,
     "floor_p25": 0.03110476490110159,
     "floor_p75": 0.10116784647107124,

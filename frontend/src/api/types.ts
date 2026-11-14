@@ -691,7 +691,16 @@ export interface SimilarityBaseline {
   readonly measurable_locus_count: number | null;
   /** The kNN width the shortlist and the point measures were computed at. */
   readonly neighbour_knn_k: number | null;
+  /**
+   * ⛔ What the within- and nearest-locus numbers ARE. `median`: over every enumerated pair (the full
+   * audit). `mean`: the exact mean over every pair of embedded members, computed from each locus's
+   * summed unit vectors (nuna's lean producer, the one that runs at 71,435 genomes). The card's tab and
+   * sentence are chosen by this — a mean captioned as a median is a false sentence on the page.
+   */
+  readonly estimator: PairEstimator;
 }
+
+export type PairEstimator = "mean" | "median";
 
 /**
  * ⛔ **A catalogue key, distinguishable by the compiler from a species key.**

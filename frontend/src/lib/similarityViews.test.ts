@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import type { LocusSimilarity } from "@/api/types";
+import type { LocusSimilarity, PairEstimator, SimilarityBaseline } from "@/api/types";
 
 import {
+  cardEstimator,
   formatRowValue,
   isMeasurable,
   SIMILARITY_VIEWS,
   viewById,
+  viewNote,
+  viewTab,
   viewValue,
   viewVerdict,
   type SimilarityView,
@@ -171,5 +174,41 @@ describe("⛔ the own fraction is never rounded to a whole percent", () => {
       for (const row of view.rows) expect(formatRowValue(1, row.key)).toBe("1.000");
     }
     expect(formatRowValue(0.814065, "within_similarity")).toBe("0.814");
+  });
+});
+
+describe("⛔ the pair view names the statistic the build actually holds", () => {
+  function baseline(representation: "esm" | "bacformer", estimator: PairEstimator): SimilarityBaseline {
+    return {
+      representation, form: "raw", floor_median: 0.5, floor_p25: 0.4, floor_p75: 0.6, floor_p99: 0.9,
+      measurable_locus_count: 10, neighbour_knn_k: 200, estimator,
+    };
+  }
+
+  it("is a median unless every representation says mean, and `mixed` when they disagree", () => {
+    expect(cardEstimator([baseline("esm", "median"), baseline("bacformer", "median")])).toBe("median");
+    expect(cardEstimator([baseline("esm", "mean"), baseline("bacformer", "mean")])).toBe("mean");
+    expect(cardEstimator([baseline("esm", "mean"), baseline("bacformer", "median")])).toBe("mixed");
+    // No baseline at all is the full-audit sentence — there is nothing that could say mean.
+    expect(cardEstimator([])).toBe("median");
+  });
+
+  it("changes the pair view's tab and note, and leaves the views that read the same either way alone", () => {
+    expect(viewTab(MEDIAN, "median")).toBe("median pair");
+    expect(viewTab(MEDIAN, "mean")).toBe("mean pair");
+    expect(viewNote(MEDIAN, "median")).toBe(MEDIAN.note);
+    expect(viewNote(MEDIAN, "mean")).toMatch(/^The mean cosine over every pair of this locus's embedded genes/);
+    expect(viewNote(MEDIAN, "mean")).not.toMatch(/median/i);
+    for (const view of [WEAK, OWN]) {
+      for (const estimator of ["median", "mean", "mixed"] as const) {
+        expect(viewTab(view, estimator)).toBe(view.tab);
+        expect(viewNote(view, estimator)).toBe(view.note);
+      }
+    }
+  });
+
+  it("⚠ no other view's note claims a median — the weakest member's reads true on either build", () => {
+    expect(WEAK.note).not.toMatch(/median/i);
+    expect(OWN.note).not.toMatch(/median/i);
   });
 });

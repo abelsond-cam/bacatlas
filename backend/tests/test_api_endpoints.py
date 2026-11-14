@@ -105,6 +105,8 @@ def test_both_representations_ship_with_their_own_gene_pair_floor(client):
         assert entry["form"] == "raw", "raw is the published form (David, 2026-09-24)"
         assert entry["floor_p25"] < entry["floor_median"] < entry["floor_p75"] < entry["floor_p99"]
         assert entry["neighbour_knn_k"] == 200
+        # The probe is a full-audit build: its numbers are medians, and nothing in its footer says otherwise.
+        assert entry["estimator"] == "median"
 
 
 def test_an_unpublished_species_is_a_NAMED_404_and_never_an_empty_200(client):

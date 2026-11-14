@@ -9,6 +9,7 @@ import type {
   Locus,
   LocusSimilarity,
   NeighbourDisplayRow,
+  PairEstimator,
   PfamFamilyReference,
   Representation,
   SimilarityBaseline,
@@ -528,7 +529,7 @@ describe("⛔ Pfam coverage is stated AS COVERAGE", () => {
 
 // ── embedding similarity ───────────────────────────────────────────────────────────────────────
 /** The two floors, an order of magnitude apart — which is the whole reason they are per rep. */
-function baseline(representation: Representation): SimilarityBaseline {
+function baseline(representation: Representation, estimator: PairEstimator = "median"): SimilarityBaseline {
   const floor = representation === "esm" ? ESM_FLOOR : BACFORMER_FLOOR;
   return {
     representation,
@@ -539,6 +540,7 @@ function baseline(representation: Representation): SimilarityBaseline {
     floor_p99: floor[3],
     measurable_locus_count: 12_104,
     neighbour_knn_k: 200,
+    estimator,
   };
 }
 
@@ -640,6 +642,26 @@ describe("⭐ three views, and they REPLACE each other rather than stacking", ()
     const strip = mountSimilarity().findAll(".sim-view");
     expect(strip.map((n) => n.text())).toEqual(["median pair", "weakest member", "nearest neighbour"]);
     expect(strip.filter((n) => n.classes("on")).map((n) => n.text())).toEqual(["median pair"]);
+  });
+
+  it("⛔ a lean build's numbers are MEANS, and the tab, its tooltip and the sentence all say so", () => {
+    const card = mountSimilarity({ baselines: [baseline("bacformer", "mean"), baseline("esm", "mean")] });
+    const strip = card.findAll(".sim-view");
+    expect(strip.map((n) => n.text())).toEqual(["mean pair", "weakest member", "nearest neighbour"]);
+    const note = card.find(".sim-note").text();
+    expect(note).toContain("The mean cosine over every pair of this locus's embedded genes");
+    expect(note).toContain("not a similarity to the centroid");
+    expect(note).not.toContain("median");
+    expect(strip[0]!.attributes("title")).toContain("The mean cosine over every pair");
+    // …and the full-audit build keeps the sentence that is true of it.
+    expect(mountSimilarity().find(".sim-note").text()).toContain("The median cosine over EVERY pair");
+    expect(mountSimilarity().findAll(".sim-view")[0]!.attributes("title")).toContain("The median cosine");
+  });
+
+  it("⚠ two representations that disagree get a sentence true of both, borrowed from neither", () => {
+    const card = mountSimilarity({ baselines: [baseline("bacformer", "mean"), baseline("esm")] });
+    expect(card.findAll(".sim-view")[0]!.text()).toBe("all pairs");
+    expect(card.find(".sim-note").text()).toContain("one representation's numbers are means and the other's medians");
   });
 
   it("asks for a view rather than switching itself — the choice is the reader's and survives a walk", () => {

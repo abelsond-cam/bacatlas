@@ -353,7 +353,7 @@ def test_strand_is_observed_is_the_GENOME_S_flag(session, gene_layer, held):
     assert all(row.strand_is_observed for row in _load(session, gene_layer, held, sample_id=HOST, label=LOCUS))
 
 
-def test_the_response_has_NONE_of_the_four_retired_fields_and_the_shape_version_is_5(gene_layer, probe_client):
+def test_the_response_has_NONE_of_the_four_retired_fields_and_the_shape_version_moved(gene_layer, probe_client):
     """⛔ A removal needs the bump as much as an addition: a warm client would otherwise replay a
     day-old body carrying fields the server no longer has, and nothing anywhere would error."""
     response = probe_client.get(_url(HOST, LOCUS))
@@ -386,8 +386,9 @@ def test_the_response_has_NONE_of_the_four_retired_fields_and_the_shape_version_
         "downstream_flank_span",
         "gc_percent",
     }
-    assert RESPONSE_SHAPE_VERSION == 5
-    assert response.headers["ETag"] == f'"{gene_layer["pangenome_id"]}-v5"'
+    # The removal was version 5; later additions move it on. `test_response_shape` pins the literal.
+    assert RESPONSE_SHAPE_VERSION >= 5
+    assert response.headers["ETag"] == f'"{gene_layer["pangenome_id"]}-v{RESPONSE_SHAPE_VERSION}"'
 
 
 @pytest.mark.parametrize(
