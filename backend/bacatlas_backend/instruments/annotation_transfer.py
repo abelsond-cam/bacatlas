@@ -18,9 +18,9 @@ Two mechanisms, and the page must never blur them (`nuna/docs/model_evaluation/f
 ⭐ **The agreement rate is COMPUTED from the loaded catalogue, never hard-coded.** It is the thing a
 reader judges a suggestion by, so a literal lifted out of the write-up would keep reading plausibly
 long after the catalogue moved underneath it — the exact failure recorded in nuna `PROJECT_STATE.md`
-§6, 2026-10-03 ("a frozen oracle cannot detect a drift it shares"). This module is also what
-`scripts/measure_cog_function_inference.py` reports from, so the page and the document cannot drift
-apart: there is one implementation of the measurement, not two.
+§6, 2026-10-03 ("a frozen oracle cannot detect a drift it shares"). The script that produced
+nuna's `function_inference.md` from this module read the per-gene tables the schema dropped and was
+deleted (2026-11-14; last at `bacatlas@18bac21:backend/scripts/measure_cog_function_inference.py`).
 
 ⚠ **`chance` is EXACT here, not sampled.** For a focal node's claim set it is the share of annotated
 nodes whose own set intersects it — computed from an inverted index, memoised on the claim set
@@ -523,10 +523,9 @@ def tally_cells(
     """Tally every (tier, rung) cell over `edges` of `(locus_id, neighbour_locus_id, cosine)`.
 
     ⭐ Takes plain data rather than a `Session` **so there is one implementation of the measurement,
-    not two**: the API reaches it through `compute_calibration` and
-    `scripts/measure_cog_function_inference.py` — which is what the write-up's numbers come from —
-    reaches it directly. A second copy for the script is exactly how a page and the document that
-    describes it come to disagree.
+    not two**: the API reaches it through `compute_calibration`, and the DB-free tests
+    (`tests/test_transfer_chance_baseline.py`) reach it directly. A second copy for a measuring
+    script is exactly how a page and the document that describes it come to disagree.
 
     ⚠ **`donor_pool` names the set the CHANCE baseline is drawn from, when that is not the set the
     edges live in — and it is a statistical decision, not a convenience.** `None` (the default, and
@@ -657,8 +656,9 @@ def quotable_rungs(annotation_kind: AnnotationKind, tier: str, donor_levels: dic
     calibrated at the depth they land on (97-99.5 %), so this costs no accuracy — it only stops the
     card claiming a precision that was never there.
 
-    ⚠ **This is the DEPTH primitive and knows nothing about accuracy.** What the page serves is
-    `callable_level`, which adds the floor; the measuring scripts use this one, because a ladder
+    ⚠ **This is the DEPTH primitive and knows nothing about accuracy.** What the page offers as a
+    suggestion is `callable_rungs`, which adds the floor. The service calls this one as well
+    (`function_inference_service`), to list the rungs that were quotable and REFUSED — a ladder
     that suppressed its own weak cells could not show you they are weak.
     """
     permitted = QUOTED_LEVEL[annotation_kind].get(tier)

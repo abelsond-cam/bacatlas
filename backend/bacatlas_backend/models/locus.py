@@ -214,11 +214,12 @@ class Locus(Base):
     #: Measured on `bacatlas_ingest`, 2026-10-26, stored-annotated → claiming:
     #: ecoli **287,999 → 279,268** molecular function (−8,731), 276,052 → 268,562 biological process
     #: (−7,490), 243,992 → 238,278 cellular component (−5,714); kp −6,896 / −3,394 / −2,162.
-    #: ⚠ `transfer/claims.py:102-107` says reading the annotated columns instead *"understated one
-    #: baseline by 25,751 genes"*. That figure is from a different defect — summing `genes_carrying`
-    #: over labelled nodes only (`scripts/measure_annotation_propagation_loop.py`) — and its sign is
-    #: the opposite of the mechanism named in the same sentence: a root-only gene makes the annotated
-    #: column the LARGER number. The three gaps above are this column's own, measured here.
+    #: ⚠ An older note (`transfer/claims.py` before 691b400) said reading the annotated columns instead
+    #: *"understated one baseline by 25,751 genes"*. That figure is from a different defect — summing
+    #: `genes_carrying` over labelled nodes only (`bacatlas@18bac21:backend/scripts/
+    #: measure_annotation_propagation_loop.py`, since deleted) — and its sign is the opposite of the
+    #: mechanism it was attached to: a root-only gene makes the annotated column the LARGER number.
+    #: The three gaps above are this column's own, measured here.
     #:
     #: ⚠ Folded, so **meaningful only against `pangenome.annotation_fold_version`** — see there.
     go_claiming_member_count_molecular_function: Mapped[int | None] = mapped_column(Integer, nullable=True)
