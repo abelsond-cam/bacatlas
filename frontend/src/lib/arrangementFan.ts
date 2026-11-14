@@ -27,10 +27,12 @@ export interface Fan {
   readonly width: number;
   readonly height: number;
   readonly curves: readonly FanCurve[];
+  /** Where the curves meet, under the focal gene — the apex the locus's own count is written at. */
+  readonly apexX: number | null;
 }
 
 /** What a fan with nothing to join looks like: zero height, so it takes no room. */
-export const NO_FAN: Fan = { width: 0, height: 0, curves: [] };
+export const NO_FAN: Fan = { width: 0, height: 0, curves: [], apexX: null };
 
 /** The published page's floor, so a fan to options sitting right under the gene is still visible. */
 const MIN_HEIGHT_PX = 8;
@@ -49,13 +51,16 @@ export function arrangementFan(
   wrapper: FanRect,
   options: readonly { readonly rect: FanRect; readonly isOn: boolean }[],
   scroller: FanRect | null,
+  apexDrop = 0,
 ): Fan {
   if (options.length === 0) return NO_FAN;
   if (scroller !== null && (focal.right < scroller.left + EDGE_PX || focal.left > scroller.right - EDGE_PX)) {
     return NO_FAN;
   }
   const x0 = focal.left + focal.width / 2 - wrapper.left;
-  const y0 = 0;
+  // ⭐ `apexDrop` leaves room above the apex for the locus's own "n genes · x % of genomes" (David,
+  // 2026-11-14): the whole above the parts the options divide it into.
+  const y0 = apexDrop;
   const height = Math.max(MIN_HEIGHT_PX, ...options.map((option) => option.rect.top - wrapper.top));
   const curves = options.map(({ rect, isOn }) => {
     const x1 = rect.left + rect.width / 2 - wrapper.left;
@@ -63,5 +68,5 @@ export function arrangementFan(
     const mid = y0 + (y1 - y0) * 0.55;
     return { d: `M${x0} ${y0} C${x0} ${mid} ${x1} ${mid} ${x1} ${y1}`, isOn };
   });
-  return { width: wrapper.width, height, curves };
+  return { width: wrapper.width, height, curves, apexX: x0 };
 }

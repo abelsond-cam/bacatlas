@@ -27,6 +27,7 @@ import ArrangementFan from "@/components/track/ArrangementFan.vue";
 import ArrangementSwitcher from "@/components/track/ArrangementSwitcher.vue";
 import BandKey from "@/components/track/BandKey.vue";
 import GeneTrack from "@/components/track/GeneTrack.vue";
+import { sharePercent } from "@/lib/formatting";
 import { placePopover } from "@/lib/popoverPlacement";
 import type { WalkDirection } from "@/lib/walkDirection";
 import { useAnchorGenomeStore } from "@/stores/anchorGenomeStore";
@@ -54,6 +55,19 @@ const track = useTrackDisplayStore();
 const browser = useArrangementBrowserStore();
 const { sampleId: anchorSampleId, kind: anchorKind } = storeToRefs(useAnchorGenomeStore());
 const { view, drawable, trail, displayNames, walkDirection } = storeToRefs(navigation);
+
+/**
+ * ⭐ The locus as a whole, at the apex of the neighbourhood fan: "n genes · x % of genomes" (David,
+ * 2026-11-14). The options below divide the genomes that CARRY the locus; at 71,435 genomes a reader
+ * needs the whole before the parts. ⚠ The share is of the collection, the same denominator the gene
+ * card's tile uses, so the two can never disagree.
+ */
+const apexLabel = computed(() => {
+  const locus = drawable.value?.locus;
+  if (!locus || props.collectionGenomeCount <= 0) return null;
+  const share = sharePercent(locus.genome_count / props.collectionGenomeCount);
+  return `${locus.gene_count.toLocaleString()} genes · ${share} of genomes`;
+});
 const {
   selectedArrangementIndex,
   drawnArrangement,
@@ -285,7 +299,7 @@ function jump(locus: string): void {
            choices for that one locus. The anchor box sits in its left gutter and the channel key in
            its right, so the options stay centred under the focal gene whichever is occupied. -->
       <div v-if="drawable !== null" ref="arrangements" class="arr-wrap">
-        <ArrangementFan ref="fan" />
+        <ArrangementFan ref="fan" :apex-label="apexLabel" />
         <!-- ⚠ ONE grid cell, two boxes: the anchor box has to stay centred on the option row
              (David, 2026-08-25), so the grid places this wrapper and the own-genomes box hangs out
              of flow beneath it — `.arr-gutter`, in the ADDED section of app.css. -->

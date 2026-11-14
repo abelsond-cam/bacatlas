@@ -72,6 +72,20 @@ const speciesName = computed(
   () => props.species.find((entry) => entry.key === props.speciesKey)?.scientific_name ?? "this catalogue",
 );
 
+/**
+ * ⛔ Species whose catalogue has NO placed genomes yet, so the demonstration below would walk a reader
+ * through a workflow that has nothing behind it (David, 2026-11-14: placing a genome on kp-71k is not
+ * built). Remove a key here the day its catalogue carries projected genomes.
+ */
+const PLACEMENT_PENDING_SPECIES: ReadonlySet<string> = new Set(["kp"]);
+const placementPending = computed(
+  () => props.speciesKey !== null && PLACEMENT_PENDING_SPECIES.has(props.speciesKey),
+);
+/** Where the worked example lives: the first published species whose placement is not pending. */
+const exampleSpecies = computed(
+  () => props.species.find((entry) => entry.catalogue_key !== null && !PLACEMENT_PENDING_SPECIES.has(entry.key)) ?? null,
+);
+
 /** The rosters are loaded when the reader reaches the step that needs them, never before. */
 watch(
   () => [own.isOpen, own.step] as const,
@@ -182,8 +196,20 @@ function sentenceFor(outcome: LineOutcome): string {
         <button type="button" class="own-close" aria-label="Close" @click="own.close()">✕</button>
       </header>
 
+      <!-- ── 0 · not built for this catalogue yet ───────────────────────────────────────────── -->
+      <section v-if="placementPending" class="own-step own-pending">
+        <p class="lede">Pending implementation.</p>
+        <p class="muted">
+          View the
+          <a v-if="exampleSpecies" :href="`?catalogue=${exampleSpecies.catalogue_key}`">
+            <i>{{ exampleSpecies.scientific_name }}</i> pangenome</a>
+          <template v-else>E. coli pangenome</template>
+          for a precomputed example of the workflow.
+        </p>
+      </section>
+
       <!-- ── 1 · accounts, and what the service does ─────────────────────────────────────────── -->
-      <section v-if="own.step === 'account'" class="own-step">
+      <section v-else-if="own.step === 'account'" class="own-step">
         <p class="lede">Accounts and login will be required — to be completed.</p>
         <p class="muted">
           With an account, the genomes you add are saved and are here when you come back.

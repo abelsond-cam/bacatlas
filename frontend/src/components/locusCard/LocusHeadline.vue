@@ -114,12 +114,14 @@ type Tile = {
 
 const tiles = computed<Tile[]>(() => [
   {
+    // ⭐ "n genes | x % of genomes" (David, 2026-11-14) — the same pair the neighbourhood fan's apex
+    // carries. A share alone hid how many genomes the neighbourhood browser is dividing at 71,435.
     key: "prevalence",
-    value: orDash(
+    value: `${props.locus.gene_count.toLocaleString()} | ${orDash(
       props.collectionGenomeCount > 0 ? props.locus.genome_count / props.collectionGenomeCount : null,
       (share) => sharePercent(share),
-    ),
-    caption: "of genomes",
+    )}`,
+    caption: "genes | of genomes",
   },
   { key: "copies", value: orDash(copies.value, (rho) => rho.toFixed(2)), caption: "copies per genome" },
   {

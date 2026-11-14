@@ -17,6 +17,16 @@ describe("the arrangement fan", () => {
     expect(fan.width).toBe(1000);
   });
 
+  it("starts the curves BELOW the apex label when one is drawn, and says where the apex is", () => {
+    // The locus's own "n genes · x % of genomes" sits above the apex (David, 2026-11-14): with a
+    // 16 px drop the curves leave from y = 16, the control points stay at 55 % of the REMAINING drop,
+    // and the apex x is the focal gene's centre — the point the label is written at.
+    const fan = arrangementFan(rect(580, 300, 40), WRAPPER, [{ rect: rect(300, 560, 100), isOn: true }], null, 16);
+    expect(fan.curves[0]!.d).toBe("M500 16 C500 40.2 250 40.2 250 60");
+    expect(fan.apexX).toBe(500);
+    expect(NO_FAN.apexX).toBeNull();
+  });
+
   it("marks exactly the drawn arrangement's curve", () => {
     const fan = arrangementFan(
       rect(580, 300, 40),

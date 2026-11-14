@@ -125,7 +125,7 @@ describe("⭐ the headline — what it is, then how good it is", () => {
 
   it("shows six tiles: three saying WHAT, three saying HOW GOOD", () => {
     expect(tileValues(mountHeadline())).toEqual([
-      "97%", // 97 of 100 genomes
+      "100 | 97%", // 100 genes | 97 of 100 genomes — the pair the fan apex carries too
       "1.03", // 100 genes / 97 genomes
       "98%", // ⭐ sequence identity — `resolved_threshold`, promoted out of the prose below
       "0.91", // synteny A5
@@ -184,7 +184,7 @@ describe("⭐ the headline — what it is, then how good it is", () => {
         bacformer: similarity({ within_similarity: null, separation_percentile: null }),
       },
     });
-    expect(tileValues(head)).toEqual(["97%", "1.03", "98%", "—", "—", "—"]);
+    expect(tileValues(head)).toEqual(["100 | 97%", "1.03", "98%", "—", "—", "—"]);
   });
 
   it("⛔ says `one member` for a singleton's cohesion, which is neither 0 nor a dash", () => {
@@ -223,7 +223,7 @@ describe("⭐ the headline — what it is, then how good it is", () => {
     // duplicate — and the slot went to sequence identity, which was in no tile at all.
     expect(tileCaptions(mountHeadline())).not.toContain("cluster separation");
     expect(tileCaptions(mountHeadline())).toEqual([
-      "of genomes",
+      "genes | of genomes",
       "copies per genome",
       "sequence identity",
       "synteny A5",

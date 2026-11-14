@@ -3301,7 +3301,13 @@ td.fam-sym {
    (`overflow: visible`). Fixed rather than measured, because a measured height would push the very row it
    was measured to, and every redraw would grow it again. */
 .arr-wrap .arr-fan {
-    height: 30px;
+    height: 46px; /* 30 for the curves + 16 for the apex label above them (David, 2026-11-14) */
+}
+/* The locus's own count at the apex: the whole, written above the parts the options divide it into. */
+.fan-apex {
+    font-family: var(--mono);
+    font-size: 11px;
+    fill: var(--ink-2);
 }
 
 /* ---- the instrument bar: the ship beside the wordmark, and a shorter search (David, 2026-09-22) ----

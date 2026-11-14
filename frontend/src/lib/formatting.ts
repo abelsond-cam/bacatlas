@@ -14,6 +14,13 @@
  * number a parity diff of the shipped catalogues actually compares.
  */
 export function sharePercent(share: number): string {
+  // ⛔ The mirror case, at the top (2026-11-14): at 71,435 genomes a core locus in 71,136 of them
+  // rounded to "100% of genomes" beside a count that says 299 do not carry it. A share short of the
+  // whole keeps one decimal where whole-percent rounding would print 100, and never reads "100.0".
+  if (share < 1 && Math.round(100 * share) >= 100) {
+    const tenths = (100 * share).toFixed(1);
+    return `${tenths === "100.0" ? "99.9" : tenths}%`;
+  }
   return `${(100 * share).toFixed(share < 0.1 ? 1 : 0)}%`;
 }
 

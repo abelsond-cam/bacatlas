@@ -13,6 +13,18 @@ import { ref } from "vue";
 
 import { NO_FAN, type Fan, arrangementFan } from "@/lib/arrangementFan";
 
+const props = defineProps<{
+  /**
+   * The locus's own count, written at the apex above the neighbourhoods it divides into —
+   * "n genes · x % of genomes" (David, 2026-11-14). At 71,435 genomes the options' shares are shares
+   * of the genomes that carry the locus; this line says how many that is. `null` draws no label.
+   */
+  apexLabel?: string | null;
+}>();
+
+/** Pixels above the apex the label takes; the curves start below it. */
+const APEX_LABEL_PX = 16;
+
 const fan = ref<Fan>(NO_FAN);
 
 /**
@@ -32,6 +44,7 @@ function redraw(host: HTMLElement | null, frame: HTMLElement | null): void {
     host.getBoundingClientRect(),
     options.map((option) => ({ rect: option.getBoundingClientRect(), isOn: option.classList.contains("on") })),
     scroller ? scroller.getBoundingClientRect() : null,
+    props.apexLabel ? APEX_LABEL_PX : 0,
   );
 }
 
@@ -53,6 +66,13 @@ defineExpose({ redraw });
          nothing on screen). The rebuilt page gives the fan a FIXED row (app.css, appended section):
          fixed, because a height measured from the options would push the options down, and the next
          redraw would measure the row it had just moved and grow again, on every scroll. -->
+    <text
+      v-if="apexLabel && fan.apexX !== null"
+      class="fan-apex"
+      :x="fan.apexX"
+      :y="APEX_LABEL_PX - 4"
+      text-anchor="middle"
+    >{{ apexLabel }}</text>
     <path v-for="(curve, index) in fan.curves" :key="index" class="fan-line" :class="{ on: curve.isOn }" :d="curve.d" />
   </svg>
 </template>
