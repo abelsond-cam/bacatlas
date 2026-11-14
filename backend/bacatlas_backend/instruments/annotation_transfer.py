@@ -35,7 +35,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from functools import cache
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
 from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
@@ -46,7 +46,6 @@ from bacatlas_backend.models.enumerations import (
 )
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
-from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 
 #: ⛔ **The ladder is a DECISION (David, 2026-10-03), not a measurement** — recorded in nuna
 #: `PROJECT_STATE.md` §6. Half-open `[low, high)`, ordered strongest first. Below 0.90 nothing is
@@ -429,28 +428,54 @@ def _claims(
     ranks within (locus, NAMESPACE), so a GO-bearing locus has three rank-0 rows. An earlier version
     indexed by locus in the loop and silently kept whichever namespace came last — two thirds of
     every GO claim discarded, with nothing to show for it but a slightly lower agreement rate.
+
+    ⭐ **Only the loci that CAN fold to a claim are read** (2026-11-14). This used to outer-join every
+    locus of the catalogue — 406,733 rows at 71,435 genomes, ~93 % of them unannotated — and drop the
+    empty ones in Python. A locus with no rank-0 entry of this vocabulary folds to nothing in every
+    branch below (`ec_levels` is not called, `go_rung([])` and `single_rung([])` are empty) EXCEPT
+    COG, where `cog_levels(None, categories)` still states the category rung from
+    `locus.modal_cog_categories` — so for COG the join stays outer and keeps a locus that has either.
+    The locus COUNT, which the outer join used to supply, is a scalar subquery. Same claims, same
+    count: `test_calibration_matches_the_full_scan_it_replaced` holds the two side by side.
+    ⚠ Read through the CONNECTION, not the ORM session: these are plain columns, and the ORM's row
+    processing was a third of the cost.
     """
-    rows = session.execute(
+    connection = session.connection()
+    count_all = select(func.count()).select_from(Locus).where(Locus.pangenome_id == pangenome_id)
+    is_cog = kind is AnnotationKind.COG_ORTHOGROUP
+    rows = connection.execute(
         select(
             Locus.locus_id,
             Locus.modal_cog_categories,
             LocusAnnotationEntry.term_value,
             LocusAnnotationEntry.term_name,
             LocusAnnotationEntry.member_gene_count,
+            # ⚠ The catalogue's locus count rides on every row as an uncorrelated scalar subquery
+            # (Postgres evaluates it once), so the read stays ONE statement — `test_route_cost` bounds
+            # a cold Function tab by its statement count. Asked separately only when no row comes back.
+            count_all.scalar_subquery().label("locus_count"),
         )
         .join(
             LocusAnnotationEntry,
             (LocusAnnotationEntry.locus_id == Locus.locus_id)
             & (LocusAnnotationEntry.annotation_kind == kind)
             & (LocusAnnotationEntry.rank_within_locus == 0),
-            isouter=True,
+            isouter=is_cog,
         )
-        .where(Locus.pangenome_id == pangenome_id)
+        .where(
+            Locus.pangenome_id == pangenome_id,
+            *(
+                [or_(LocusAnnotationEntry.locus_id.is_not(None), Locus.modal_cog_categories.is_not(None))]
+                if is_cog
+                else []
+            ),
+        )
     ).all()
 
+    locus_count = rows[0].locus_count if rows else connection.execute(count_all).scalar_one()
     stated: dict[int, list[tuple[str, str | None, int]]] = defaultdict(list)
     categories: dict[int, list[str] | None] = {}
-    for locus_id, cog_categories, term, term_name, support in rows:
+    for locus_id, cog_categories, term, term_name, support, _locus_count in rows:
         categories[locus_id] = cog_categories
         if term is not None:
             stated[locus_id].append((term, term_name, support))
@@ -471,7 +496,7 @@ def _claims(
             levels[locus_id] = folded
             if said:
                 terms[locus_id] = said[0]
-    return levels, terms, len(categories)
+    return levels, terms, locus_count
 
 
 def _chance_by_rung(levels: dict[int, dict[Rung, frozenset[str]]], rung: Rung, *, self_excluded: bool = True):
@@ -590,17 +615,36 @@ def compute_calibration(
     tiers and **flipped sign between species** in the weak ones, so splitting by rank would fit
     noise. It is not cosmetic: on rank-1 pairs alone COG 0.97-0.98 reads 80.9 % / 84.2 % and clears
     an 0.80 bar in both species; pooled it reads 78.1 % / 79.9 % and clears in neither.
+
+    ⭐ **Only the edges `tally_cells` can score are read, in a FIXED order** (2026-11-14). It skips
+    every edge with an end outside `levels`, so the database drops them instead: at 71,435 genomes
+    it keeps 72,274 of 1,220,695 ESM edges for EC and 239,325 for COG. The order is the table's own key,
+    because `chance` is a float SUM and a sum's last bits depend on the order it is taken in; the
+    edges kept are then the same subsequence the full read would score, so every cell is identical
+    to the bit. Together with `_claims` this took a cold Function tab on the 71k catalogue from ~23 s
+    to ~6 s per process — and the API computes it once per gunicorn worker (`calibration_for`).
     """
     levels, _terms, locus_count = _claims(session, pangenome_id, annotation_kind, fold)
-    edges = session.execute(
-        select(LocusNearestLocus.locus_id, LocusNearestLocus.neighbour_locus_id, LocusNearestLocus.cross_similarity)
-        .join(Locus, Locus.locus_id == LocusNearestLocus.locus_id)
-        .where(
-            Locus.pangenome_id == pangenome_id,
-            LocusNearestLocus.representation == representation,
-            LocusNearestLocus.cross_similarity.is_not(None),
+    edges = (
+        session.connection()
+        .execute(
+            text(
+                """
+            select n.locus_id, n.neighbour_locus_id, n.cross_similarity
+              from locus_nearest_locus n
+              join locus l on l.locus_id = n.locus_id
+              join unnest(cast(:annotated as bigint[])) as focal(locus_id) on focal.locus_id = n.locus_id
+              join unnest(cast(:annotated as bigint[])) as donor(locus_id) on donor.locus_id = n.neighbour_locus_id
+             where l.pangenome_id = :pangenome_id
+               and n.representation = :representation
+               and n.cross_similarity is not null
+             order by n.locus_nearest_locus_id
+            """
+            ),
+            {"annotated": list(levels), "pangenome_id": pangenome_id, "representation": representation.name},
         )
-    ).all()
+        .all()
+    )
     cells = tally_cells(levels, edges, annotation_kind)
     return Calibration(
         annotation_kind=annotation_kind,

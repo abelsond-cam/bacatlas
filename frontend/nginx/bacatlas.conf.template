@@ -45,6 +45,14 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        # ⚠ The default 60 s would answer 504 to a slow request that gunicorn is still serving. A
+        # worker's FIRST Function tab computes the catalogue's agreement ladder (~6 s per worker on
+        # the 71,435-genome catalogue on the laptop; more on 2 vCPU), so this matches gunicorn's own
+        # `--timeout` (backend/Dockerfile). ⚠ Cloudflare's tunnel still gives up at 100 s, whatever
+        # this says. ⛔ On the gated instance nginx serves a BIND-MOUNTED copy of this template, which
+        # a `git pull` does not touch: re-render it (launching_bacatlas_org.md §7a) or this line
+        # never reaches the server.
+        proxy_read_timeout 180s;
     }
 
     # ── the app ──────────────────────────────────────────────────────────────────────────────────

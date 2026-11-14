@@ -55,7 +55,12 @@ from bacatlas_backend.services.reference_name_service import gene_ontology_fold,
 #: ⚠ A process-lifetime cache, legitimate only because this service is READ-ONLY and a catalogue
 #: cannot change without a re-ingest and a restart — the same ground the `ETag: "{pangenome_id}"` on
 #: every response already stands on. Measured at **0.19-0.42 s** per (catalogue, vocabulary) on the
-#: published catalogues, so the first request after a restart pays that once.
+#: 100-genome catalogues, so the first request after a restart pays that once — PER gunicorn worker.
+#: ⛔ At 71,435 genomes it is the catalogue's one remaining catalogue-wide read: **~23 s** per worker
+#: for the four vocabularies before 2026-11-14, **5.75 s** after `_claims` and `compute_calibration`
+#: read only what can be scored (laptop, on the restored kp-71k dump). `deploy_database.sh` warms
+#: every worker; anything else that restarts one leaves its first reader to pay it. The fix that
+#: removes it is to store the ladder at ingest, as `_stored_propagation` does for the base rates.
 #: ⛔ Tests must call `clear_calibration_cache()` between catalogues, or one fixture's ladder answers
 #: another's — the trap `gene_sequence_service.clear_parsed_genome_cache` exists for.
 _CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibration] = {}

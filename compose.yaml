@@ -43,18 +43,22 @@ services:
     # "could not resize shared memory segment" — a 500 on one endpoint, not a crash anyone sees.
     shm_size: 256m
     healthcheck:
-      # ⛔ Two conditions, each closing a way to serve a database with tables missing:
+      # ⛔ Three conditions, each closing a way to serve a database with tables missing:
       #  - over TCP, not the socket: while the first-start restore runs, the image's temporary server
       #    listens on the socket ONLY, so a socket probe reports "ready" mid-restore;
       #  - no restore-failure marker (see deploy/postgres/initdb/): after a failed restore the
-      #    container restarts, skips the restore, and would otherwise come up healthy and empty.
-      test: ["CMD-SHELL", "test ! -e \"$${PGDATA}/BACATLAS_RESTORE_FAILED\" && pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      #    container restarts, skips the restore, and would otherwise come up healthy and empty;
+      #  - no restore-INCOMPLETE marker: written first and removed just before the verdict line, so a
+      #    restore killed by a signal no trap can catch (OOM, docker kill) is refused the same way.
+      test: ["CMD-SHELL", "test ! -e \"$${PGDATA}/BACATLAS_RESTORE_FAILED\" && test ! -e \"$${PGDATA}/BACATLAS_RESTORE_INCOMPLETE\" && pg_isready -h 127.0.0.1 -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 10s
       timeout: 5s
       retries: 5
-      # ⚠ Must outlast the restore, or the db is marked unhealthy and `up` gives up on the api (run
-      # `docker compose up -d` again once it finishes). Sized for today's dump — 105 MB, restored in
-      # ~8 s — with a wide margin; the 80,000-genome catalogues of S4 will need it revisited.
+      # ⚠ A restore that outlasts this marks the db unhealthy, and a bare `up` then gives up on the
+      # api (run `docker compose up -d` again once it finishes). The 71,435-genome dump does: 354 s
+      # on the laptop, longer on 2 vCPU. `deploy/deploy_database.sh` therefore starts the db alone and
+      # waits for the restore's OWN verdict line before it asks for health — a db marked unhealthy
+      # mid-restore flips back on its first passing check — so this no longer bounds a deploy.
       start_period: 10m
       start_interval: 5s
 

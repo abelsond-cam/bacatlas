@@ -18,6 +18,13 @@ set -Eeuo pipefail
 
 dump=/restore/bacatlas.dump
 failed_marker="$PGDATA/BACATLAS_RESTORE_FAILED"
+# ⛔ The FAILED marker is written only by the ERR trap, and nothing runs a trap on SIGKILL: a container
+# killed mid-restore (OOM, `docker kill`, a dockerd restart) restarts, skips this script, and would come
+# up healthy on a PARTIAL database. So there is a second marker, turned around: INCOMPLETE is written
+# first and removed only just before a verdict line, and the compose healthcheck refuses while either
+# exists. (A volume restored before this marker existed carries neither, and stays healthy.)
+incomplete_marker="$PGDATA/BACATLAS_RESTORE_INCOMPLETE"
+: > "$incomplete_marker"
 
 trap 'echo "bacatlas: RESTORE FAILED — the database is incomplete. Run: docker compose down -v" >&2;
       echo "restore of $dump failed at $(date -u +%FT%TZ); docker compose down -v" > "$failed_marker"' ERR
@@ -30,6 +37,7 @@ psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" \
   -c 'CREATE EXTENSION IF NOT EXISTS pg_trgm'
 
 if [ ! -f "$dump" ]; then
+  rm -f "$incomplete_marker"
   echo "bacatlas: no dump at $dump — the database starts EMPTY (no schema). See README.md."
 else
   echo "bacatlas: restoring $(ls -lh "$dump" | awk '{print $5}') from $dump into $POSTGRES_DB"
@@ -43,5 +51,6 @@ else
   # ⚠ pg_restore restores rows, not planner statistics. Until autovacuum gets round to it, every
   # query is planned against a table the planner believes is empty.
   psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "$POSTGRES_DB" -c 'ANALYZE'
+  rm -f "$incomplete_marker"
   echo "bacatlas: restore + ANALYZE finished in $(( $(date +%s) - started )) s"
 fi

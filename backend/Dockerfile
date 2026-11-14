@@ -59,8 +59,14 @@ EXPOSE 8000
 # Workers come from `WEB_CONCURRENCY`, which gunicorn reads itself; `compose.yaml` sets it.
 # `--no-control-socket`: gunicorn 26's runtime-control socket lives in $HOME, which this user does not
 # have, so it logs an ERROR at every start — and the container is managed by Docker, not by `gunicornc`.
+# `--timeout 180`: gunicorn's default 30 s KILLS a sync worker mid-request and loses its caches. A
+# worker's first Function tab computes the catalogue's agreement ladder — ~6 s on the 71,435-genome
+# catalogue on the laptop (it was ~23 s before 2026-11-14) and slower on the 2-vCPU instance — and a
+# kill there would recur on every retry, since the cache it was building dies with the worker. nginx's
+# `proxy_read_timeout` matches it (frontend/nginx/bacatlas.conf.template).
 CMD ["gunicorn", \
      "--bind", "0.0.0.0:8000", \
+     "--timeout", "180", \
      "--access-logfile", "-", \
      "--no-control-socket", \
      "bacatlas_backend.application_factory:create_application()"]

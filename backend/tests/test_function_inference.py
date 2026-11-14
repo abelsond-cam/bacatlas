@@ -23,13 +23,18 @@ from bacatlas_backend.instruments.annotation_transfer import (
     MIN_PAIRS,
     NOT_CALLED,
     QUOTED_LEVEL,
+    SUPPORTED_KINDS,
     TIERS,
     Calibration,
     Cell,
     callable_rungs,
     cog_levels,
+    compute_calibration,
     ec_levels,
+    go_rung,
     quotable_rungs,
+    single_rung,
+    tally_cells,
     tier_for,
 )
 from bacatlas_backend.instruments.within_node_propagation import MIN_NODES
@@ -42,6 +47,7 @@ from bacatlas_backend.services.function_inference_service import (
     clear_propagation_cache,
     propagation_for,
 )
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
 #: ⛔ The catalogue keys as `published_cohorts.py` SPELLS them, never as literals. They moved once
 #: already — the model token became the cohort token on 2026-10-28, when the cohort became the axis
@@ -362,6 +368,97 @@ def test_a_cell_below_the_pair_floor_reports_its_n_and_NO_rate(session):
                     assert cell.agreement is not None and cell.interval is not None
                     low, high = cell.interval
                     assert low <= cell.agreement <= high
+
+
+def _full_scan_calibration(session, pangenome_id, kind, representation, fold):
+    """The calibration as it was computed before 2026-11-14 — every locus, every edge — kept as the oracle.
+
+    ⚠ The old reads re-expressed in SQL, with ONE change: the edge read is ordered by the table's key,
+    as the new read is.
+    The old read had no order at all, so its float `chance` sums were defined only up to the plan's
+    row order; fixing the order on both sides is what lets the comparison below be exact.
+    """
+    rows = session.execute(
+        text(
+            """
+            select l.locus_id, l.modal_cog_categories, e.term_value, e.term_name, e.member_gene_count
+              from locus l
+              left join locus_annotation_entry e
+                on e.locus_id = l.locus_id and e.annotation_kind = :kind and e.rank_within_locus = 0
+             where l.pangenome_id = :pangenome_id
+            """
+        ),
+        {"kind": kind.name, "pangenome_id": pangenome_id},
+    ).all()
+    stated, categories = {}, {}
+    for locus_id, cog_categories, term, term_name, support in rows:
+        categories[locus_id] = cog_categories
+        if term is not None:
+            stated.setdefault(locus_id, []).append((term, term_name, support))
+    levels = {}
+    for locus_id in categories:
+        said = stated.get(locus_id, [])
+        if kind is AnnotationKind.EC_NUMBER:
+            folded = ec_levels(said[0][0]) if said else None
+        elif kind is AnnotationKind.COG_ORTHOGROUP:
+            folded = cog_levels(said[0][0] if said else None, categories[locus_id])
+        elif kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
+            folded = go_rung([term for term, _name, _support in said], fold)
+        else:
+            folded = single_rung([term for term, _name, _support in said])
+        if folded and any(folded.values()):
+            levels[locus_id] = folded
+    edges = session.execute(
+        text(
+            """
+            select n.locus_id, n.neighbour_locus_id, n.cross_similarity
+              from locus_nearest_locus n join locus l on l.locus_id = n.locus_id
+             where l.pangenome_id = :pangenome_id and n.representation = :representation
+               and n.cross_similarity is not null
+             order by n.locus_nearest_locus_id
+            """
+        ),
+        {"pangenome_id": pangenome_id, "representation": representation.name},
+    ).all()
+    return levels, len(categories), tally_cells(levels, edges, kind)
+
+
+def test_calibration_matches_the_full_scan_it_replaced(session):
+    """⛔ The ladder reads only the loci that can fold to a claim and the edges between them. That is a
+    SPEED change, so the measurement must not move: every cell — pairs, agreeing, and the float
+    `chance` to the bit — equals the full scan's, for every catalogue, vocabulary and representation.
+
+    Measured on the real kp-71k database (2026-11-14, laptop drill): 16 of 16 combinations identical;
+    the served ladder ~23 s → 5.75 s per gunicorn worker (laptop, the restored kp-71k dump).
+
+    ⚠ **What this cannot see:** in every loaded catalogue `modal_cog_categories` exists exactly where a
+    COG rank-0 entry does (kp-71k: 83,134 and 83,134), so here an inner join, or a filter on the
+    categories alone, reads the same rows as `_claims`' outer join and both mutants pass.
+    `test_annotation_transfer_claims` builds the loci that tell them apart, and kills both.
+    """
+    fold = gene_ontology_fold(session)
+    pangenome_ids = session.execute(text("select pangenome_id from pangenome order by 1")).scalars().all()
+    assert len(pangenome_ids) >= 2, "the comparison needs both catalogues loaded"
+    compared = 0
+    scored: dict[int, int] = {}
+    for pangenome_id in pangenome_ids:
+        for kind in SUPPORTED_KINDS:
+            for representation in (EmbeddingRepresentation.ESM, EmbeddingRepresentation.BACFORMER):
+                levels, locus_count, cells = _full_scan_calibration(session, pangenome_id, kind, representation, fold)
+                calibration = compute_calibration(
+                    session, pangenome_id=pangenome_id, annotation_kind=kind, representation=representation, fold=fold
+                )
+                label = f"pangenome {pangenome_id} / {kind.name} / {representation.name}"
+                assert calibration.locus_count == locus_count, label
+                assert calibration.annotated_locus_count == len(levels), label
+                assert calibration.cells == cells, label
+                compared += 1
+                scored[pangenome_id] = scored.get(pangenome_id, 0) + len(cells)
+    # ⚠ An empty ladder equals an empty ladder. A combination may legitimately score nothing (the Kp
+    # probe's KEGG over Bacformer edges has no pair at >= 0.90), but a CATALOGUE that scored nothing
+    # anywhere would make this test pass having compared nothing.
+    assert all(scored.get(pangenome_id) for pangenome_id in pangenome_ids), scored
+    assert compared == len(pangenome_ids) * len(SUPPORTED_KINDS) * 2
 
 
 def test_the_two_catalogues_do_not_share_a_cached_ladder(session):

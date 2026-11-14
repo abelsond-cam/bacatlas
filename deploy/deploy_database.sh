@@ -34,6 +34,11 @@ fi
 
 failures=0
 checks=0
+# ⚠ `set -e` exits on an unguarded failure and prints NOTHING; after `down -v` that is an outage with
+# no explanation. Say where it stopped.
+# ⚠ Main shell only: `set -E` carries the trap into command substitutions, where a failing curl is
+# often CONSUMED (`$(status …)` inside a `[ … ] && pass || fail`) and the deploy carries on.
+trap 'rc=$?; [ "$BASH_SUBSHELL" -eq 0 ] && echo "  FAIL  unexpected error at line $LINENO (exit $rc) — the deploy stopped here; docker compose ps; docker compose logs db" >&2' ERR
 pass() { printf '  PASS  %s\n' "$1"; checks=$((checks + 1)); }
 fail() { printf '  FAIL  %s\n' "$1"; failures=$((failures + 1)); checks=$((checks + 1)); }
 
@@ -45,6 +50,14 @@ dump="$dump_dir/bacatlas.dump"
 [ -f "$dump" ] || { echo "no dump at $dump — refusing to delete a database it cannot replace"; exit 2; }
 command -v curl >/dev/null || { echo "curl is required"; exit 2; }
 docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required"; exit 2; }
+# ⚠ `up --wait` with no bound waits FOREVER on a service whose health stays `starting` — a crash-looping
+# api resets it on every restart — so bound it where this Compose can. Decided here, before anything is
+# deleted: an unknown flag passed AFTER `down -v` would turn a deploy into an outage.
+# ⚠ Read into a variable first: `docker compose up --help | grep -q` under pipefail reads as "absent"
+# whenever grep exits early and the writer dies of SIGPIPE.
+wait_bound=()
+up_help=$(docker compose up --help 2>/dev/null || true)
+grep -q -- '--wait-timeout' <<<"$up_help" && wait_bound=(--wait-timeout "${BACATLAS_UP_WAIT_SECONDS:-900}")
 engine=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 0)
 [ "${engine%%.*}" -ge 25 ] 2>/dev/null || { echo "Docker Engine 25+ is required (found $engine)"; exit 2; }
 
@@ -76,7 +89,7 @@ engine=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 0)
 versions=backend/bacatlas_backend/migrations/versions
 dump_rev=$(docker run --rm -v "$(cd "$dump_dir" && pwd)":/r:ro postgres:16 \
              pg_restore -f - --data-only --table=alembic_version "/r/$(basename "$dump")" 2>/dev/null \
-           | grep -Eoi '\b[0-9a-f]{12}\b' | tail -1)
+           | grep -Eoi '\b[0-9a-f]{12}\b' | tail -1 || true)
 code_rev=$(comm -23 \
   <(grep -h '^revision' "$versions"/*.py | grep -Eo '\b[0-9a-f]{12}\b' | sort -u) \
   <(grep -h '^down_revision' "$versions"/*.py | grep -Eo '\b[0-9a-f]{12}\b' | sort -u))
@@ -138,12 +151,60 @@ echo
 echo "RESTORE — deleting the database volume and reloading it from the snapshot…"
 docker compose down -v --remove-orphans >/dev/null 2>&1
 started=$(date +%s)
-if docker compose up -d --wait >/dev/null 2>&1; then
+# ⛔ WAIT FOR THE RESTORE ITSELF, NOT FOR THE HEALTHCHECK. While the first-start restore runs, the
+# image's temporary server listens on the socket only, so the TCP healthcheck fails throughout, and
+# compose counts those failures once `start_period` (10m) is over: five more and the db is marked
+# unhealthy, `up --wait` gives up, and the api is never started — though the restore carries on and
+# finishes. A 100-genome dump restores in under a minute; the 71,435-genome kp-71k dump (5.6 GiB, a
+# 16 GB database) does not, and how long it takes depends on the host. So start the db alone, watch
+# its log for the init script's own verdict however long that takes, and only then wait for health.
+# A failed restore is refused the moment its line appears, never after a timeout.
+docker compose up -d db >/dev/null 2>&1 || { fail "the db container did not start — docker compose logs db"; exit 1; }
+db_id=$(docker compose ps -q db 2>/dev/null || true)
+# ⛔ The verdict line can also NEVER come, and a loop that waits only for it would print "still
+# restoring" forever after the volume was deleted. The init script runs only on the first start of an
+# EMPTY volume, so a db container that restarted mid-restore (killed, OOM, a dockerd restart) skips it,
+# says "Skipping initialization", and comes up on a PARTIAL database. That, a stopped or restarting
+# container, and a ceiling (BACATLAS_RESTORE_TIMEOUT_MINUTES, default 360) each end the wait with a FAIL.
+deadline=$(( started + ${BACATLAS_RESTORE_TIMEOUT_MINUTES:-360} * 60 ))
+noted=$started
+while :; do
+  db_log=$(docker compose logs db 2>/dev/null || true)
+  if grep -q 'RESTORE FAILED' <<<"$db_log"; then
+    fail "the restore FAILED after $(( $(date +%s) - started )) s — docker compose logs db"
+    exit 1
+  fi
+  grep -qE 'restore \+ ANALYZE finished in [0-9]+ s|the database starts EMPTY' <<<"$db_log" && break
+  db_state=$(docker inspect -f '{{.State.Status}} {{.RestartCount}}' "$db_id" 2>/dev/null || echo "missing ?")
+  if grep -q 'Skipping initialization' <<<"$db_log" || [ "$db_state" != "running 0" ]; then
+    fail "the db container stopped or restarted mid-restore (state: $db_state) — its database is PARTIAL; docker compose down -v, then re-run"
+    exit 1
+  fi
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    fail "no restore verdict after $(( ($(date +%s) - started) / 60 )) min — it may still be running; docker compose logs db"
+    exit 1
+  fi
+  if [ $(( $(date +%s) - noted )) -ge 300 ]; then
+    noted=$(date +%s)
+    echo "  … still restoring, $(( (noted - started) / 60 )) min since the volume was deleted"
+  fi
+  sleep 10
+done
+# The image restarts the server with TCP after the init script; a db already marked unhealthy flips
+# back to healthy on its next passing check (interval 10s), and `up --wait` refuses an unhealthy one.
+for _ in $(seq 1 60); do
+  [ "$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{end}}' "$db_id" 2>/dev/null || true)" = healthy ] && break
+  sleep 5
+done
+up_log=$(mktemp)
+if docker compose up -d --wait ${wait_bound[@]+"${wait_bound[@]}"} >"$up_log" 2>&1; then
   elapsed=$(( $(date +%s) - started ))
   pass "stack healthy ${elapsed} s after the volume was deleted"
+  rm -f "$up_log"
 else
   elapsed=$(( $(date +%s) - started ))
   fail "stack did not come up healthy (${elapsed} s) — docker compose ps; docker compose logs db"
+  tail -20 "$up_log"; rm -f "$up_log"
   docker compose ps
   exit 1
 fi
@@ -163,8 +224,11 @@ echo "SMOKE TEST — through the published port, the path a reader's browser tak
 # Leave it unset and nothing changes, so an unprotected deployment behaves exactly as before.
 auth=()
 [ -n "${BACATLAS_SMOKE_TEST_AUTH:-}" ] && auth=(-u "$BACATLAS_SMOKE_TEST_AUTH")
-get() { curl -fsS --max-time 20 "${auth[@]}" "$1"; }
-status() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "${auth[@]}" "$@"; }
+# ⚠ `${auth[@]+"${auth[@]}"}`, not `"${auth[@]}"`: bash before 4.4 — macOS's /bin/bash is 3.2 —
+# treats an EMPTY array as unbound under `set -u`, so with no credential set the first request died
+# with "auth[@]: unbound variable" (the laptop drill of the kp-71k dump, 2026-11-14).
+get() { curl -fsS --max-time 20 ${auth[@]+"${auth[@]}"} "$1"; }
+status() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 ${auth[@]+"${auth[@]}"} "$@"; }
 # Deliberately WITHOUT the credential: used to prove basic auth is actually in force.
 status_anon() { curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$@"; }
 json() { docker compose exec -T api python -c "import json,sys; d=json.load(sys.stdin); print($1)"; }
@@ -208,6 +272,35 @@ for key in $species; do
   # the checks could not pass on any host — which made this drill, the S3 exit criterion, incapable of
   # ever returning 0. A test that cannot pass reports nothing. Restore them only with the table.
 
+  # ⭐ The Function tab, once per WORKER, all at once. Its agreement ladder is computed on first use
+  # and kept for the life of the process (`function_inference_service.calibration_for`): 5.75 s per
+  # worker on the 71,435-genome catalogue on the laptop, and slower on a 2-vCPU host. A sync gunicorn
+  # worker serves one request at a time, so as many concurrent requests as there are workers land on
+  # every worker — which both proves the route answers and warms each worker before a reader arrives.
+  # ⛔ Its own, longer time limit: the 20 s the other checks use would fail a cold ladder that is
+  # merely slow. The real bounds are gunicorn's `--timeout` (backend/Dockerfile) and nginx's
+  # `proxy_read_timeout` — and on the gated instance nginx serves the BIND-MOUNTED copy of its
+  # template, which a `git pull` does not update (launching_bacatlas_org.md §7a): until that copy is
+  # re-rendered, nginx's default 60 s is what bounds this.
+  workers="${BACATLAS_API_WORKERS:-4}"
+  fn_started=$(date +%s)
+  fn_codes=$(for _ in $(seq 1 "$workers"); do
+               curl -s -o /dev/null -w '%{http_code} ' --max-time 170 ${auth[@]+"${auth[@]}"} \
+                 "$api/species/$key/loci/$landing/function" &
+             done; wait)
+  fn_seconds=$(( $(date +%s) - fn_started ))
+  fn_bad=0
+  fn_count=0
+  for code in $fn_codes; do
+    fn_count=$((fn_count + 1))
+    [ "$code" = "200" ] || fn_bad=$((fn_bad + 1))
+  done
+  if [ "$fn_bad" -eq 0 ] && [ "$fn_count" -eq "$workers" ]; then
+    pass "$key: function tab 200 on $workers concurrent requests, ${fn_seconds} s — every worker's ladder is warm"
+  else
+    fail "$key: function tab answered [${fn_codes% }] to $workers concurrent requests (${fn_seconds} s)"
+  fi
+
   genome=$(get "$api/species/$key/genomes?limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
   [ -n "$genome" ] && pass "$key: genome list answers ($genome first)" || fail "$key: genome list"
 
@@ -226,18 +319,34 @@ for key in $species; do
   # One locus, one genome, through the published port. ⚠ A 200 with NO genes is the answer "this genome
   # has no gene here" — and the provider is never asked for such a genome, so the FETCH was not
   # exercised. That is said, not passed off as a read: silence is not success.
+  # ⛔ **The sequence checks ask at the catalogue's MOST PREVALENT locus, not its landing locus.** On
+  # kp-71k the landing locus (12517) is in 249 of 71,435 genomes and the four example loci in 9-10,
+  # so the first genome of each source group had no gene at any of them: both checks answered "200,
+  # but the fetch was NOT exercised" — a deploy whose two remote stations were never touched, passing.
+  # The most prevalent locus is in (nearly) every genome. It is read from the database because no
+  # route lists a genome's loci; the request itself still goes through the published port.
+  seq_locus=$(printf '%s\n' "select l.node_label from locus l join pathogen_species s on s.default_pangenome_id = l.pangenome_id where s.species_key = :'key' order by l.member_genome_count desc, l.locus_id limit 1;" \
+                | docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -v key="$1"' sh "$key" 2>/dev/null || true)
+  if [ -z "$seq_locus" ]; then
+    seq_locus="$landing"
+    echo "  note  $key: could not read the most prevalent locus from the db — probing the landing locus, which may not exercise a fetch"
+  fi
+
   check_sequence() {  # <source label> <sample_id>
     local source_name="$1" probe="$2" code genes
-    code=$(status "$api/species/$key/genomes/$probe/loci/$landing/sequence")
+    # ⚠ The FIRST request is a real remote fetch, always cold (`down -v` drops the assembly cache), and
+    # the NCBI station's own timeout is 30 s — so 60 s here, and `|| true` so a curl that gives up
+    # reads as code 000 through the named FAIL below rather than ending the smoke test under `set -e`.
+    code=$(status --max-time 60 "$api/species/$key/genomes/$probe/loci/$seq_locus/sequence" || true)
     if [ "$code" != "200" ]; then
       fail "$key: sequence endpoint $code for $probe from $source_name — GFF readable by uid 10001, or $source_name reachable?"
       return
     fi
-    genes=$(get "$api/species/$key/genomes/$probe/loci/$landing/sequence" | json 'len(d["genes"])' 2>/dev/null || true)
+    genes=$(get "$api/species/$key/genomes/$probe/loci/$seq_locus/sequence" | json 'len(d["genes"])' 2>/dev/null || true)
     if [ "${genes:-0}" -gt 0 ] 2>/dev/null; then
-      pass "$key: sequence read from $source_name ($probe, $genes gene(s) at $landing)"
+      pass "$key: sequence read from $source_name ($probe, $genes gene(s) at $seq_locus)"
     else
-      pass "$key: sequence endpoint 200 for $probe, but it has no gene at $landing — the $source_name fetch was NOT exercised"
+      pass "$key: sequence endpoint 200 for $probe, but it has no gene at $seq_locus — the $source_name fetch was NOT exercised"
     fi
   }
 

@@ -41,10 +41,15 @@ LOCUS_VIEW_MINIMUM = 10
 FUNCTION_TAB_WARM = 14
 
 #: ⭐ The Function tab on a COLD process — **measured 2026-10-26: ecoli 28, kp 26**, and the larger
-#: is the budget. This number is new because it is now worth bounding: every one of these statements
-#: is a bounded read. The cold tab used to issue four catalogue-wide scans of
-#: `gene_functional_annotation` on top, at 0.22-1.94 s each, and a statement budget said nothing
-#: useful about that — the cost was in the rows, not the count.
+#: is the budget. The cold tab used to issue four catalogue-wide scans of `gene_functional_annotation`
+#: on top, at 0.22-1.94 s each, and a statement budget said nothing useful about that — the cost was
+#: in the rows, not the count.
+#: ⛔ **NOT every statement here is a bounded read**, whatever this said before. The agreement ladder
+#: (`compute_calibration`, two statements per vocabulary — three for one with no claim at all, where
+#: `_claims` asks for the count separately) reads the catalogue's claims
+#: and the edges between them — 23 s per worker on kp-71k before 2026-11-14, 5.75 s after — paid once
+#: per process and invisible to `_catalogue_aggregations`, which sees only GROUP BY. This budget
+#: bounds their NUMBER; nothing here bounds their rows.
 FUNCTION_TAB_COLD = 28
 
 #: ⚠ A genome PROJECTED onto the ecoli catalogue, if one is loaded. The projection is an optional
