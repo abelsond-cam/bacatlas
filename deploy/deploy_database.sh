@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # Deploy a database to this host: RESTORE, then SMOKE TEST. One command, two phases.
 #
-#   deploy/deploy_database.sh --yes-delete-the-database
+#   deploy/deploy_database.sh --yes-delete-the-database --expect-published FILE
 #
+#   FILE        the pangenome rows the dump must hold, and nothing else: catalogue key, run id, model
+#               label, published. Written AT DEPLOY TIME from what is to be served — nuna's
+#               `python -m nuna.config --write-published-json FILE` — and carried beside the dump. This
+#               repo never reads nuna; it reads the file. (launching_bacatlas_org.md §7b, in nuna.)
 #   RESTORE     delete the database volume and reload it from the snapshot, timed.
 #   SMOKE TEST  check the stack end to end THROUGH THE PUBLISHED PORT — the path a reader's browser
 #               takes. "Smoke test" in the usual sense: turn it on and see whether smoke comes out.
@@ -24,13 +28,29 @@
 # ⚠ Nothing else on the host — no Python: JSON is read with the api container's own interpreter.
 set -Eeuo pipefail
 
-cd "$(dirname "$0")/.."
-
-if [ "${1:-}" != "--yes-delete-the-database" ]; then
-  echo "usage: deploy/deploy_database.sh --yes-delete-the-database"
+usage() {
+  echo "usage: deploy/deploy_database.sh --yes-delete-the-database --expect-published FILE"
   echo "  deletes the database volume, restores it from the dump, and checks the stack end to end."
+  echo "  FILE: the pangenome rows the dump must hold, written at deploy time by nuna's"
+  echo "        \`python -m nuna.config --write-published-json FILE\` and carried beside the dump."
   exit 2
-fi
+}
+confirmed=""
+expect=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --yes-delete-the-database) confirmed=1; shift ;;
+    --expect-published) [ $# -ge 2 ] || usage; expect="$2"; shift 2 ;;
+    --expect-published=*) expect="${1#--expect-published=}"; shift ;;
+    *) usage ;;
+  esac
+done
+[ -n "$confirmed" ] && [ -n "$expect" ] || usage
+# Resolved BEFORE the `cd` below, so a relative path means what the operator typed.
+[ -f "$expect" ] || { echo "no expected-rows file at $expect — refusing, and nothing has been deleted"; exit 2; }
+expect="$(cd "$(dirname "$expect")" && pwd)/$(basename "$expect")"
+
+cd "$(dirname "$0")/.."
 
 failures=0
 checks=0
@@ -104,6 +124,151 @@ if [ "$dump_rev" != "$code_rev" ]; then
   echo "   Restoring it would leave a database that answers /health happily and 500s on real queries."
   echo "   Take a fresh one on the machine that ran the ingest, then re-run this drill:"
   echo "     pg_dump -Fc -d bacatlas_ingest -f $dump"
+  exit 2
+fi
+
+# ⛔ THE DUMP MUST SERVE WHAT IS MEANT TO BE SERVED, and this too is checked BEFORE anything is deleted.
+# Nothing above can tell one well-formed dump from another: a dump of the wrong build — the laptop's
+# drill database, a catalogue loaded for testing, last month's run — restores, passes the smoke test
+# and serves the wrong model under the right name. What is meant to be served is `[published]` in nuna's
+# config/config.toml (private), so nuna writes it to FILE at deploy time and this compares the DUMP with
+# it: every pangenome row, published or not, by catalogue key, run id, model label and published flag —
+# never a path. Equal in both directions; a row missing, a row extra, or a row that differs refuses.
+# Nothing new on the host: the dump is read with the postgres image (as above), and the rows are compared
+# by the api IMAGE's own Python — not `docker compose exec`, which needs a running stack that a first
+# deploy or a broken one does not have. ⭐ `tests/test_deploy_published_gate.py` runs this program, lifted
+# verbatim, on a real `pg_dump` of a real pangenome table.
+api_image=bacatlas-api:local   # compose.yaml pins it; `docker compose build` (§7e) makes it
+docker image inspect "$api_image" >/dev/null 2>&1 \
+  || { echo "no $api_image image on this host — run \`docker compose build\` first; nothing has been deleted"; exit 2; }
+pangenome_copy=$(docker run --rm -v "$(cd "$dump_dir" && pwd)":/r:ro postgres:16 \
+                   pg_restore -f - --data-only --table=pangenome "/r/$(basename "$dump")" 2>/dev/null) \
+  || { echo "could not read the pangenome table from $dump — nothing has been deleted"; exit 2; }
+IFS= read -r -d '' published_check_py <<'PY' || true
+import json
+import sys
+
+FIELDS = ("catalogue_key", "run_id", "model_label", "is_published")
+ESCAPES = {"b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v"}
+
+
+def refuse(message):
+    print(f"  ✗ {message}")
+    sys.exit(1)
+
+
+def copy_value(text):
+    """One field of COPY's text format: \\N is NULL, and a backslash escapes the character after it."""
+    if text == "\\N":
+        return None
+    out, chars = [], iter(text)
+    for char in chars:
+        if char == "\\":
+            char = next(chars, "")
+            char = ESCAPES.get(char, char)
+        out.append(char)
+    return "".join(out)
+
+
+def held_rows(lines):
+    """The pangenome table's COPY block, as dicts keyed by the header's own column names."""
+    columns = None
+    rows = []
+    for line in lines:
+        if columns is None:
+            if line.startswith("COPY ") and line.endswith(") FROM stdin;"):
+                table, _, names = line[len("COPY "):-len(") FROM stdin;")].partition(" (")
+                if table.rsplit(".", 1)[-1].strip('"') == "pangenome":
+                    columns = [name.strip().strip('"') for name in names.split(",")]
+            continue
+        if line == "\\.":
+            return columns, rows
+        values = [copy_value(value) for value in line.split("\t")]
+        if len(values) != len(columns):
+            refuse(f"a pangenome row has {len(values)} fields; the COPY header names {len(columns)}")
+        rows.append(dict(zip(columns, values)))
+    if columns is None:
+        refuse("the dump holds no data for the pangenome table")
+    refuse("the pangenome table's data has no end marker — is the dump truncated?")
+
+
+try:
+    expected = json.loads(sys.argv[1], parse_constant=lambda name: refuse(f"the expected rows hold {name}"))
+except ValueError as error:
+    refuse(f"the expected-rows file is not JSON: {error}")
+if not isinstance(expected, dict) or expected.get("schema") != 1 or not isinstance(expected.get("rows"), list):
+    refuse("the expected-rows file is not schema 1 with a list of rows — write it again with nuna's --write-published-json")
+for row in expected["rows"]:
+    if not isinstance(row, dict) or sorted(row) != sorted(FIELDS) or not isinstance(row["is_published"], bool):
+        refuse(f"an expected row is not {list(FIELDS)} with a true/false is_published: {row!r}")
+want = {row["catalogue_key"]: row for row in expected["rows"]}
+if len(want) != len(expected["rows"]) or not want:
+    refuse(f"the expected rows are empty or name a catalogue twice: {[row['catalogue_key'] for row in expected['rows']]}")
+
+# ⚠ Split on "\n" only: COPY escapes a newline inside a value, but not the other characters that
+# `str.splitlines` also breaks on (\x1c, \x85, \u2028 and others).
+lines = sys.stdin.read().split("\n")
+if lines and lines[-1] == "":
+    lines.pop()  # the newline that ENDS the last line opens no row
+columns, rows = held_rows(lines)
+absent = [field for field in FIELDS if field not in columns]
+if absent:
+    refuse(f"the dump's pangenome table has no column {absent}")
+held = []
+for row in rows:
+    flag = {"t": True, "f": False}.get(row["is_published"])
+    if flag is None:
+        refuse(f"{row['catalogue_key']}: is_published is {row['is_published']!r}, not t or f")
+    held.append({"catalogue_key": row["catalogue_key"], "run_id": row["run_id"],
+                 "model_label": row["model_label"], "is_published": flag})
+
+# ⛔ The same comparison, and the same words, as nuna's `config.pangenome_row_differences` — the build job's
+# check of its database before the dump ships. An empty dump is a difference: no rows read is not a match.
+problems = []
+if not held:
+    problems.append("no pangenome rows were read — nothing to compare")
+else:
+    have = {}
+    for row in held:
+        if row["catalogue_key"] in have:
+            problems.append(f"{row['catalogue_key']}: held twice")
+        have[row["catalogue_key"]] = row
+    for key in sorted(set(want) | set(have)):
+        if key not in have:
+            problems.append(f"{key}: expected, and not held")
+        elif key not in want:
+            problems.append(f"{key}: held (is_published={have[key]['is_published']}), and not in [published]")
+        else:
+            for field in FIELDS[1:]:
+                if have[key][field] != want[key][field]:
+                    problems.append(f"{key}: {field} is {have[key][field]!r}, expected {want[key][field]!r}")
+for problem in problems:
+    print(f"  ✗ {problem}")
+if problems:
+    sys.exit(1)
+print(f"  rows    the dump's {len(held)} pangenome rows are exactly the expected ({', '.join(sorted(want))}; "
+      f"config sha256 {str(expected.get('config_sha256', '?'))[:16]}…)")
+PY
+if published_verdict=$(printf '%s\n' "$pangenome_copy" \
+      | docker run --rm -i --pull never --network none --entrypoint python "$api_image" \
+          -c "$published_check_py" "$(cat "$expect")" 2>&1); then
+  printf '%s\n' "$published_verdict"
+  published_rows="rows ${expect##*/} ✓"   # named in the closing line: a script without this gate never prints it
+else
+  published_rc=$?
+  printf '%s\n' "$published_verdict"
+  # The program exits 1 on a refusal and only then; anything else is the container failing to run it.
+  if [ "$published_rc" -ne 1 ]; then
+    echo "⛔ COULD NOT RUN THE ROW CHECK in $api_image (exit $published_rc) — refusing, and nothing has been deleted."
+    echo "   This says nothing about the dump: rebuild the image (docker compose build) and run this again."
+    exit 2
+  fi
+  echo "⛔ THE DUMP DOES NOT HOLD WHAT IS TO BE SERVED — refusing, and nothing has been deleted."
+  echo "     dump            $dump"
+  echo "     expected rows   $expect"
+  echo "   Either this is not the dump meant for this deploy, or the file was not written from the commit"
+  echo "   that serves it: a deploy moves the catalogue into nuna's [published] in the same commit, and the"
+  echo "   file is written from that commit (python -m nuna.config --write-published-json FILE)."
   exit 2
 fi
 
@@ -386,7 +551,7 @@ done
 echo
 smoke_checks=$(( checks - restore_checks ))
 if [ "$failures" -eq 0 ]; then
-  echo "DATABASE DEPLOYED — restore ${restore_checks}/${restore_checks}, smoke test ${smoke_checks}/${smoke_checks}, serving in ${elapsed} s."
+  echo "DATABASE DEPLOYED — ${published_rows}, restore ${restore_checks}/${restore_checks}, smoke test ${smoke_checks}/${smoke_checks}, serving in ${elapsed} s."
 else
   echo "DEPLOY FAILED — $failures of $checks check(s) failed. The stack is left running for inspection."
   exit 1

@@ -75,8 +75,14 @@ pg_dump -Fc -d bacatlas_ingest -f deploy/dump/bacatlas.dump    # *.dump is gitig
 **Deploying a database.** One command does it in two phases — RESTORE, then SMOKE TEST — and checks the result:
 
 ```bash
-deploy/deploy_database.sh --yes-delete-the-database
+deploy/deploy_database.sh --yes-delete-the-database --expect-published deploy/dump/bacatlas.expected.json
 ```
+
+`--expect-published FILE` names the `pangenome` rows the dump must hold — catalogue key, run id, model label,
+published — as JSON (`{"schema": 1, "rows": [...]}`), written at deploy time by whatever decides what is served
+and carried beside the dump. Before anything is deleted the script reads the dump's `pangenome` table and refuses
+unless it holds exactly those rows: none missing, none extra, none different. Every other check is blind to which
+build it is restoring.
 
 It refuses to start unless the dump is present (so it cannot delete a database it cannot replace), then
 deletes the volume, restores, times it, and checks the stack end to end **through the published port** —
