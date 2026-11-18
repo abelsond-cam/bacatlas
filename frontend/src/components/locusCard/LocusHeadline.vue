@@ -169,6 +169,17 @@ const nameProvenance = computed(() => {
         ? `Name inferred from ${named.toLocaleString()} of ${total.toLocaleString()} named ` +
             `${named === 1 ? "gene" : "genes"} — the other ${(total - named).toLocaleString()} carry no name`
         : `Name carried by all ${total.toLocaleString()} member genes`;
+    case "corroborated_symbol": {
+      // ⭐ A thin vote (commonest name on < 1/5 of the genes) settled by the locus's other
+      // annotation — kp 722: gumC ×1, wzc ×1, and PF23607 names wzc on all 100. Say which.
+      if (total === 0) return null;
+      const by = props.locus.display_name_source_accession ?? "their other annotation";
+      return named < total
+        ? `Name inferred from ${named.toLocaleString()} of ${total.toLocaleString()} named ` +
+            `${named === 1 ? "gene" : "genes"} as the one ${by} also names — the other ` +
+            `${(total - named).toLocaleString()} carry no name`
+        : `Name chosen among the names its ${total.toLocaleString()} member genes carry, as the one ${by} also names`;
+    }
     case "product":
       return "No member gene carries a name — inferred from the Bakta product";
     case "pfam_architecture":

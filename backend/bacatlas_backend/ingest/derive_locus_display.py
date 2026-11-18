@@ -54,6 +54,20 @@ SOURCE_BAKTA_SYMBOL = "bakta_symbol"
 SOURCE_PFAM_ARCHITECTURE = "pfam_architecture"
 SOURCE_PRODUCT = "product"
 SOURCE_LABEL = "label"
+#: A symbol Bakta gave some member genes, chosen over the commonest one because other annotation
+#: names it — see `corroborated_symbol`. `source_accession` holds the Pfam or COG id that did.
+SOURCE_CORROBORATED_SYMBOL = "corroborated_symbol"
+
+#: Below this share of a locus's genes, its commonest Bakta symbol is too thin a vote to name the
+#: locus on its own. ⭐ Set by census over all four catalogues in `bacatlas_ingest` (2026-11-18):
+#: anywhere from 2 % to 20 % the rule renames exactly kp 722 (`gumC` → `wzc`) and ecoli 5168
+#: (`orfA` → `tnp`); at 50 % it renames 5 kp and 11 ecoli loci.
+WEAK_SYMBOL_SHARE = 0.2
+
+#: A gene name as it appears INSIDE annotation text — `wzc`/`gumC` (symbol case) or `Wzc`/`GumC`/`Wzc1`
+#: (protein-name case). All-caps tokens (`ABC`, `HTH`, `AAA`) are deliberately not names.
+NAME_IN_TEXT = re.compile(r"[a-z]{3}[A-Z0-9]?|[A-Z][a-z]{2}[A-Z0-9]?", re.ASCII)
+WORD = re.compile(r"[A-Za-z0-9]+", re.ASCII)
 
 
 @dataclass(frozen=True)
@@ -106,14 +120,129 @@ def infer_name(
     return None
 
 
+def names_in_text(text: str | None) -> frozenset[str]:
+    """The gene names a piece of annotation text mentions, casefolded — `Wzc1` also yields `wzc`."""
+    keys: set[str] = set()
+    for token in WORD.findall(text or ""):
+        if NAME_IN_TEXT.fullmatch(token):
+            key = token.casefold()
+            keys.add(key)
+            if key[-1].isdigit():
+                keys.add(key[:-1])
+    return frozenset(keys)
+
+
+def corroborated_symbol(
+    symbol_entries: list[tuple[str, int]],
+    member_gene_count: int,
+    pfam_entries: list[tuple[str, int]],
+    product_entries: list[tuple[str, int]],
+    cog_entries: list[tuple[str, int]],
+    pfam_names: dict,
+    cog_names: dict,
+) -> DisplayName | None:
+    """Where the symbol vote is too thin to decide, the Bakta symbol other annotation also names.
+
+    ⭐ **The `gumC` case** (kp 722): 100 member genes, two named — `gumC` ×1, `wzc` ×1 — and the
+    tie went to the alphabet. Every one of the 100 carries Pfam PF23607 *"Tyrosine-protein kinase
+    Wzc, N-terminal domain"*, so `wzc` is the name the locus's own annotation supports.
+
+    Fires only when the commonest symbol is on fewer than `WEAK_SYMBOL_SHARE` of the member genes.
+    Each of the locus's listed symbols is then scored by the most genes any ONE source names it on
+    — its own Bakta count, the architectures with a domain whose Pfam short name or description
+    names it, its COG names, its products — and the highest wins; ties go to the Bakta count, then
+    the alphabet. Returns `None` when the winner is the commonest symbol anyway, so every locus
+    this does not rename keeps `SOURCE_BAKTA_SYMBOL` exactly as before.
+
+    ⛔ **Candidates are only symbols Bakta gave this locus's genes — never a name read out of the
+    other sources.** Pfam, COG and product text name a FAMILY by its founding member (LysR, DeoR,
+    Wzz, Wzc). Letting them propose a name, or override a decisive vote, was measured on the same
+    catalogues: `yhaJ` 95 → `lysR` 5, `glpR` → `deoR`, `etk` → `wzc`, and 600+ loci named `the`
+    and `and`. They may only choose between names the genes themselves carry.
+    """
+    if not symbol_entries or member_gene_count <= 0:
+        return None
+    modal, modal_count = str(symbol_entries[0][0]), int(symbol_entries[0][1])
+    if modal_count >= WEAK_SYMBOL_SHARE * member_gene_count:
+        return None
+
+    # ⚠ Per source, so one gene is never counted twice for one name; the score is the max.
+    bakta: dict[str, int] = {}
+    for symbol, count in symbol_entries:
+        bakta[str(symbol).casefold()] = bakta.get(str(symbol).casefold(), 0) + int(count)
+    pfam: dict[str, int] = {}
+    pfam_by_accession: dict[str, dict[str, int]] = {}
+    for label, count in pfam_entries:
+        named_here: set[str] = set()
+        for accession in set(str(label).split(",")):
+            fields = pfam_names.get(accession)
+            if not fields:
+                continue
+            keys = names_in_text(str(fields[0]).replace("_", " ")) | names_in_text(str(fields[1]))
+            named_here |= keys
+            for key in keys:
+                by_accession = pfam_by_accession.setdefault(key, {})
+                by_accession[accession] = by_accession.get(accession, 0) + int(count)
+        for key in named_here:
+            pfam[key] = pfam.get(key, 0) + int(count)
+    cog: dict[str, int] = {}
+    cog_by_id: dict[str, dict[str, int]] = {}
+    for cog_id, count in cog_entries:
+        for key in names_in_text(cog_names.get(str(cog_id))):
+            cog[key] = cog.get(key, 0) + int(count)
+            by_id = cog_by_id.setdefault(key, {})
+            by_id[str(cog_id)] = by_id.get(str(cog_id), 0) + int(count)
+    product: dict[str, int] = {}
+    for text, count in product_entries:
+        for key in names_in_text(str(text)):
+            product[key] = product.get(key, 0) + int(count)
+
+    def support(key: str) -> int:
+        return max(source.get(key, 0) for source in (bakta, pfam, cog, product))
+
+    own_count = {str(symbol): int(count) for symbol, count in reversed(symbol_entries)}
+    winner = min(own_count, key=lambda s: (-support(s.casefold()), -own_count[s], s))
+    if winner == modal:
+        return None
+    key = winner.casefold()
+    # Name the accession that carried the most genes for the winner, so the page can say WHICH.
+    evidence = None
+    if pfam.get(key, 0) >= max(cog.get(key, 0), product.get(key, 0)) and key in pfam_by_accession:
+        evidence = min(pfam_by_accession[key].items(), key=lambda item: (-item[1], item[0]))[0]
+    elif cog.get(key, 0) >= product.get(key, 0) and key in cog_by_id:
+        evidence = min(cog_by_id[key].items(), key=lambda item: (-item[1], item[0]))[0]
+    return DisplayName(winner, SOURCE_CORROBORATED_SYMBOL, evidence)
+
+
 def display_name(
     node_label: str,
     modal_symbol: str | None,
     pfam_entries: list[tuple[str, int]],
     product_entries: list[tuple[str, int]],
     pfam_names: dict,
+    *,
+    symbol_entries: list[tuple[str, int]],
+    member_gene_count: int,
+    cog_entries: list[tuple[str, int]],
+    cog_names: dict,
 ) -> DisplayName:
-    """`app.js::displayOf` — symbol, else inferred, else `locus <label>`. Never NULL."""
+    """`app.js::displayOf` — symbol, else inferred, else `locus <label>`. Never NULL.
+
+    ⭐ One departure from `app.js`, by decision (David, 2026-11-18): a thin symbol vote is settled by
+    `corroborated_symbol` before the commonest symbol is taken. ⚠ The keyword arguments are required
+    so no caller can run the old rule by leaving them out.
+    """
+    if modal_symbol and symbol_entries and str(symbol_entries[0][0]) != str(modal_symbol):
+        raise ValueError(
+            f"locus {node_label}: modal symbol {modal_symbol!r} is not the first listed symbol "
+            f"{symbol_entries[0][0]!r} — the two must come from one vote"
+        )
+    corroborated = corroborated_symbol(
+        symbol_entries, member_gene_count, pfam_entries, product_entries, cog_entries,
+        pfam_names, cog_names,
+    )
+    if corroborated is not None:
+        return corroborated
     if modal_symbol:
         return DisplayName(str(modal_symbol), SOURCE_BAKTA_SYMBOL, None)
     inferred = infer_name(pfam_entries, product_entries, pfam_names)

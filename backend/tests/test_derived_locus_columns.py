@@ -18,11 +18,13 @@ import pytest
 
 from bacatlas_backend.ingest.derive_locus_display import (
     SOURCE_BAKTA_SYMBOL,
+    SOURCE_CORROBORATED_SYMBOL,
     SOURCE_LABEL,
     SOURCE_PFAM_ARCHITECTURE,
     SOURCE_PRODUCT,
     best_product,
     display_name,
+    names_in_text,
     search_text,
     sole_architecture,
 )
@@ -47,17 +49,23 @@ PFAM_NAMES = {
     "PF00593": ["TonB_dep_Rec", "TonB dependent receptor", "", "", "CL0193", ""],
 }
 
+#: No symbol vote at all — what every `display_name` call below that is not ABOUT the vote passes.
+NO_VOTE = {"symbol_entries": [], "member_gene_count": 0, "cog_entries": [], "cog_names": {}}
+
 
 # ── display_name ───────────────────────────────────────────────────────────────────────────────
 def test_a_real_bakta_symbol_wins_outright_and_says_so():
-    result = display_name("3510", "wzi", [("PF04932", 90)], [("Surface protein", 90)], PFAM_NAMES)
+    result = display_name(
+        "3510", "wzi", [("PF04932", 90)], [("Surface protein", 90)], PFAM_NAMES,
+        symbol_entries=[("wzi", 90)], member_gene_count=90, cog_entries=[], cog_names={},
+    )
     assert (result.name, result.source, result.source_accession) == ("wzi", SOURCE_BAKTA_SYMBOL, None)
 
 
 def test_a_single_accession_architecture_names_the_locus_from_its_pfam_SHORT_NAME():
     """`Caps_assemb_Wzi -> Wzi`: the last underscore token, if it has the shape of a gene symbol."""
     names = {**PFAM_NAMES, "PF10670": ["Caps_assemb_Wzi", "Capsule assembly", "", "", "", ""]}
-    result = display_name("3510", None, [("PF10670", 90)], [], names)
+    result = display_name("3510", None, [("PF10670", 90)], [], names, **NO_VOTE)
     assert (result.name, result.source, result.source_accession) == ("Wzi", SOURCE_PFAM_ARCHITECTURE, "PF10670")
 
 
@@ -74,20 +82,110 @@ def test_an_architecture_whose_accession_is_not_in_the_table_names_nothing():
 def test_a_short_name_whose_last_token_is_not_gene_shaped_falls_through():
     """⚠ `TonB_dep_Rec` DOES pass — `Rec` is gene-shaped — so the negative case needs a real one."""
     names = {**PFAM_NAMES, "PF00005": ["ABC_tran", "ABC transporter", "", "", "CL0023", ""]}
-    result = display_name("3510", None, [("PF00005", 5)], [], names)
+    result = display_name("3510", None, [("PF00005", 5)], [], names, **NO_VOTE)
     assert result.source == SOURCE_LABEL
-    assert display_name("3510", None, [("PF00593", 5)], [], PFAM_NAMES).name == "Rec"
+    assert display_name("3510", None, [("PF00593", 5)], [], PFAM_NAMES, **NO_VOTE).name == "Rec"
 
 
 def test_the_product_level_takes_a_symbol_named_before_family_or_like():
-    result = display_name("3510", None, [], [("LysR family transcriptional regulator", 40)], PFAM_NAMES)
+    result = display_name(
+        "3510", None, [], [("LysR family transcriptional regulator", 40)], PFAM_NAMES, **NO_VOTE
+    )
     assert (result.name, result.source) == ("LysR", SOURCE_PRODUCT)
-    assert display_name("77", None, [], [("MarR-like protein", 8)], PFAM_NAMES).name == "MarR"
+    assert display_name("77", None, [], [("MarR-like protein", 8)], PFAM_NAMES, **NO_VOTE).name == "MarR"
 
 
 def test_a_locus_with_nothing_to_go_on_is_named_by_its_LABEL_and_never_left_NULL():
-    result = display_name("10515", None, [], [], PFAM_NAMES)
+    result = display_name("10515", None, [], [], PFAM_NAMES, **NO_VOTE)
     assert (result.name, result.source) == ("locus 10515", SOURCE_LABEL)
+
+
+# ── a thin symbol vote, settled by the locus's other annotation ────────────────────────────────
+#: kp-probe100 locus 722 as `bacatlas_ingest` holds it: Pfam names BOTH `Wzz` and `Wzc` on every gene.
+CPS_PFAM = {
+    **PFAM_NAMES,
+    "PF02706": ["Wzz", "Chain length determinant protein", "IPR003856", "", "", ""],
+    "PF23607": ["WZC_N", "Tyrosine-protein kinase Wzc, N-terminal domain", "", "", "CL0841", "Wzc_PBSD"],
+    "PF13807": ["GNVR", "G-rich domain on putative tyrosine kinase", "", "", "", ""],
+    "PF13614": ["AAA_31", "AAA domain", "", "", "CL0023", ""],
+    "PF01656": ["CbiA", "CobQ/CobB/MinD/ParA nucleotide binding domain", "", "", "CL0023", ""],
+}
+CPS_ARCHITECTURES = [
+    ("PF02706,PF23607,PF13807,PF13614,PF01656", 64),
+    ("PF02706,PF23607,PF13807,PF13614", 35),
+    ("PF02706,PF23607,PF13807", 1),
+]
+CPS_PRODUCTS = [("Tyrosine autokinase", 30), ("Polysaccharide biosynthesis tyrosine autokinase", 29)]
+CPS_COG = {"COG3206": "Exopolysaccharide export protein/domain GumC/Wzc1"}
+
+
+def _cps(symbols, size=100):
+    return display_name(
+        "722", symbols[0][0] if symbols else None, CPS_ARCHITECTURES, CPS_PRODUCTS, CPS_PFAM,
+        symbol_entries=symbols, member_gene_count=size, cog_entries=[("COG3206", 1)], cog_names=CPS_COG,
+    )
+
+
+def test_the_gumC_tie_goes_to_wzc_which_every_member_genes_Pfam_names():
+    """⭐ kp 722: `gumC` ×1, `wzc` ×1 of 100, and the alphabet used to pick `gumC`.
+
+    COG3206 names both, one gene each; PF23607 names `wzc` on all 100 — and the accession that did
+    is what the page cites.
+    """
+    result = _cps([("gumC", 1), ("wzc", 1)])
+    assert (result.name, result.source, result.source_accession) == (
+        "wzc", SOURCE_CORROBORATED_SYMBOL, "PF23607"
+    )
+
+
+def test_a_name_no_member_gene_carries_is_NEVER_proposed_however_well_Pfam_supports_it():
+    """⛔ `Wzz` and `Wzc` both sit on all 100 genes. With only `gumC` in the vote, `gumC` stands.
+
+    Pfam names a family by its founder, so letting it PROPOSE a name was measured to rename `glpR`
+    `deoR` and `etk` `wzc` — it may only choose between the names the genes carry.
+    """
+    result = _cps([("gumC", 1)])
+    assert (result.name, result.source, result.source_accession) == ("gumC", SOURCE_BAKTA_SYMBOL, None)
+
+
+def test_a_DECISIVE_vote_is_never_overridden_by_a_family_name():
+    """`yhaJ` 95 / `lysR` 5 with every product saying *LysR family* — measured, and `yhaJ` must stand."""
+    result = display_name(
+        "26", "yhaJ", [], [("LysR family transcriptional regulator", 100)], PFAM_NAMES,
+        symbol_entries=[("yhaJ", 95), ("lysR", 5)], member_gene_count=100, cog_entries=[], cog_names={},
+    )
+    assert (result.name, result.source) == ("yhaJ", SOURCE_BAKTA_SYMBOL)
+
+
+def test_the_vote_is_thin_only_STRICTLY_below_a_fifth_of_the_member_genes():
+    """2 of 10 is exactly the threshold and decides; 2 of 11 is below it and does not."""
+    assert _cps([("gumC", 2), ("wzc", 2)], size=10).source == SOURCE_BAKTA_SYMBOL
+    assert _cps([("gumC", 2), ("wzc", 2)], size=11).name == "wzc"
+
+
+def test_a_thin_vote_nothing_else_names_keeps_its_commonest_symbol():
+    """With nothing else naming either symbol, each scores its own count, so the commonest stands."""
+    result = display_name(
+        "9", "abcD", [], [("Hypothetical protein", 3)], PFAM_NAMES,
+        symbol_entries=[("abcD", 2), ("xyzE", 1)], member_gene_count=50, cog_entries=[], cog_names={},
+    )
+    assert (result.name, result.source) == ("abcD", SOURCE_BAKTA_SYMBOL)
+
+
+def test_the_modal_symbol_and_the_listed_vote_must_be_one_vote():
+    """The gate and the candidates read the listed vote; the fallback reads the modal column."""
+    with pytest.raises(ValueError, match="one vote"):
+        display_name(
+            "722", "gumC", [], [], PFAM_NAMES,
+            symbol_entries=[("wzc", 1), ("gumC", 1)], member_gene_count=100, cog_entries=[], cog_names={},
+        )
+
+
+def test_names_in_text_reads_gene_cased_words_and_not_all_caps_ones():
+    assert names_in_text("Exopolysaccharide export protein/domain GumC/Wzc1") >= {"gumc", "wzc1", "wzc"}
+    assert "abc" not in names_in_text("ABC transporter ATP-binding protein")
+    assert names_in_text("WZC N") == frozenset()
+    assert names_in_text(None) == frozenset()
 
 
 # ── best_product ───────────────────────────────────────────────────────────────────────────────

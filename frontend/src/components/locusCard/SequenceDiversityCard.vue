@@ -71,6 +71,10 @@ const naming = computed(() => {
  * ⚠ **A TIE is named as a tie.** Rank 0 and rank 1 equal means the name was settled by
  * alphabetical order and nothing else — true of 29 *E. coli* and 12 kp loci — and a card that
  * printed the winner silently would be presenting a coin toss as a finding.
+ *
+ * ⭐ **`corroborated_symbol`: a thin vote the locus's other annotation settled.** The winner is then
+ * the NAME, not rank 0 — kp 722 lists `gumC` 1 above `wzc` 1 and is named `wzc` because PF23607
+ * names it — and the note says which accession did, so the mark never reads as the count's verdict.
  */
 const symbolVote = computed(() => {
   const listedEntries = props.symbols;
@@ -87,7 +91,16 @@ const symbolVote = computed(() => {
   return {
     entries: listedEntries,
     // ⚠ Only when the name came FROM this vote. An inferred name has no winner here to mark.
-    winner: props.locus.display_name_source === "bakta_symbol" ? top.term : null,
+    winner:
+      props.locus.display_name_source === "bakta_symbol"
+        ? top.term
+        : props.locus.display_name_source === "corroborated_symbol"
+          ? props.locus.display_name
+          : null,
+    corroboratedBy:
+      props.locus.display_name_source === "corroborated_symbol"
+        ? (props.locus.display_name_source_accession ?? "their other annotation")
+        : null,
     isTie: runnerUp !== undefined && runnerUp.gene_count === top.gene_count,
     unlistedNamed,
     unnamed,
@@ -240,7 +253,11 @@ const coverage = computed(() => {
     <!-- ⚠ A tie is the only case where the winner needs explaining, so it is the only case that
          gets a sentence. The counting rule itself is stated once, in the card's footnote. -->
     <p v-if="symbolVote && symbolVote.winner" class="muted sym-vote-note">
-      <template v-if="symbolVote.isTie"
+      <template v-if="symbolVote.corroboratedBy"
+        >Too few genes are named for these counts to decide, so <b>{{ symbolVote.winner }}</b> names
+        the locus as the one of these names {{ symbolVote.corroboratedBy }} also gives.</template
+      >
+      <template v-else-if="symbolVote.isTie"
         >The two commonest names are level, so <b>{{ symbolVote.winner }}</b> won this locus on
         alphabetical order alone — not on evidence.</template
       >

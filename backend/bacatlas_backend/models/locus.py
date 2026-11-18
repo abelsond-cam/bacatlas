@@ -100,7 +100,8 @@ class Locus(Base):
     #: product list. Computing it per neighbour at request time is the fan-out problem; computing it
     #: once here turns it into a five-column lookup over ~20 ids.
     display_name: Mapped[str] = mapped_column(String(256), nullable=False)
-    #: `bakta_symbol` | `pfam_architecture` | `product` | `label` — so the page can say WHY.
+    #: `bakta_symbol` | `corroborated_symbol` | `pfam_architecture` | `product` | `label` — so the
+    #: page can say WHY. `corroborated_symbol`: a thin vote settled by Pfam/COG/product names.
     display_name_source: Mapped[str] = mapped_column(String(32), nullable=False)
     display_name_source_accession: Mapped[str | None] = mapped_column(String(64), nullable=True)
     #: ⭐ Also materialised. `bestProduct` reads every product row with counts and a regex built

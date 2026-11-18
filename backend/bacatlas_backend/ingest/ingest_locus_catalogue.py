@@ -196,8 +196,13 @@ def _int_or_zero(value):
 
 
 # ── loci ───────────────────────────────────────────────────────────────────────────────────────
-def _derive_locus_columns(frames: CatalogueFrames, pfam_names: dict, policy: dict) -> dict:
+def _derive_locus_columns(
+    frames: CatalogueFrames, pfam_names: dict, policy: dict, cog_names: dict
+) -> dict:
     """Every column that exists only because the page computes it, computed once.
+
+    ``cog_names`` is ``_reference_names()["cog_orthogroup"]``: a thin symbol vote is settled by the
+    COG and Pfam names as well as the products (``derive_locus_display.corroborated_symbol``).
 
     ⚠ The annotation lists are grouped ONCE into per-locus dicts and reused by all four derivations.
     Re-scanning the long frame per locus would be quadratic over 17.5k loci and 72k rows.
@@ -221,6 +226,9 @@ def _derive_locus_columns(frames: CatalogueFrames, pfam_names: dict, policy: dic
 
     architectures = rows_by_node("pfam_architecture")
     products = rows_by_node("protein_product")
+    symbol_lists = rows_by_node("gene_symbol")
+    cog_lists = rows_by_node("cog_orthogroup")
+    sizes = [int(value) for value in loci["member_gene_count"]]
     families: dict[str, list[str]] = {}
     crosstab = frames.uniref_crosstab
     if crosstab is not None and len(crosstab):
@@ -230,9 +238,17 @@ def _derive_locus_columns(frames: CatalogueFrames, pfam_names: dict, policy: dic
 
     symbols = [_clean(value) for value in loci["bakta_gene_symbol"]]
     names, sources, accessions, best_products, haystacks = [], [], [], [], []
-    for node, symbol in zip(nodes, symbols, strict=True):
+    for node, symbol, size in zip(nodes, symbols, sizes, strict=True):
         resolved = display_name(
-            node, symbol, architectures.get(node, []), products.get(node, []), pfam_names
+            node,
+            symbol,
+            architectures.get(node, []),
+            products.get(node, []),
+            pfam_names,
+            symbol_entries=symbol_lists.get(node, []),
+            member_gene_count=size,
+            cog_entries=cog_lists.get(node, []),
+            cog_names=cog_names,
         )
         names.append(resolved.name)
         sources.append(resolved.source)
@@ -652,7 +668,9 @@ def ingest_locus_catalogue(
         artifacts, annotation_fold=annotation_fold, allow_missing_strand=allow_missing_strand
     )
     policy = _policy()
-    derived = _derive_locus_columns(frames, load_pfam_name_table(), policy)
+    derived = _derive_locus_columns(
+        frames, load_pfam_name_table(), policy, _reference_names()["cog_orthogroup"]
+    )
     phase("load: derived locus columns")
 
     _delete_pangenome_layer(session, pangenome_id)

@@ -293,7 +293,9 @@ def main(argv: list[str] | None = None) -> int:
     oracle: tuple[int, int] | None = None
     fit = SchemaFit()
     session = DrySession()
-    derived = loader._derive_locus_columns(frames, load_pfam_name_table(), loader._policy())
+    derived = loader._derive_locus_columns(
+        frames, load_pfam_name_table(), loader._policy(), loader._reference_names()["cog_orthogroup"]
+    )
     phase("dry run: derived locus columns")
 
     genome_id_by_sample = {sample: index + 1 for index, sample in enumerate(frames.samples)}

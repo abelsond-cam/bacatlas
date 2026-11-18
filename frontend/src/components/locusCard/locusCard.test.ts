@@ -274,6 +274,19 @@ describe("⭐ the name says what it RESTS ON — the denominator, beside the nam
     );
   });
 
+  it("⭐ says which accession settled a thin vote — kp 722, now wzc", () => {
+    const head = mountHeadline({
+      gene_count: 100,
+      named_gene_count: 2,
+      display_name: "wzc",
+      display_name_source: "corroborated_symbol",
+      display_name_source_accession: "PF23607",
+    });
+    expect(head.find(".inferred-note").text()).toBe(
+      "Name inferred from 2 of 100 named genes as the one PF23607 also names — the other 98 carry no name",
+    );
+  });
+
   it("⛔ breaks the silence on the LARGEST group — the 8,741 loci named only by their id", () => {
     // These got no line at all, which is how the biggest group on the page said the least. The name
     // IS the locus id, so there is no name to caveat — but there is a fact to state.
@@ -982,6 +995,28 @@ describe("⭐ the counts the NAME came from", () => {
       symbols: [symbol("aaaA", 30), symbol("zzzZ", 30, 1)],
     });
     expect(card.find(".sym-vote-note").text()).toContain("alphabetical order alone");
+  });
+
+  it("⭐ marks the NAME, not rank 0, where other annotation settled a thin vote — and says which", () => {
+    // kp 722: gumC 1 is listed above wzc 1 (the alphabet), and the locus is named wzc because
+    // PF23607 names it on all 100 genes. Marking rank 0 would contradict the headline.
+    const card = mountDiversity({
+      locus: {
+        gene_count: 100,
+        named_gene_count: 2,
+        display_name: "wzc",
+        bakta_gene_symbol: "gumC",
+        display_name_source: "corroborated_symbol",
+        display_name_source_accession: "PF23607",
+      },
+      symbols: [symbol("gumC", 1), symbol("wzc", 1, 1)],
+    });
+    const won = card.findAll(".sym-vote-item.won");
+    expect(won).toHaveLength(1);
+    expect(won[0]!.text()).toContain("wzc");
+    const note = card.find(".sym-vote-note").text();
+    expect(note).toContain("PF23607");
+    expect(note).not.toContain("alphabetical order alone");
   });
 
   it("⛔ marks no winner where the name did NOT come from this vote", () => {
