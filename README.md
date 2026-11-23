@@ -79,10 +79,25 @@ deploy/deploy_database.sh --yes-delete-the-database --expect-published deploy/du
 ```
 
 `--expect-published FILE` names the `pangenome` rows the dump must hold — catalogue key, run id, model label,
-published — as JSON (`{"schema": 1, "rows": [...]}`), written at deploy time by whatever decides what is served
-and carried beside the dump. Before anything is deleted the script reads the dump's `pangenome` table and refuses
-unless it holds exactly those rows: none missing, none extra, none different. Every other check is blind to which
-build it is restoring.
+published — as JSON (`{"schema": 1, "site": "main", "rows": [...]}`), written at deploy time by whatever decides
+what is served and carried beside the dump. Before anything is deleted the script reads the dump's `pangenome`
+table and refuses unless it holds exactly those rows: none missing, none extra, none different. Every other check
+is blind to which build it is restoring.
+
+**Two sites on one host.** bacatlas.org (main) and bacatlas.org/beta_testing/ (beta) are two checkouts of this
+repo, `/srv/bacatlas/app` and `/srv/bacatlas/beta`, each with its own `.env` and so its own database. Three `.env`
+names keep them apart, and the deploy refuses, deleting nothing, a `.env` missing either of the first two, a beta
+holding main's project or image tag, or a FILE whose `"site"` is not this checkout's:
+
+| `.env` | main | beta | why |
+|---|---|---|---|
+| `COMPOSE_PROJECT_NAME` | `bacatlas` | `bacatlas-beta` | names the volumes (it overrides `name:` in `compose.yaml`), so `down -v` deletes only this site's database |
+| `BACATLAS_SITE` | `main` | `beta` | must equal the FILE's `"site"` (nuna's `--write-published-json FILE --site …`) |
+| `BACATLAS_IMAGE_TAG` | `local` | `beta` | tags `bacatlas-api` and `bacatlas-web`; the web image bakes in the base, so one tag per site |
+
+Beta also sets `BACATLAS_PUBLIC_BASE=/beta_testing/` and `BACATLAS_HTTP_PORT=8081`. ⚠ A `COMPOSE_PROJECT_NAME`
+exported in the shell overrides `.env` for a bare `docker compose` (the deploy script reads `.env` alone), so never
+export one on the host.
 
 It refuses to start unless the dump is present (so it cannot delete a database it cannot replace), then
 deletes the volume, restores, times it, and checks the stack end to end **through the published port** —

@@ -24,6 +24,12 @@
 # above, and refuses before deleting anything if the snapshot is missing or the wrong vintage — a
 # deploy that deletes the live database and then finds no snapshot has made an outage out of a test.
 #
+# ⛔ TWO SITES SHARE THE HOST — main (/srv/bacatlas/app, bacatlas.org) and beta (/srv/bacatlas/beta,
+# bacatlas.org/beta_testing/), each a checkout with its own `.env` and its own database. This deploys the
+# site its own `.env` names (BACATLAS_SITE), into the compose project it names (COMPOSE_PROJECT_NAME), and
+# refuses — before anything is deleted — a `.env` that could reach the other site's volume or images, and a
+# rows FILE written for the other site.
+#
 # Needs: Docker Engine 25+ with Compose v2, curl, and `.env` beside compose.yaml (see .env.example).
 # ⚠ Nothing else on the host — no Python: JSON is read with the api container's own interpreter.
 set -Eeuo pipefail
@@ -64,7 +70,30 @@ fail() { printf '  FAIL  %s\n' "$1"; failures=$((failures + 1)); checks=$((check
 
 # ── preflight: nothing is deleted until all of this holds ─────────────────────────────────────────
 [ -f .env ] || { echo "no .env beside compose.yaml — copy .env.example and fill it in"; exit 2; }
+# ⛔ WHICH SITE, AND WHICH VOLUME — from `.env` ALONE, before docker is called at all. `down -v` below deletes
+# the volume of whatever compose project COMPOSE_PROJECT_NAME names, and Compose lets the invoking SHELL
+# override `.env`: a name exported for the other site would aim this deploy at that site's database. So the
+# three are cleared first, `.env` must set them, and the pairs that belong to the live site are refused here.
+unset COMPOSE_PROJECT_NAME BACATLAS_SITE BACATLAS_IMAGE_TAG
 set -a; . ./.env; set +a
+site="${BACATLAS_SITE:-}"
+project="${COMPOSE_PROJECT_NAME:-}"
+image_tag="${BACATLAS_IMAGE_TAG:-local}"
+refuse_env() { echo "$1 — refusing, and nothing has been deleted"; exit 2; }
+if [ -z "$project" ]; then
+  refuse_env "COMPOSE_PROJECT_NAME is not set in .env (main: bacatlas, beta: bacatlas-beta), and it names the volume this deletes"
+fi
+case "$site" in
+  main|beta) ;;
+  *) refuse_env "BACATLAS_SITE is '$site' in .env, not main or beta" ;;
+esac
+if [ "$site" = beta ] && [ "$project" = bacatlas ]; then
+  refuse_env "BACATLAS_SITE=beta with COMPOSE_PROJECT_NAME=bacatlas, the LIVE site's project, whose database down -v would delete"
+fi
+if [ "$site" = beta ] && [ "$image_tag" = local ]; then
+  refuse_env "BACATLAS_SITE=beta with BACATLAS_IMAGE_TAG=local (or unset), the LIVE site's images (set BACATLAS_IMAGE_TAG=beta)"
+fi
+echo "  site    $site — compose project $project, images bacatlas-{api,web}:$image_tag; down -v deletes ${project}_pgdata"
 dump_dir="${BACATLAS_HOST_DUMP_DIR:-./deploy/dump}"
 dump="$dump_dir/bacatlas.dump"
 [ -f "$dump" ] || { echo "no dump at $dump — refusing to delete a database it cannot replace"; exit 2; }
@@ -138,7 +167,7 @@ fi
 # by the api IMAGE's own Python — not `docker compose exec`, which needs a running stack that a first
 # deploy or a broken one does not have. ⭐ `tests/test_deploy_published_gate.py` runs this program, lifted
 # verbatim, on a real `pg_dump` of a real pangenome table.
-api_image=bacatlas-api:local   # compose.yaml pins it; `docker compose build` (§7e) makes it
+api_image="bacatlas-api:$image_tag"   # compose.yaml tags it so (BACATLAS_IMAGE_TAG); `docker compose build` (§7e) makes it
 docker image inspect "$api_image" >/dev/null 2>&1 \
   || { echo "no $api_image image on this host — run \`docker compose build\` first; nothing has been deleted"; exit 2; }
 pangenome_copy=$(docker run --rm -v "$(cd "$dump_dir" && pwd)":/r:ro postgres:16 \
@@ -149,6 +178,8 @@ import json
 import sys
 
 FIELDS = ("catalogue_key", "run_id", "model_label", "is_published")
+#: Each site's table in nuna's config/config.toml — named in the refusals, as nuna names it.
+TABLES = {"main": "[published]", "beta": "[beta]"}
 ESCAPES = {"b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v"}
 
 
@@ -198,6 +229,14 @@ except ValueError as error:
     refuse(f"the expected-rows file is not JSON: {error}")
 if not isinstance(expected, dict) or expected.get("schema") != 1 or not isinstance(expected.get("rows"), list):
     refuse("the expected-rows file is not schema 1 with a list of rows — write it again with nuna's --write-published-json")
+# ⛔ The file names the site it was written for, and it must be THIS checkout's (BACATLAS_SITE, argv[2]): each
+# site serves its own table, so the other site's rows would refuse this dump for the wrong reason — or, if the
+# two tables happen to agree, pass it. Exit 3, not 1: the file is wrong, not the dump.
+site = sys.argv[2]
+if expected.get("site") != site:
+    named = f"is for site {expected['site']!r}" if "site" in expected else "names no site"
+    print(f"  ✗ the expected-rows file {named}; this checkout's .env says BACATLAS_SITE={site}")
+    sys.exit(3)
 for row in expected["rows"]:
     if not isinstance(row, dict) or sorted(row) != sorted(FIELDS) or not isinstance(row["is_published"], bool):
         refuse(f"an expected row is not {list(FIELDS)} with a true/false is_published: {row!r}")
@@ -237,7 +276,7 @@ else:
         if key not in have:
             problems.append(f"{key}: expected, and not held")
         elif key not in want:
-            problems.append(f"{key}: held (is_published={have[key]['is_published']}), and not in [published]")
+            problems.append(f"{key}: held (is_published={have[key]['is_published']}), and not in {TABLES[site]}")
         else:
             for field in FIELDS[1:]:
                 if have[key][field] != want[key][field]:
@@ -247,17 +286,26 @@ for problem in problems:
 if problems:
     sys.exit(1)
 print(f"  rows    the dump's {len(held)} pangenome rows are exactly the expected ({', '.join(sorted(want))}; "
-      f"config sha256 {str(expected.get('config_sha256', '?'))[:16]}…)")
+      f"{site} site; config sha256 {str(expected.get('config_sha256', '?'))[:16]}…)")
 PY
 if published_verdict=$(printf '%s\n' "$pangenome_copy" \
       | docker run --rm -i --pull never --network none --entrypoint python "$api_image" \
-          -c "$published_check_py" "$(cat "$expect")" 2>&1); then
+          -c "$published_check_py" "$(cat "$expect")" "$site" 2>&1); then
   printf '%s\n' "$published_verdict"
   published_rows="rows ${expect##*/} ✓"   # named in the closing line: a script without this gate never prints it
 else
   published_rc=$?
   printf '%s\n' "$published_verdict"
-  # The program exits 1 on a refusal and only then; anything else is the container failing to run it.
+  # The program exits 1 on a dump it refuses, 3 on a rows file for another site, and only then; anything else
+  # is the container failing to run it.
+  if [ "$published_rc" -eq 3 ]; then
+    echo "⛔ THE EXPECTED ROWS ARE NOT FOR THIS SITE — refusing, and nothing has been deleted."
+    echo "     this checkout   BACATLAS_SITE=$site (compose project $project)"
+    echo "     expected rows   $expect"
+    echo "   Write them for this site, from the commit that serves it:"
+    echo "     python -m nuna.config --write-published-json FILE --site $site"
+    exit 2
+  fi
   if [ "$published_rc" -ne 1 ]; then
     echo "⛔ COULD NOT RUN THE ROW CHECK in $api_image (exit $published_rc) — refusing, and nothing has been deleted."
     echo "   This says nothing about the dump: rebuild the image (docker compose build) and run this again."
@@ -267,8 +315,9 @@ else
   echo "     dump            $dump"
   echo "     expected rows   $expect"
   echo "   Either this is not the dump meant for this deploy, or the file was not written from the commit"
-  echo "   that serves it: a deploy moves the catalogue into nuna's [published] in the same commit, and the"
-  echo "   file is written from that commit (python -m nuna.config --write-published-json FILE)."
+  echo "   that serves it: a deploy moves the catalogue into this site's table in nuna's config (main: [published],"
+  echo "   beta: [beta]) in the same commit, and the file is written from that commit"
+  echo "   (python -m nuna.config --write-published-json FILE --site $site)."
   exit 2
 fi
 
@@ -313,7 +362,7 @@ echo "  engine  Docker $engine"
 echo
 
 # ── RESTORE ──────────────────────────────────────────────────────────────────────────────────────
-echo "RESTORE — deleting the database volume and reloading it from the snapshot…"
+echo "RESTORE — deleting the $site site's database volume (${project}_pgdata) and reloading it from the snapshot…"
 docker compose down -v --remove-orphans >/dev/null 2>&1
 started=$(date +%s)
 # ⛔ WAIT FOR THE RESTORE ITSELF, NOT FOR THE HEALTHCHECK. While the first-start restore runs, the

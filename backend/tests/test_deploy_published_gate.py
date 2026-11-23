@@ -13,6 +13,10 @@ Three layers, each run for real:
 * the same program on hand-written COPY text, for the malformed inputs a real dump cannot be made to hold;
 * the SCRIPT itself, run in a scratch tree with `docker` stubbed: a refused dump stops before `down -v`, an
   accepted one reaches it — and no real docker, database or `.env` is ever touched.
+
+⛔ **Two sites share the host** (main and beta, each a checkout with its own `.env` and database), so the script
+also refuses, before `down -v`, a `.env` that does not say which site and compose project it is, a beta `.env`
+holding the live site's project name or image tag, and a rows file written for the other site.
 """
 
 from __future__ import annotations
@@ -63,18 +67,19 @@ def test_the_script_reads_the_dump_with_the_flags_this_test_uses():
     assert "pg_restore " + " ".join(RESTORE_FLAGS) + ' "/r/$(basename "$dump")"' in text
 
 
-def _expected(*rows: tuple[str, str, str, bool]) -> dict:
+def _expected(*rows: tuple[str, str, str, bool], site: str = "main") -> dict:
     return {
         "schema": 1,
+        "site": site,
         "config_sha256": "0123456789abcdef" * 4,
         "rows": [{"catalogue_key": k, "run_id": r, "model_label": m, "is_published": p} for k, r, m, p in rows],
     }
 
 
-def _check(copy_text: str, expected: dict | str) -> subprocess.CompletedProcess:
+def _check(copy_text: str, expected: dict | str, site: str = "main") -> subprocess.CompletedProcess:
     argument = expected if isinstance(expected, str) else json.dumps(expected)
     return subprocess.run(
-        [sys.executable, "-c", _gate_program(), argument],
+        [sys.executable, "-c", _gate_program(), argument, site],
         input=copy_text, capture_output=True, text=True, check=False,
     )  # fmt: skip
 
@@ -224,7 +229,11 @@ MALFORMED = [
     ),  # fmt: skip
     pytest.param(
         f"{HEADER}\n1\tr\ta-1\tm\tt\n\\.\n",
-        {"schema": 1, "rows": [{"catalogue_key": "a-1", "run_id": "r", "model_label": "m", "is_published": "t"}]},
+        {
+            "schema": 1,
+            "site": "main",
+            "rows": [{"catalogue_key": "a-1", "run_id": "r", "model_label": "m", "is_published": "t"}],
+        },
         "with a true/false is_published",
         id="flag-as-text",
     ),  # fmt: skip
@@ -237,6 +246,39 @@ def test_malformed_input_is_refused_by_name(copy_text, expected, reason):
     got = _check(copy_text, expected)
     assert got.returncode == 1, got.stdout + got.stderr
     assert reason in got.stdout, got.stdout
+
+
+# ── the rows file names its site ─────────────────────────────────────────────────────────────────────────
+#: COPY text holding exactly ONE's row, so each case below would PASS but for the site: the site is the only
+#: difference, and a program that stopped checking it would exit 0.
+ONE_HELD = f"{HEADER}\n1\tr\ta-1\tm\tt\n\\.\n"
+NO_SITE = {key: value for key, value in ONE.items() if key != "site"}
+
+SITE_MISMATCHES = [
+    pytest.param({**ONE, "site": "beta"}, "main", "is for site 'beta'; this checkout's .env says BACATLAS_SITE=main",
+                 id="beta-rows-on-main"),
+    pytest.param(ONE, "beta", "is for site 'main'; this checkout's .env says BACATLAS_SITE=beta",
+                 id="main-rows-on-beta"),
+    pytest.param(NO_SITE, "main", "names no site; this checkout's .env says BACATLAS_SITE=main", id="no-site"),
+]  # fmt: skip
+
+
+def test_the_site_fixture_differs_only_in_its_site():
+    assert _check(ONE_HELD, ONE, site="main").returncode == 0
+
+
+@pytest.mark.parametrize("expected, site, reason", SITE_MISMATCHES)
+def test_a_rows_file_for_another_site_is_refused_with_its_own_exit(expected, site, reason):
+    got = _check(ONE_HELD, expected, site=site)
+    assert got.returncode == 3, got.stdout + got.stderr  # 3, not 1: the FILE is wrong, not the dump
+    assert f"  ✗ the expected-rows file {reason}" in got.stdout
+
+
+def test_a_refusal_names_the_sites_own_table():
+    held = f"{HEADER}\n1\tr\ta-1\tm\tt\n2\tr2\tb-2\tm2\tf\n\\.\n"
+    got = _check(held, _expected(("a-1", "r", "m", True), site="beta"), site="beta")
+    assert got.returncode == 1, got.stdout + got.stderr
+    assert "  ✗ b-2: held (is_published=False), and not in [beta]" in got.stdout
 
 
 def test_the_header_is_read_by_name_not_by_position():
@@ -253,7 +295,9 @@ printf '%s\n' "$*" >> "$STUB_LOG"
 case "$1 ${2:-}" in
   "compose version") echo "Docker Compose version v2.29.0"; exit 0 ;;
   "compose up") [ "${3:-}" = "--help" ] && { echo "  --wait-timeout int"; exit 0; } ;;
-  "compose down") exit 97 ;;   # ⛔ the destructive step: the gate let the deploy through, and the stub stops it here
+  # ⛔ the destructive step: the gate let the deploy through, and the stub stops it here — saying which
+  # compose project's volumes it would have deleted
+  "compose down") printf 'down-project=%s\n' "${COMPOSE_PROJECT_NAME-<unset>}" >> "$STUB_LOG"; exit 97 ;;
   "version --format") echo "27.3.1"; exit 0 ;;
   "info --format") echo "$STUB_DOCKER_ROOT"; exit 0 ;;
   "image inspect") [ -z "${STUB_NO_API_IMAGE:-}" ]; exit ;;
@@ -263,13 +307,13 @@ if [ "$1" = run ]; then
     *--table=alembic_version*)
       printf 'COPY public.alembic_version (version_num) FROM stdin;\n%s\n\\.\n' "$STUB_CODE_HEAD"; exit 0 ;;
     *--table=pangenome*) exec pg_restore -f - --data-only --table=pangenome "$STUB_DUMP" ;;
-    *bacatlas-api:local*)
+    *bacatlas-api:*)
       if [ -n "${STUB_API_EXIT:-}" ]; then
         echo "docker: exec: \"python\": executable file not found" >&2; exit "$STUB_API_EXIT"
       fi
       # as docker does: without -i the container gets NO stdin, whatever the pipe feeding `docker run` holds
       interactive=""
-      while [ "$1" != "bacatlas-api:local" ]; do [ "$1" = -i ] && interactive=1; shift; done; shift
+      while [ "${1#bacatlas-api:}" = "$1" ]; do [ "$1" = -i ] && interactive=1; shift; done; shift
       if [ -n "$interactive" ]; then exec "$STUB_PYTHON" "$@"; else exec "$STUB_PYTHON" "$@" </dev/null; fi ;;
   esac
 fi
@@ -287,6 +331,20 @@ def _code_head() -> str:
     return head
 
 
+#: The two sites' `.env` fields, as `.env.example` documents them.
+MAIN_ENV = {"COMPOSE_PROJECT_NAME": "bacatlas", "BACATLAS_SITE": "main"}
+BETA_ENV = {"COMPOSE_PROJECT_NAME": "bacatlas-beta", "BACATLAS_SITE": "beta", "BACATLAS_IMAGE_TAG": "beta"}
+
+
+def _write_env(root: Path, fields: dict) -> None:
+    lines = [f"BACATLAS_HOST_DUMP_DIR={root / 'dump'}", *(f"{key}={value}" for key, value in fields.items())]
+    (root / ".env").write_text("\n".join(lines) + "\n")
+
+
+def _compose_down_called(log: Path) -> bool:
+    return log.exists() and any(call.startswith("compose down") for call in log.read_text().splitlines())
+
+
 @pytest.fixture()
 def scratch_tree(tmp_path):
     """A copy of the script in a tree of its own: no real `.env`, dump, compose stack or docker."""
@@ -295,7 +353,7 @@ def scratch_tree(tmp_path):
     shutil.copy2(GATE, root / "deploy" / "deploy_database.sh")
     (root / "backend").symlink_to(BACKEND_ROOT)  # the migrations the vintage gate reads
     (root / "dump").mkdir()
-    (root / ".env").write_text(f"BACATLAS_HOST_DUMP_DIR={root / 'dump'}\n")
+    _write_env(root, MAIN_ENV)
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     (bin_dir / "docker").write_text(STUB)
@@ -361,7 +419,8 @@ def test_the_script_gates_the_destructive_step_on_the_rows(scratch_tree, dump_of
     if reaches_down:
         assert got.returncode == 97, got.stdout + got.stderr  # the stub's `compose down`: the gate let it through
         assert "the dump's 2 pangenome rows are exactly the expected" in got.stdout
-        assert calls[-1].startswith("compose down -v")
+        assert calls[-2].startswith("compose down -v")
+        assert calls[-1] == "down-project=bacatlas"
     else:
         assert got.returncode == 2, got.stdout + got.stderr
         assert "  ✗ kp-71k: expected, and not held" in got.stdout
@@ -387,12 +446,124 @@ def test_a_container_that_cannot_run_the_check_is_not_reported_as_a_wrong_dump(s
     assert not any(c.startswith("compose down") for c in log.read_text().splitlines())
 
 
-def test_no_api_image_is_refused_before_anything_is_deleted(scratch_tree, tmp_path):
+@pytest.mark.parametrize(
+    "dotenv, image",
+    [pytest.param(MAIN_ENV, "bacatlas-api:local", id="main"), pytest.param(BETA_ENV, "bacatlas-api:beta", id="beta")],
+)
+def test_no_api_image_is_refused_before_anything_is_deleted(scratch_tree, tmp_path, dotenv, image):
     root, env, log = scratch_tree
+    _write_env(root, dotenv)
     (root / "dump" / "bacatlas.dump").write_bytes(b"not read: the vintage gate is stubbed")
     expect = tmp_path / "expected.json"
     expect.write_text(json.dumps(ONE))
     env = {**env, "STUB_NO_API_IMAGE": "1", "STUB_CODE_HEAD": _code_head()}
     got = _deploy(root, env, "--yes-delete-the-database", "--expect-published", str(expect))
-    assert got.returncode == 2 and "no bacatlas-api:local image on this host" in got.stdout
-    assert not any(c.startswith("compose down") for c in log.read_text().splitlines())
+    assert got.returncode == 2 and f"no {image} image on this host" in got.stdout
+    assert f"image inspect {image}" in log.read_text().splitlines()
+    assert not _compose_down_called(log)
+
+
+def test_the_row_check_image_is_the_one_compose_tags():
+    # ⚠ The script runs the row check in the api image without compose, so it builds the image name itself:
+    # the tag variable and its default must be compose's own, or a beta deploy checks rows in main's image.
+    compose = (REPO_ROOT / "compose.yaml").read_text(encoding="utf-8")
+    for service in ("api", "web"):
+        assert f"    image: bacatlas-{service}:${{BACATLAS_IMAGE_TAG:-local}}\n" in compose
+    script = GATE.read_text(encoding="utf-8")
+    assert 'image_tag="${BACATLAS_IMAGE_TAG:-local}"\n' in script
+    assert 'api_image="bacatlas-api:$image_tag"' in script
+
+
+# ── which site: the `.env` must say, and a beta must not hold the live site's names ─────────────────────────
+ENV_REFUSALS = [
+    pytest.param({"BACATLAS_SITE": "main"}, {}, "COMPOSE_PROJECT_NAME is not set in .env", id="no-project"),
+    # Compose lets the shell override `.env`; a name exported for the OTHER site must not stand in for this one's
+    pytest.param({"BACATLAS_SITE": "main"}, {"COMPOSE_PROJECT_NAME": "bacatlas"},
+                 "COMPOSE_PROJECT_NAME is not set in .env", id="project-only-in-the-shell"),
+    pytest.param({"COMPOSE_PROJECT_NAME": "bacatlas"}, {}, "BACATLAS_SITE is '' in .env, not main or beta",
+                 id="no-site"),
+    pytest.param({"COMPOSE_PROJECT_NAME": "bacatlas"}, {"BACATLAS_SITE": "main"},
+                 "BACATLAS_SITE is '' in .env, not main or beta", id="site-only-in-the-shell"),
+    pytest.param({"COMPOSE_PROJECT_NAME": "bacatlas", "BACATLAS_SITE": "staging"}, {},
+                 "BACATLAS_SITE is 'staging' in .env, not main or beta", id="unknown-site"),
+    pytest.param({**BETA_ENV, "COMPOSE_PROJECT_NAME": "bacatlas"}, {},
+                 "BACATLAS_SITE=beta with COMPOSE_PROJECT_NAME=bacatlas, the LIVE site's project",
+                 id="beta-on-live-project"),
+    pytest.param({**BETA_ENV, "BACATLAS_IMAGE_TAG": "local"}, {},
+                 "BACATLAS_SITE=beta with BACATLAS_IMAGE_TAG=local (or unset), the LIVE site's images",
+                 id="beta-on-live-images"),
+    pytest.param({key: value for key, value in BETA_ENV.items() if key != "BACATLAS_IMAGE_TAG"},
+                 {"BACATLAS_IMAGE_TAG": "beta"},
+                 "BACATLAS_SITE=beta with BACATLAS_IMAGE_TAG=local (or unset), the LIVE site's images",
+                 id="beta-image-tag-only-in-the-shell"),
+]  # fmt: skip
+
+
+@pytest.mark.parametrize("dotenv, shell, reason", ENV_REFUSALS)
+def test_a_dotenv_that_does_not_pin_its_site_is_refused_before_docker_is_called(scratch_tree, tmp_path, dotenv,
+                                                                                 shell, reason):  # fmt: skip
+    root, env, log = scratch_tree
+    _write_env(root, dotenv)
+    expect = tmp_path / "expected.json"
+    expect.write_text(json.dumps(ONE))
+    got = _deploy(root, {**env, **shell}, "--yes-delete-the-database", "--expect-published", str(expect))
+    assert got.returncode == 2, got.stdout + got.stderr
+    assert reason in got.stdout and "refusing, and nothing has been deleted" in got.stdout, got.stdout
+    assert not _compose_down_called(log)
+    assert not log.exists(), "docker was called before the site was established"
+
+
+@needs_pg_tools
+@pytest.mark.parametrize(
+    "rows_site, said",
+    [pytest.param("beta", "is for site 'beta'; this checkout's .env says BACATLAS_SITE=main", id="beta-rows"),
+     pytest.param(None, "names no site; this checkout's .env says BACATLAS_SITE=main", id="no-site")],
+)  # fmt: skip
+def test_a_rows_file_for_another_site_is_refused_before_down(scratch_tree, dump_of, tmp_path, rows_site, said):
+    root, env, log = scratch_tree
+    dump = dump_of(ROWS)  # exactly the expected rows: the site is the ONLY thing wrong
+    shutil.copy2(dump, root / "dump" / "bacatlas.dump")
+    expected = _expected(*ROWS)
+    if rows_site is None:
+        del expected["site"]
+    else:
+        expected["site"] = rows_site
+    expect = tmp_path / "expected.json"
+    expect.write_text(json.dumps(expected))
+    env = {**env, "STUB_DUMP": str(dump), "STUB_CODE_HEAD": _code_head()}
+    got = _deploy(root, env, "--yes-delete-the-database", "--expect-published", str(expect))
+    assert got.returncode == 2, got.stdout + got.stderr
+    assert f"  ✗ the expected-rows file {said}" in got.stdout
+    assert "THE EXPECTED ROWS ARE NOT FOR THIS SITE — refusing, and nothing has been deleted." in got.stdout
+    assert "THE DUMP DOES NOT HOLD" not in got.stdout  # the dump is right; the operator must not be told otherwise
+    assert not _compose_down_called(log)
+
+
+@needs_pg_tools
+@pytest.mark.parametrize(
+    "dotenv, shell, image",
+    [pytest.param(MAIN_ENV, {}, "bacatlas-api:local", id="main-tag-unset"),
+     # the operator's shell exports the LIVE site's names; the beta `.env` must still be what is deployed
+     pytest.param(BETA_ENV, {**MAIN_ENV, "BACATLAS_IMAGE_TAG": "local"}, "bacatlas-api:beta",
+                  id="beta-under-a-live-shell")],
+)  # fmt: skip
+def test_the_dotenv_names_the_row_check_image_and_the_project_down_deletes(scratch_tree, dump_of, tmp_path,
+                                                                           dotenv, shell, image):  # fmt: skip
+    root, env, log = scratch_tree
+    _write_env(root, dotenv)
+    dump = dump_of(ROWS)
+    shutil.copy2(dump, root / "dump" / "bacatlas.dump")
+    expect = tmp_path / "expected.json"
+    expect.write_text(json.dumps(_expected(*ROWS, site=dotenv["BACATLAS_SITE"])))
+    env = {**env, **shell, "STUB_DUMP": str(dump), "STUB_CODE_HEAD": _code_head()}
+    got = _deploy(root, env, "--yes-delete-the-database", "--expect-published", str(expect))
+    assert got.returncode == 97, got.stdout + got.stderr  # the stub's `compose down`: every gate let it through
+    calls = log.read_text().splitlines()
+    (api_call,) = [c for c in calls if c.startswith("run ") and "bacatlas-api:" in c]
+    assert f" {image} -c " in api_call
+    assert not [c for c in calls if "bacatlas-api:" in c and image not in c]
+    project, site = dotenv["COMPOSE_PROJECT_NAME"], dotenv["BACATLAS_SITE"]
+    assert calls[-1] == f"down-project={project}"
+    tag = image.split(":")[1]
+    assert f"  site    {site} — compose project {project}, images bacatlas-{{api,web}}:{tag}; down -v deletes " \
+           f"{project}_pgdata" in got.stdout  # fmt: skip

@@ -13,6 +13,13 @@
 # that read those names would hand the api container a database on its own loopback and a path from
 # another machine. The container-side values are built here, from `BACATLAS_DB_*` and `BACATLAS_HOST_*`.
 
+# ⛔ TWO SITES RUN FROM THIS FILE ON ONE HOST — main (`/srv/bacatlas/app`) and beta (`/srv/bacatlas/beta`),
+# each a checkout with its own `.env`. Two names keep them apart, and both are set in `.env`:
+#   COMPOSE_PROJECT_NAME   overrides `name:` below (precedence: `-p`, then COMPOSE_PROJECT_NAME — the
+#                          shell's, else `.env`'s — then `name:`). It prefixes the VOLUMES, so a beta
+#                          left on `bacatlas` would have its `down -v` delete the live database.
+#   BACATLAS_IMAGE_TAG     tags both images. The web image bakes BACATLAS_PUBLIC_BASE in at build time,
+#                          so a beta built as `:local` would replace main's bundle with a `/beta_testing/` one.
 name: bacatlas
 
 # ⚠ Bounded logs. Docker's default json-file log never rotates, and gunicorn and nginx both log
@@ -65,7 +72,7 @@ services:
   api:
     build:
       context: ./backend
-    image: bacatlas-api:local
+    image: bacatlas-api:${BACATLAS_IMAGE_TAG:-local}
     restart: unless-stopped
     logging: *bounded-logs
     depends_on:
@@ -129,7 +136,7 @@ services:
       args:
         VITE_PUBLIC_BASE: ${BACATLAS_PUBLIC_BASE:-/}
         VITE_API_BASE_URL: ${BACATLAS_API_BASE_URL:-}
-    image: bacatlas-web:local
+    image: bacatlas-web:${BACATLAS_IMAGE_TAG:-local}
     restart: unless-stopped
     logging: *bounded-logs
     depends_on:

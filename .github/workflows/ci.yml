@@ -136,6 +136,22 @@ jobs:
         if: ${{ hashFiles('frontend/index.html') != '' }}
         run: npm run build
 
+      # ⛔ The beta site is served from `/beta_testing/` — compose builds the web image with VITE_PUBLIC_BASE set
+      # from BACATLAS_PUBLIC_BASE — and the build above is at `/` only. A page naming `/assets/…` under a subpath
+      # loads another site's bundle or none, so build at that base and read what the page names.
+      - name: Build at the beta site's base, and check the page names its assets under it
+        if: ${{ hashFiles('frontend/index.html') != '' }}
+        env:
+          VITE_PUBLIC_BASE: /beta_testing/
+        run: |
+          out="$RUNNER_TEMP/dist-beta"
+          npx vite build --outDir "$out" --emptyOutDir
+          grep -q 'src="/beta_testing/assets/' "$out/index.html"
+          grep -q 'href="/beta_testing/assets/' "$out/index.html"
+          if grep -Eo '(src|href)="/[^"]*"' "$out/index.html" | grep -v '="/beta_testing/'; then
+            echo "::error::index.html names a root path outside /beta_testing/"; exit 1
+          fi
+
       - name: Job summary — build skipped
         if: ${{ hashFiles('frontend/index.html') == '' }}
         run: |
