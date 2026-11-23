@@ -110,6 +110,21 @@ grep -q -- '--wait-timeout' <<<"$up_help" && wait_bound=(--wait-timeout "${BACAT
 engine=$(docker version --format '{{.Server.Version}}' 2>/dev/null || echo 0)
 [ "${engine%%.*}" -ge 25 ] 2>/dev/null || { echo "Docker Engine 25+ is required (found $engine)"; exit 2; }
 
+# ⛔ THE DB CONTAINER MUST BE ABLE TO READ THE DUMP, and this too is checked BEFORE anything is deleted.
+# The restore (deploy/postgres/initdb) runs pg_restore as the image's `postgres` user, but every check below
+# reads the dump in a `docker run` that runs as ROOT — so a dump the postgres user cannot open passes them all,
+# `down -v` deletes the live database, and the restore then fails on "Permission denied": an outage.
+# Measured 2026-11-23: a dump scp'd from CSD3 arrived `-rw-r----- ubuntu` (RDS writes 660 + an ACL). Docker
+# Desktop on the Mac maps file modes away, so the laptop drill of the SAME file passed; only the server sees it.
+if ! docker run --rm --user postgres -v "$(cd "$dump_dir" && pwd)":/r:ro postgres:16 \
+       test -r "/r/$(basename "$dump")"; then
+  echo "⛔ THE DB CONTAINER CANNOT READ THE DUMP — refusing, and nothing has been deleted."
+  echo "   $(ls -l "$dump")"
+  echo "   The restore runs as the postgres image's \`postgres\` user, not as root. Make it readable:"
+  echo "     chmod 644 $dump   (and its directory searchable: chmod o+x on each parent)"
+  exit 2
+fi
+
 # ⛔ THE DUMP MUST MATCH THE CODE, and this is checked BEFORE anything is deleted.
 # A dump four months behind the code restored cleanly, reported `schema_present: true`, passed the
 # health check — and then 500'd EVERY locus request on `relation "enzyme_class" does not exist`

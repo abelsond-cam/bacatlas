@@ -304,6 +304,7 @@ case "$1 ${2:-}" in
 esac
 if [ "$1" = run ]; then
   case "$*" in
+    *"--user postgres"*" test -r "*) [ -z "${STUB_UNREADABLE:-}" ]; exit ;;
     *--table=alembic_version*)
       printf 'COPY public.alembic_version (version_num) FROM stdin;\n%s\n\\.\n' "$STUB_CODE_HEAD"; exit 0 ;;
     *--table=pangenome*) exec pg_restore -f - --data-only --table=pangenome "$STUB_DUMP" ;;
@@ -567,3 +568,20 @@ def test_the_dotenv_names_the_row_check_image_and_the_project_down_deletes(scrat
     tag = image.split(":")[1]
     assert f"  site    {site} — compose project {project}, images bacatlas-{{api,web}}:{tag}; down -v deletes " \
            f"{project}_pgdata" in got.stdout  # fmt: skip
+
+
+def test_a_dump_the_postgres_user_cannot_read_is_refused_before_anything_is_deleted(scratch_tree, tmp_path):
+    """The restore runs as ``postgres``; every other check reads the dump as root, so only this one sees a 640 dump."""
+    root, env, log = scratch_tree
+    (root / "dump" / "bacatlas.dump").write_bytes(b"not read: the readability probe is stubbed")
+    expect = tmp_path / "expected.json"
+    expect.write_text(json.dumps(ONE))
+    env = {**env, "STUB_UNREADABLE": "1", "STUB_CODE_HEAD": "000000000000"}
+    got = _deploy(root, env, "--yes-delete-the-database", "--expect-published", str(expect))
+    assert got.returncode == 2, got.stdout + got.stderr
+    assert "THE DB CONTAINER CANNOT READ THE DUMP — refusing, and nothing has been deleted." in got.stdout
+    calls = log.read_text().splitlines()
+    (probe,) = [c for c in calls if " test -r " in c]
+    assert probe.startswith("run --rm --user postgres ") and probe.endswith("postgres:16 test -r /r/bacatlas.dump")
+    assert not any("--table=" in c for c in calls)  # refused before the vintage and row reads
+    assert not _compose_down_called(log)
