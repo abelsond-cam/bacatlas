@@ -26,6 +26,7 @@ from bacatlas_backend.ingest.ingest_pangenome_run import (
     build_step_rows,
     guard_audit_describes_this_model,
     guard_input_keys_have_not_drifted,
+    nearest_input_parents,
 )
 from bacatlas_backend.models.enumerations import EvaluationKind
 
@@ -141,3 +142,30 @@ def test_a_run_with_no_PUBLISHED_TRIPLE_is_not_reconcilable_and_says_so():
         species_key=published.species_key,
     )
     assert pangenome_is_reconcilable(unknown) is False
+
+
+# ── lineage: one edge per (input key, parent), from either spelling ───────────────────────────
+def test_a_subset_merge_names_its_parents_as_a_LIST_and_each_becomes_its_own_edge():
+    """The kp-71k v0.32 root records `precluster_assign` as a list of its two child merges.
+
+    ⛔ Raw `Path(value)` raised TypeError on it — after a clean dry run, which never reaches this loop.
+    The string spelling sits beside it in the same chain, so a fix that handled only one fails here.
+    """
+    chain = [
+        {"_depth": 0, "precluster_assign": ["/t/assignments/tree_L8n000.tsv", "/t/assignments/tree_L8n001.tsv"]},
+        {"_depth": 1, "step2_assign": "/t/assignments/step2_run.tsv"},
+    ]
+    assert nearest_input_parents(chain) == {
+        ("precluster_assign", "tree_L8n000"): 0,
+        ("precluster_assign", "tree_L8n001"): 0,
+        ("step2_assign", "step2_run"): 1,
+    }
+
+
+def test_a_parent_two_stages_consume_is_one_edge_at_the_NEAREST_depth():
+    chain = [
+        {"_depth": 2, "step2_assign": "/x/step2_run.tsv"},
+        {"_depth": 1, "step2_assign": ["/x/step2_run.tsv"]},
+        {"_depth": 0, "atoms_assign": None, "precluster_assign": ""},
+    ]
+    assert nearest_input_parents(chain) == {("step2_assign", "step2_run"): 1}

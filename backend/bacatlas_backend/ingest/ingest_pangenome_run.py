@@ -252,6 +252,31 @@ def catalogue_key_for(species_key: str, model_key: str, override: str | None = N
     return key
 
 
+def nearest_input_parents(chain: list[dict]) -> dict[tuple[str, str], int | None]:
+    """``(input_key, parent_run_id) -> depth`` over the chain, the SHALLOWEST depth per pair.
+
+    ⛔⛔ **A manifest INPUT value has two spellings and both are on disk.** A run that consumed one
+    partition records a string; a **subset merge** records a LIST — its vertices are the union of
+    several subset runs' communities, so there is no single parent to name. ``Path(value)`` on the
+    raw value looks right on every one-partition model and raised ``TypeError`` on the first tree
+    root ever ingested (kp-71k v0.32, 2026-11-24), after the dry run had passed: the dry run never
+    reaches this loop. nuna's ``run_manifest.assignment_paths`` reads both spellings, so every value
+    comes through it.
+    """
+    from nuna.tl.cluster import run_manifest
+
+    nearest: dict[tuple[str, str], int | None] = {}
+    for entry in chain:
+        depth = entry.get("_depth")
+        for key in run_manifest.INPUT_KEYS:
+            for parent_path in run_manifest.assignment_paths(entry.get(key)):
+                pair = (key, parent_path.stem)
+                seen = nearest.get(pair, "absent")
+                if seen == "absent" or (depth is not None and (seen is None or depth < seen)):
+                    nearest[pair] = depth
+    return nearest
+
+
 def ingest_pangenome_run(
     session: Session,
     artifacts: CatalogueArtifacts,
@@ -370,17 +395,7 @@ def ingest_pangenome_run(
     # The SHALLOWEST depth wins, because depth counts backwards along the chain (deeper is earlier in
     # the pipeline) — so the smallest value is the nearest stage that consumed this parent, which is
     # the honest answer to "how directly did this catalogue depend on it".
-    nearest: dict[tuple[str, str], int | None] = {}
-    for entry in chain:
-        for key in run_manifest.INPUT_KEYS:
-            parent_path = entry.get(key)
-            if not parent_path:
-                continue
-            pair = (key, Path(parent_path).stem)
-            depth = entry.get("_depth")
-            seen = nearest.get(pair, "absent")
-            if seen == "absent" or (depth is not None and (seen is None or depth < seen)):
-                nearest[pair] = depth
+    nearest = nearest_input_parents(chain)
 
     for (key, parent_run_id), depth in nearest.items():
         parent_id = session.execute(
