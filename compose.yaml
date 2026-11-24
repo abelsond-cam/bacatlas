@@ -19,7 +19,7 @@
 #                          shell's, else `.env`'s — then `name:`). It prefixes the VOLUMES, so a beta
 #                          left on `bacatlas` would have its `down -v` delete the live database.
 #   BACATLAS_IMAGE_TAG     tags both images. The web image bakes BACATLAS_PUBLIC_BASE in at build time,
-#                          so a beta built as `:local` would replace main's bundle with a `/beta_testing/` one.
+#                          so a beta built as `:local` would replace main's bundle with a `/beta/` one.
 name: bacatlas
 
 # ⚠ Bounded logs. Docker's default json-file log never rotates, and gunicorn and nginx both log

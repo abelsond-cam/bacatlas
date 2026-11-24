@@ -25,7 +25,7 @@
 # deploy that deletes the live database and then finds no snapshot has made an outage out of a test.
 #
 # ⛔ TWO SITES SHARE THE HOST — main (/srv/bacatlas/app, bacatlas.org) and beta (/srv/bacatlas/beta,
-# bacatlas.org/beta_testing/), each a checkout with its own `.env` and its own database. This deploys the
+# bacatlas.org/beta/), each a checkout with its own `.env` and its own database. This deploys the
 # site its own `.env` names (BACATLAS_SITE), into the compose project it names (COMPOSE_PROJECT_NAME), and
 # refuses — before anything is deleted — a `.env` that could reach the other site's volume or images, and a
 # rows FILE written for the other site.

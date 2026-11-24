@@ -84,7 +84,7 @@ what is served and carried beside the dump. Before anything is deleted the scrip
 table and refuses unless it holds exactly those rows: none missing, none extra, none different. Every other check
 is blind to which build it is restoring.
 
-**Two sites on one host.** bacatlas.org (main) and bacatlas.org/beta_testing/ (beta) are two checkouts of this
+**Two sites on one host.** bacatlas.org (main) and bacatlas.org/beta/ (beta) are two checkouts of this
 repo, `/srv/bacatlas/app` and `/srv/bacatlas/beta`, each with its own `.env` and so its own database. Three `.env`
 names keep them apart, and the deploy refuses, deleting nothing, a `.env` missing either of the first two, a beta
 holding main's project or image tag, or a FILE whose `"site"` is not this checkout's:
@@ -95,7 +95,7 @@ holding main's project or image tag, or a FILE whose `"site"` is not this checko
 | `BACATLAS_SITE` | `main` | `beta` | must equal the FILE's `"site"` (nuna's `--write-published-json FILE --site …`) |
 | `BACATLAS_IMAGE_TAG` | `local` | `beta` | tags `bacatlas-api` and `bacatlas-web`; the web image bakes in the base, so one tag per site |
 
-Beta also sets `BACATLAS_PUBLIC_BASE=/beta_testing/` and `BACATLAS_HTTP_PORT=8081`. ⚠ A `COMPOSE_PROJECT_NAME`
+Beta also sets `BACATLAS_PUBLIC_BASE=/beta/` and `BACATLAS_HTTP_PORT=8081`. ⚠ A `COMPOSE_PROJECT_NAME`
 exported in the shell overrides `.env` for a bare `docker compose` (the deploy script reads `.env` alone), so never
 export one on the host.
 
