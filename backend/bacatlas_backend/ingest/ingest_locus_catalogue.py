@@ -202,7 +202,9 @@ def _derive_locus_columns(
     """Every column that exists only because the page computes it, computed once.
 
     ``cog_names`` is ``_reference_names()["cog_orthogroup"]``: a thin symbol vote is settled by the
-    COG and Pfam names as well as the products (``derive_locus_display.corroborated_symbol``).
+    COG and Pfam names as well as the products (``derive_locus_display.corroborated_symbol``), and a
+    locus almost none of whose genes carry a Bakta name is named for what Pfam and its products agree
+    on (``derive_locus_display.pfam_product_agreement``), which reads ``named_member_count``.
 
     ⚠ The annotation lists are grouped ONCE into per-locus dicts and reused by all four derivations.
     Re-scanning the long frame per locus would be quadratic over 17.5k loci and 72k rows.
@@ -237,8 +239,9 @@ def _derive_locus_columns(
             families.setdefault(str(node), []).append(str(accession))
 
     symbols = [_clean(value) for value in loci["bakta_gene_symbol"]]
+    named_counts = [int(value) for value in loci["named_member_count"]]
     names, sources, accessions, best_products, haystacks = [], [], [], [], []
-    for node, symbol, size in zip(nodes, symbols, sizes, strict=True):
+    for node, symbol, size, named in zip(nodes, symbols, sizes, named_counts, strict=True):
         resolved = display_name(
             node,
             symbol,
@@ -247,6 +250,7 @@ def _derive_locus_columns(
             pfam_names,
             symbol_entries=symbol_lists.get(node, []),
             member_gene_count=size,
+            named_member_count=named,
             cog_entries=cog_lists.get(node, []),
             cog_names=cog_names,
         )

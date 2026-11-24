@@ -287,6 +287,28 @@ describe("⭐ the name says what it RESTS ON — the denominator, beside the nam
     );
   });
 
+  it("⭐ says the few names were too few, and which Pfam the products agreed with — kp-71k 4008, now Wzi", () => {
+    const head = mountHeadline({
+      gene_count: 69884,
+      named_gene_count: 3,
+      display_name: "Wzi",
+      display_name_source: "pfam_product_agreement",
+      display_name_source_accession: "PF14052",
+    });
+    expect(head.find(".inferred-note").text()).toBe(
+      "Only 3 of 69,884 member genes carry a name, too few to name the locus — PF14052 and the Bakta product agree on this one",
+    );
+    const unnamed = mountHeadline({
+      named_gene_count: 0,
+      display_name: "LuxR",
+      display_name_source: "pfam_product_agreement",
+      display_name_source_accession: "PF00196",
+    });
+    expect(unnamed.find(".inferred-note").text()).toBe(
+      "No member gene carries a name — PF00196 and the Bakta product agree on this one",
+    );
+  });
+
   it("⛔ breaks the silence on the LARGEST group — the 8,741 loci named only by their id", () => {
     // These got no line at all, which is how the biggest group on the page said the least. The name
     // IS the locus id, so there is no name to caveat — but there is a fact to state.
@@ -1017,6 +1039,22 @@ describe("⭐ the counts the NAME came from", () => {
     const note = card.find(".sym-vote-note").text();
     expect(note).toContain("PF23607");
     expect(note).not.toContain("alphabetical order alone");
+  });
+
+  it("⛔ marks no winner where Pfam and the products named the locus over a few Bakta names", () => {
+    // kp-71k 4008: yjbH 2, gfcC 1 of 69,884 genes, named Wzi. Neither listed symbol is the name.
+    const card = mountDiversity({
+      locus: {
+        gene_count: 69884,
+        named_gene_count: 3,
+        display_name: "Wzi",
+        bakta_gene_symbol: "yjbH",
+        display_name_source: "pfam_product_agreement",
+        display_name_source_accession: "PF14052",
+      },
+      symbols: [symbol("yjbH", 2), symbol("gfcC", 1, 1)],
+    });
+    expect(card.findAll(".sym-vote-item.won")).toHaveLength(0);
   });
 
   it("⛔ marks no winner where the name did NOT come from this vote", () => {

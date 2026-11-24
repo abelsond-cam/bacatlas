@@ -57,12 +57,43 @@ SOURCE_LABEL = "label"
 #: A symbol Bakta gave some member genes, chosen over the commonest one because other annotation
 #: names it — see `corroborated_symbol`. `source_accession` holds the Pfam or COG id that did.
 SOURCE_CORROBORATED_SYMBOL = "corroborated_symbol"
+#: A name the locus's Pfam architectures and its Bakta products AGREE on, used where almost none of
+#: its genes carry a Bakta name — see `pfam_product_agreement`. `source_accession` holds the Pfam id.
+SOURCE_PFAM_PRODUCT_AGREEMENT = "pfam_product_agreement"
 
 #: Below this share of a locus's genes, its commonest Bakta symbol is too thin a vote to name the
 #: locus on its own. ⭐ Set by census over all four catalogues in `bacatlas_ingest` (2026-11-18):
 #: anywhere from 2 % to 20 % the rule renames exactly kp 722 (`gumC` → `wzc`) and ecoli 5168
 #: (`orfA` → `tnp`); at 50 % it renames 5 kp and 11 ecoli loci.
 WEAK_SYMBOL_SHARE = 0.2
+
+#: Below this share of a locus's genes carrying ANY Bakta name, those few names do not name the
+#: locus (David, 2026-11-24). ⭐ kp-71k v0.32 locus 4008: 69,884 genes, three named — `yjbH` ×2,
+#: `gfcC` ×1 — while PF14052 (*Caps_assemb_Wzi*) is on 69,825 and *"capsule assembly Wzi family
+#: protein"* on 64,730. The name Pfam and the products agree on names it instead.
+SPARSE_NAME_SHARE = 0.05
+
+#: …but only a name Pfam and the products each give on at least this share of the member genes, so a
+#: handful of genes cannot name the locus this way either. ⭐ Census of 2026-11-24 over kp-71k: at a
+#: twentieth, 124 loci with some Bakta name are renamed, among them kp 16316 `wzc` (9 of 199) →
+#: `Wzz` on 19 genes' agreement; at half, 44, all with Pfam and products agreeing on 50–97 % of genes.
+AGREEMENT_SHARE = 0.5
+
+#: A gene name as it is SPELLED in annotation text: protein case (`Wzi`, `LysR`, `Tle1`) or symbol
+#: case carrying a capital or digit (`tipJ`, `wzc1`). ⚠ Unlike `NAME_IN_TEXT`, a bare lowercase
+#: three-letter word is NOT a name here — `and`, `for`, `box` (*"DEAD/DEAH box helicase"*) are
+#: gene-shaped, and both sources say them.
+SPELLED_NAME = re.compile(r"[A-Z][a-z]{2}[A-Z0-9]?|[a-z]{3}[A-Z0-9]", re.ASCII)
+
+#: Gene-shaped words Pfam and the products both use that name no gene. Each was found by the census
+#: over the three catalogues on 2026-11-24 (see `pfam_product_agreement`).
+NOT_A_NAME = frozenset({"ion"})
+
+#: A name followed by one of these words names the PARTNER, not this protein: *"TonB-dependent
+#: receptor"* (`TonB_dep_Rec`) is a receptor that needs TonB, *"Tle cognate immunity protein"* is
+#: Tli. ⭐ Without this, 51 kp-71k loci whose products say *TonB-dependent receptor* were named
+#: `tonB` (census, 2026-11-24).
+PARTNER_WORDS = frozenset({"dependent", "dep", "cognate", "associated", "interacting", "binding"})
 
 #: A gene name as it appears INSIDE annotation text — `wzc`/`gumC` (symbol case) or `Wzc`/`GumC`/`Wzc1`
 #: (protein-name case). All-caps tokens (`ABC`, `HTH`, `AAA`) are deliberately not names.
@@ -130,6 +161,100 @@ def names_in_text(text: str | None) -> frozenset[str]:
             if key[-1].isdigit():
                 keys.add(key[:-1])
     return frozenset(keys)
+
+
+def spelled_names(text: str | None) -> dict[str, str]:
+    """`casefolded name -> its spelling` for every gene name the text SPELLS (`SPELLED_NAME`).
+
+    `Tle1` yields `tle1` and `tle`, as `names_in_text` does, each keeping the spelling it was read as.
+    A name followed by a `PARTNER_WORDS` word (*"TonB-dependent"*) is not this protein's, and is skipped.
+    """
+    found: dict[str, str] = {}
+    tokens = WORD.findall(text or "")
+    for index, token in enumerate(tokens):
+        following = tokens[index + 1].casefold() if index + 1 < len(tokens) else ""
+        if following in PARTNER_WORDS:
+            continue
+        if SPELLED_NAME.fullmatch(token):
+            found.setdefault(token.casefold(), token)
+            if token[-1].isdigit():
+                found.setdefault(token[:-1].casefold(), token[:-1])
+    return found
+
+
+def pfam_product_agreement(
+    named_member_count: int,
+    member_gene_count: int,
+    pfam_entries: list[tuple[str, int]],
+    product_entries: list[tuple[str, int]],
+    pfam_names: dict,
+) -> DisplayName | None:
+    """Where almost no gene carries a Bakta name, the name its Pfam and its products agree on.
+
+    ⭐ **The `wzi` case** (kp-71k v0.32 locus 4008): 69,884 member genes, three named — `yjbH` ×2,
+    `gfcC` ×1 — so `yjbH` named the locus, on two genes. PF14052 *"Capsule assembly protein Wzi"*
+    is on 69,825 of them and *"capsule assembly Wzi family protein"* on 64,730: it is `Wzi`.
+
+    Fires only when fewer than `SPARSE_NAME_SHARE` of the member genes carry ANY Bakta name — zero
+    included. A candidate is a name SPELLED (`SPELLED_NAME`) both in the Pfam short name or
+    description of one of the locus's listed architectures and in one of its listed products. Each
+    side's support is the genes on its listed entries that name it, and a candidate must reach
+    `AGREEMENT_SHARE` of the member genes on BOTH sides; the one with the most support on its
+    weaker side wins, then on its stronger side, then the longer name (`tle1` over `tle`), then the
+    alphabet. The name is the products' commonest spelling of it, in protein case (`Wzi`; `luxR` →
+    `LuxR`) like every other name this module infers, so it never reads as a symbol Bakta gave.
+    Returns `None` when no candidate qualifies, and the locus is named as before.
+
+    ⚠ This is the one place a name may come from Pfam/product text while some genes carry a Bakta
+    name (`corroborated_symbol` may only choose among Bakta's names). It is confined to loci whose
+    Bakta names are on under a twentieth of the genes, and the name must be one BOTH sources spell,
+    each on half the genes — the family-founder overrides measured on 2026-11-18 (`yhaJ` 95 → `lysR`
+    5) were overrides of decisive votes, which this cannot reach. ⚠ It still names a locus for its
+    FAMILY where that is all Pfam and the products say (*"LuxR family transcriptional regulator"* →
+    `LuxR`), as the product fall-through always has; `PARTNER_WORDS` removes the case where the name
+    is not even the family's (*TonB-dependent*).
+    """
+    if member_gene_count <= 0 or named_member_count >= SPARSE_NAME_SHARE * member_gene_count:
+        return None
+    pfam: dict[str, int] = {}
+    pfam_by_accession: dict[str, dict[str, int]] = {}
+    for label, count in pfam_entries:
+        named_here: set[str] = set()
+        for accession in set(str(label).split(",")):
+            fields = pfam_names.get(accession)
+            if not fields:
+                continue
+            keys = set(spelled_names(str(fields[0]).replace("_", " "))) | set(
+                spelled_names(str(fields[1]))
+            )
+            named_here |= keys
+            for key in keys:
+                by_accession = pfam_by_accession.setdefault(key, {})
+                by_accession[accession] = by_accession.get(accession, 0) + int(count)
+        for key in named_here:
+            pfam[key] = pfam.get(key, 0) + int(count)
+    product: dict[str, int] = {}
+    spellings: dict[str, dict[str, int]] = {}
+    for text, count in product_entries:
+        for key, spelling in spelled_names(str(text)).items():
+            product[key] = product.get(key, 0) + int(count)
+            by_spelling = spellings.setdefault(key, {})
+            by_spelling[spelling] = by_spelling.get(spelling, 0) + int(count)
+    floor = AGREEMENT_SHARE * member_gene_count
+    candidates = [
+        key
+        for key in pfam.keys() & product.keys()
+        if key not in NOT_A_NAME and min(pfam[key], product[key]) >= floor
+    ]
+    if not candidates:
+        return None
+    winner = min(
+        candidates,
+        key=lambda k: (-min(pfam[k], product[k]), -max(pfam[k], product[k]), -len(k), k),
+    )
+    spelling = min(spellings[winner].items(), key=lambda item: (-item[1], item[0]))[0]
+    evidence = min(pfam_by_accession[winner].items(), key=lambda item: (-item[1], item[0]))[0]
+    return DisplayName(spelling[0].upper() + spelling[1:], SOURCE_PFAM_PRODUCT_AGREEMENT, evidence)
 
 
 def corroborated_symbol(
@@ -223,20 +348,28 @@ def display_name(
     *,
     symbol_entries: list[tuple[str, int]],
     member_gene_count: int,
+    named_member_count: int,
     cog_entries: list[tuple[str, int]],
     cog_names: dict,
 ) -> DisplayName:
     """`app.js::displayOf` — symbol, else inferred, else `locus <label>`. Never NULL.
 
-    ⭐ One departure from `app.js`, by decision (David, 2026-11-18): a thin symbol vote is settled by
+    ⭐ Two departures from `app.js`, by decision. (1) David, 2026-11-24: where fewer than a twentieth
+    of the genes carry any Bakta name, the name Pfam and the products agree on comes first
+    (`pfam_product_agreement`). (2) David, 2026-11-18: a thin symbol vote is settled by
     `corroborated_symbol` before the commonest symbol is taken. ⚠ The keyword arguments are required
-    so no caller can run the old rule by leaving them out.
+    so no caller can run an old rule by leaving them out.
     """
     if modal_symbol and symbol_entries and str(symbol_entries[0][0]) != str(modal_symbol):
         raise ValueError(
             f"locus {node_label}: modal symbol {modal_symbol!r} is not the first listed symbol "
             f"{symbol_entries[0][0]!r} — the two must come from one vote"
         )
+    agreed = pfam_product_agreement(
+        named_member_count, member_gene_count, pfam_entries, product_entries, pfam_names
+    )
+    if agreed is not None:
+        return agreed
     corroborated = corroborated_symbol(
         symbol_entries, member_gene_count, pfam_entries, product_entries, cog_entries,
         pfam_names, cog_names,

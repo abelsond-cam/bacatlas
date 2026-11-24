@@ -180,6 +180,16 @@ const nameProvenance = computed(() => {
             `${(total - named).toLocaleString()} carry no name`
         : `Name chosen among the names its ${total.toLocaleString()} member genes carry, as the one ${by} also names`;
     }
+    case "pfam_product_agreement": {
+      // ⭐ Under 1/20 of the genes carry any Bakta name, so those few do not name the locus: the
+      // name is the one Pfam and the Bakta products agree on, each on at least half the genes.
+      // kp-71k 4008: yjbH on 2 of 69,884 genes; PF14052 and the products say Wzi.
+      const by = props.locus.display_name_source_accession ?? "Pfam";
+      return named === 0
+        ? `No member gene carries a name — ${by} and the Bakta product agree on this one`
+        : `Only ${named.toLocaleString()} of ${total.toLocaleString()} member genes carry a name, ` +
+            `too few to name the locus — ${by} and the Bakta product agree on this one`;
+    }
     case "product":
       return "No member gene carries a name — inferred from the Bakta product";
     case "pfam_architecture":
