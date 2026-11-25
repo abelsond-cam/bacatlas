@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 from pathlib import Path
 
 import pandas as pd
@@ -28,6 +29,7 @@ from sqlalchemy import create_engine, func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from bacatlas_backend.ingest import ingest_locus_catalogue as ingest_locus_catalogue_module
 from bacatlas_backend.ingest.ingest_command_line import main as ingest_main
 from bacatlas_backend.ingest.ingest_locus_catalogue import _delete_pangenome_layer
 from bacatlas_backend.ingest.ingest_served_annotations import (
@@ -50,9 +52,13 @@ from bacatlas_backend.models.enumerations import ServedAnnotationKind, ServedAnn
 from bacatlas_backend.models.genome_collection import GenomeCollection
 from bacatlas_backend.models.pangenome import Pangenome
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
-from bacatlas_backend.models.served_locus_annotation import ServedLocusAnnotation
+from bacatlas_backend.models.served_locus_annotation import (
+    ANNOTATION_MODEL_VERSION_PATTERN,
+    KNOWN_ANNOTATION_MODEL_VERSIONS,
+    ServedLocusAnnotation,
+)
 from bacatlas_backend.services.reference_name_service import clear_gene_ontology_fold_cache
-from bacatlas_backend.services.served_annotation_service import load_predictions
+from bacatlas_backend.services.served_annotation_service import load_predictions, predictions_data_version
 from tests.conftest import make_locus
 
 #: A small GO slim with every shape the lineage rules meet. Cellular component (2): plasma membrane ⊂
@@ -266,6 +272,11 @@ def test_a_file_without_its_VERSION_or_its_RUNS_is_refused_and_says_why(session,
     [
         (["v0.1"], "not registered"),  # ⛔ the bare spelling — nuna's clustering ladder has a v0.1 too
         (["at-v9.9"], "not registered"),
+        # ⛔ What a PREFIX or PATTERN match would let through: the registry is an exact, explicit set.
+        (["at-v0.20"], "not registered"),
+        (["at-v0.3"], "not registered"),
+        (["at-v0"], "not registered"),
+        (["at-v0.2-rc"], "not registered"),
         (["at-v0.1", "at-v0.2"], "names 2 versions"),
         (["at-v0.1", ""], "empty annotation_model_version"),
     ],
@@ -275,6 +286,33 @@ def test_an_unknown_bare_mixed_or_empty_version_is_refused(session, loci, tmp_pa
             for (label, size), version in zip((("10", 5), ("11", 7)), versions, strict=False)]  # fmt: skip
     with pytest.raises(ServedAnnotationsRefused, match=match):
         _load(session, loci, _write(tmp_path, rows))
+
+
+def test_the_registry_is_EXACTLY_v0_1_and_v0_2_each_at_its_own_tag_and_cut():
+    """⛔ A new version is a code change that states its cut and its claims — so the set is pinned here."""
+    assert set(KNOWN_ANNOTATION_MODEL_VERSIONS) == {"at-v0.1", "at-v0.2"}
+    for tag, version in KNOWN_ANNOTATION_MODEL_VERSIONS.items():
+        assert version.tag == tag and re.match(ANNOTATION_MODEL_VERSION_PATTERN, tag), "the CHECK must admit it"
+        assert version.serve_cut == 0.80 and version.claims == {"cog", "mf", "bp", "cc"}
+    assert KNOWN_ANNOTATION_MODEL_VERSIONS["at-v0.2"].label == "annotation-transfer v0.2"
+
+
+def test_a_v0_2_file_loads_and_the_tab_NAMES_v0_2(session, loci, tmp_path):
+    """⭐ annotation-transfer v0.2 (2026-11-23): stored, stamped on the catalogue, and served under its own label."""
+    rows = [{**row, VERSION_COLUMN: "at-v0.2"} for row in GOOD_ROWS]
+    report = _load(session, loci, _write(tmp_path, rows))
+    assert (report.version, report.rows_written) == ("at-v0.2", 4)
+    assert {row.annotation_model_version for row in _stored(session).values()} == {"at-v0.2"}
+    assert loci["pangenome"].annotation_model_version == "at-v0.2"
+    assert loci["pangenome"].served_annotation_fingerprint().startswith("at-v0.2-")
+    served = load_predictions(session, pangenome=loci["pangenome"], locus=loci["11"])
+    assert (served["state"], served["annotation_model_version"]) == ("loaded", "at-v0.2")
+    assert (served["annotation_model_label"], served["serve_cut"]) == ("annotation-transfer v0.2", 0.80)
+    assert len(served["calls"]) == 2 and {call["annotation_model_version"] for call in served["calls"]} == {"at-v0.2"}
+    declined = load_predictions(session, pangenome=loci["pangenome"], locus=loci["20"])
+    assert (declined["state"], declined["calls"], declined["annotation_model_label"]) == (
+        "loaded", [], "annotation-transfer v0.2",
+    )  # fmt: skip
 
 
 def test_a_file_from_ANOTHER_RUN_is_refused_by_its_run_id(session, loci, tmp_path):
@@ -411,13 +449,13 @@ def test_the_tab_gives_FIVE_different_answers(session, loci, tmp_path):
     assert cc["terms"] == [{"value": PLASMA_MEMBRANE, "name": None}, {"value": MEMBRANE, "name": None}]
     assert cc["donor"] == {
         "node_label": "20", "display_name": "wzi", "gene_count": 40, "catalogue_key": "probe-nuna4",
-        "species_name": "Escherichia coli", "same_catalogue": True,
+        "species_name": "Escherichia coli", "same_catalogue": True, "catalogue_published": False,
     }  # fmt: skip
     # ⭐ A donor in ANOTHER catalogue of ANOTHER species: its own key, its own species, never this one's.
     across = load_predictions(session, pangenome=loci["pangenome"], locus=loci["12"])["calls"]
     assert [call["donor"] for call in across] == [{
         "node_label": "30", "display_name": "wzi", "gene_count": 9, "catalogue_key": "probe2-other",
-        "species_name": "Klebsiella pneumoniae", "same_catalogue": False,
+        "species_name": "Klebsiella pneumoniae", "same_catalogue": False, "catalogue_published": False,
     }]  # fmt: skip
     assert [term["value"] for term in across[0]["terms"]] == TRANSCRIPTION_LINEAGE
 
@@ -439,6 +477,78 @@ def test_the_tab_gives_FIVE_different_answers(session, loci, tmp_path):
     unknown = load_predictions(session, pangenome=loci["pangenome"], locus=loci["11"])
     assert (unknown["state"], unknown["calls"], unknown["serve_cut"]) == ("unknown_model", [], None)
     assert unknown["annotation_model_label"] == "at-v9.9"
+
+
+def test_a_donor_is_LINKABLE_only_where_its_catalogue_is_PUBLISHED_on_this_site(session, loci, tmp_path):
+    """⛔ The open item of the second review: the page linked to a donor's catalogue without asking whether
+    this site offers it. `catalogue_published` is the DONOR's catalogue's flag — never the recipient's."""
+    _load(session, loci, _write(tmp_path, GOOD_ROWS))
+
+    def flags(locus):
+        calls = load_predictions(session, pangenome=loci["pangenome"], locus=locus)["calls"]
+        return [(call["donor"]["catalogue_key"], call["donor"]["catalogue_published"]) for call in calls]
+
+    assert flags(loci["12"]) == [("probe2-other", False)], "loaded only to donate: named, not linked"
+    loci["other"].is_published = True
+    session.flush()
+    assert flags(loci["12"]) == [("probe2-other", True)], "published on this site: linked"
+    # ⚠ The RECIPIENT's flag must not leak into the donor's: publish this one, hide the other.
+    loci["other"].is_published, loci["pangenome"].is_published = False, True
+    session.flush()
+    assert flags(loci["12"]) == [("probe2-other", False)]
+    assert flags(loci["11"]) == [("probe-nuna4", True), ("probe-nuna4", True)], "same catalogue reads its own"
+
+
+def test_the_tab_validator_moves_when_a_DONOR_catalogue_is_published_or_hidden(session, loci, tmp_path):
+    """⛔ Publishing a donor's catalogue changes the body (named → link) and moves neither the recipient's
+    pangenome id nor its load fingerprint, so the validator must carry it (`predictions_data_version`)."""
+    _load(session, loci, _write(tmp_path, GOOD_ROWS))
+    pangenome = loci["pangenome"]
+
+    def version(locus):
+        return predictions_data_version(pangenome, load_predictions(session, pangenome=pangenome, locus=locus))
+
+    hidden = version(loci["12"])
+    loci["other"].is_published = True
+    session.flush()
+    shown = version(loci["12"])
+    assert hidden != shown and hidden.startswith(pangenome.served_annotation_fingerprint() + "-d")
+    assert version(loci["11"]) != shown, "a different set of donors is a different version"
+    # A locus with no call carries no donor flag: its version is the load fingerprint alone.
+    assert version(loci["20"]) == pangenome.served_annotation_fingerprint()
+
+
+def test_the_SITE_LAYOUT_ecoli_none_produced_beside_kp_loaded_with_ecoli_donors(session, loci, tmp_path):
+    """⭐ The first served dump (2026-11-25): kp-71k loads its at-v0.2 file, whose donors sit in kp-71k AND
+    ecoli-probe100, both in the same database; ecoli-probe100 is recorded `--no-served-annotations`, because
+    its probe predictions drew on kp-probe100 donors that no served database holds. Here the seed catalogue
+    (E. coli) plays ecoli-probe100 and `probe2-other` (Kp) plays kp-71k.
+
+    ⛔ Every E. coli locus — the one that DONATES to Kp included — must answer "none produced for this
+    catalogue", with no version, bar or call: never "declined for this locus", which would read as the model
+    having looked at each locus and turned it down. And recording it must not touch Kp's rows."""
+    ecoli, kp = loci["pangenome"], loci["other"]
+    kp_file = _write(tmp_path, [_row(recipient_node="30", n_recipient_genes=9, donor_node="10", n_donor_genes=5,
+                                     **{VERSION_COLUMN: "at-v0.2", CATALOGUE_RUN_COLUMN: OTHER_RUN,
+                                        DONOR_RUN_COLUMN: SEED_RUN})], name="kp71k.tsv")  # fmt: skip
+    _load(session, loci, kp_file, pangenome=kp, set_key="other")
+    record_none_produced(session, pangenome=ecoli)
+    ecoli.is_published = kp.is_published = True
+    session.flush()
+
+    for label in ("10", "11", "12", "20"):  # 10 is the Kp prediction's donor
+        block = load_predictions(session, pangenome=ecoli, locus=loci[label])
+        assert block == {
+            "state": "none_produced", "annotation_model_version": None, "annotation_model_label": None,
+            "serve_cut": None, "calls": [],
+        }, label  # fmt: skip
+    assert ecoli.served_annotation_fingerprint() == "none_produced"
+
+    # ⭐ Kp is untouched by E. coli's statement, and its E. coli donor is linkable: published on this site.
+    served = load_predictions(session, pangenome=kp, locus=loci["other:30"])
+    assert (served["state"], served["annotation_model_label"]) == ("loaded", "annotation-transfer v0.2")
+    assert [(call["donor"]["catalogue_key"], call["donor"]["node_label"], call["donor"]["catalogue_published"])
+            for call in served["calls"]] == [("probe-nuna4", "10", True)]  # fmt: skip
 
 
 def test_the_fingerprint_moves_with_the_LOADED_FILE_not_only_the_version(session, loci, tmp_path):
@@ -489,6 +599,31 @@ def test_a_reload_that_would_delete_ANOTHER_catalogues_donors_is_refused_FIRST(s
     refuse_reload_while_donating(session, loci["pangenome"].pangenome_id)  # cleared → allowed
 
 
+def test_the_pangenome_RELOAD_itself_runs_the_guard_BEFORE_its_frame_build(session, loci, tmp_path, monkeypatch):
+    """⛔ The guard is load-bearing only where the reload CALLS it, and only BEFORE the frame build — hours at
+    71k — or the refusal arrives at commit, after the expensive step. The test above calls the guard directly,
+    so a reload that stopped calling it (or called it after the build) passed it; this one goes through
+    `ingest_locus_catalogue`, with a frame build that fails the test if it is ever reached."""
+    other_file = _write(tmp_path, [_row(recipient_node="30", n_recipient_genes=9, donor_node="10", n_donor_genes=5,
+                                        **{CATALOGUE_RUN_COLUMN: OTHER_RUN, DONOR_RUN_COLUMN: SEED_RUN})],
+                        name="other.tsv")  # fmt: skip
+    _load(session, loci, other_file, pangenome=loci["other"], set_key="other")
+
+    def frame_build_reached(*_args, **_kwargs):
+        raise AssertionError("the frame build ran before the donor guard")
+
+    monkeypatch.setattr(ingest_locus_catalogue_module, "build_catalogue_frames", frame_build_reached)
+    pangenome = loci["pangenome"]
+    with pytest.raises(ServedDonorsBlockReload, match="probe2-other: 1 prediction"):
+        ingest_locus_catalogue_module.ingest_locus_catalogue(
+            session, None, pangenome_id=pangenome.pangenome_id,
+            pathogen_species_id=pangenome.pathogen_species_id, genome_id_by_ordinal=[],
+        )  # fmt: skip
+    assert session.execute(select(func.count()).select_from(ServedLocusAnnotation)).scalar_one() == 1, (
+        "refused before anything was deleted"
+    )
+
+
 # ── the CLI: an instruction, always, and a refusal that writes nothing ─────────────────────────
 def _served_state(engine, run_id):
     with Session(engine) as fresh:
@@ -505,7 +640,7 @@ def _served_state(engine, run_id):
         ["--served-annotations", "/nonexistent/served.tsv", "--no-served-annotations"],  # two instructions
     ],
 )
-def test_the_stage_refuses_a_misconfiguration_WITHOUT_WRITING(engine, seeded, extra):
+def test_the_stage_refuses_a_misconfiguration_WITHOUT_WRITING(engine, seeded, extra, capsys):
     url = engine.url.render_as_string(hide_password=False)
     before = _served_state(engine, SEED_RUN)
     argv = ["--database-url", url, "--stage", "served-annotations", "--set-key", "probe",
@@ -516,6 +651,10 @@ def test_the_stage_refuses_a_misconfiguration_WITHOUT_WRITING(engine, seeded, ex
         code = exit_.code
     assert code == 2
     assert _served_state(engine, SEED_RUN) == before, "a refused instruction wrote something"
+    if not extra:
+        # ⚠ The refusal names the three instructions, rather than a path nobody gave: without its own guard
+        # the stage fell through to "--served-annotations names None", refused for the wrong reason.
+        assert "needs exactly one instruction" in capsys.readouterr().err
 
 
 def test_the_stage_records_NONE_PRODUCED_only_when_told(engine, seeded):
@@ -674,16 +813,20 @@ def _a_locus_with_cross_catalogue_go_and_cog(loaded_url, catalogue_key):
 
 
 def test_the_tab_serves_each_prediction_with_its_OWN_accuracy_and_a_linkable_donor(client, loaded_url):
+    label_of = {"at-v0.1": "annotation-transfer v0.1", "at-v0.2": "annotation-transfer v0.2"}
     with Session(create_engine(loaded_url, future=True)) as session:
         kp = newest_pangenome(session, published_catalogue("kp").run_id)
-        ecoli_key = newest_pangenome(session, published_catalogue("ecoli").run_id).catalogue_key
-        kp_key, fingerprint = kp.catalogue_key, kp.served_annotation_fingerprint()
-    label = _a_locus_with_cross_catalogue_go_and_cog(loaded_url, kp_key)
-    response = client.get(f"/api/v1/catalogues/{kp_key}/loci/{label}/function")
-    predictions = response.get_json()["predictions"]
-    assert (predictions["state"], predictions["annotation_model_version"]) == ("loaded", "at-v0.1")
-    assert predictions["annotation_model_label"] == "annotation-transfer v0.1"
-    assert response.headers["ETag"].endswith(f'-{fingerprint}"'), "the tag tracks the loaded FILE"
+        ecoli = newest_pangenome(session, published_catalogue("ecoli").run_id)
+        ecoli_key, ecoli_published = ecoli.catalogue_key, ecoli.is_published
+        kp_key, fingerprint, version = kp.catalogue_key, kp.served_annotation_fingerprint(), kp.annotation_model_version
+        label = _a_locus_with_cross_catalogue_go_and_cog(loaded_url, kp_key)
+        response = client.get(f"/api/v1/catalogues/{kp_key}/loci/{label}/function")
+        predictions = response.get_json()["predictions"]
+        expected_tag = predictions_data_version(kp, predictions)
+    assert (predictions["state"], predictions["annotation_model_version"]) == ("loaded", version)
+    assert predictions["annotation_model_label"] == label_of[version], "the tab names the version it shows"
+    # ⛔ The tag tracks the loaded FILE and every donor catalogue's published state.
+    assert response.headers["ETag"].endswith(f'-{expected_tag}"') and expected_tag.startswith(f"{fingerprint}-d")
     # ⚠ The stage writes nothing the shell serves, so the shell keeps the pangenome's own tag.
     shell = client.get(f"/api/v1/catalogues/{kp_key}")
     assert "served_annotations" not in shell.get_json()["pangenome"]["omitted_sections"]
@@ -714,6 +857,8 @@ def test_the_tab_serves_each_prediction_with_its_OWN_accuracy_and_a_linkable_don
     across = [call["donor"] for call in predictions["calls"] if not call["donor"]["same_catalogue"]]
     assert across and all(donor["catalogue_key"] == ecoli_key for donor in across)
     assert all(donor["species_name"] == "Escherichia coli" for donor in across)
+    # ⛔ The donor's OWN catalogue's flag, as the database holds it.
+    assert all(donor["catalogue_published"] is ecoli_published for donor in across)
 
 
 def test_the_ladder_is_GONE_from_the_function_response(client):

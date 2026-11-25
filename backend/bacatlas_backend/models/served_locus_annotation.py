@@ -25,8 +25,11 @@ class with namespace roots stripped AFTER the vote. nuna's `functional.top_go_sl
 ascending accession, the roots (`GO:0003674`, `GO:0008150`, `GO:0005575`) sort first, so a node whose
 genes all carry a root and a real class elects the root, has it stripped, and becomes a recipient — 426
 of the 35,588 served GO predictions on the two probes sit beside an observed non-root class in the same
-namespace. Whether to fix the producer or filter here is David's decision; BacAtlas serves what the
-producer wrote and says nothing on the page that this contradicts.
+namespace. ⭐ annotation-transfer v0.2 (2026-11-23) fixes this in the producer — a root now loses a tied
+vote — so a v0.2 file no longer carries those rows; a v0.1 file still does. ⚠ Only TIES moved: a root that
+strictly outvotes every class still makes its node root-only, so even under v0.2 a served locus is not
+guaranteed to state nothing for the claim. BacAtlas serves what the producer wrote and says nothing on the
+page that this contradicts.
 
 Columns the producer writes and this table does NOT keep, and why:
 
@@ -73,7 +76,7 @@ class AnnotationModelVersion:
     new tag.
     """
 
-    #: `at-v0.1` — the tag in file names, columns and the database.
+    #: `at-v0.2` — the tag in file names, columns and the database.
     tag: str
     #: The probability at or above which a prediction is SERVED. ⚠ nuna owns the number
     #: (`score_transfer_calls.SERVE_CUT`); it is restated here only so the ingest can refuse a row below it.
@@ -87,10 +90,21 @@ class AnnotationModelVersion:
         return f"annotation-transfer {self.tag.removeprefix('at-')}"
 
 
+#: ⛔ **An EXPLICIT set, looked up by the exact tag.** A file, a row or a catalogue is served only if its tag
+#: is a key here — never by prefix or by pattern, so `at-v0.20`, `at-v0.2-rc` or `at-v0` is refused like any
+#: other unregistered tag (`test_served_annotations`). The database's CHECK is only the SPELLING
+#: (`ANNOTATION_MODEL_VERSION_PATTERN`); this is the list of versions this build can show.
+#:
 #: ⭐ annotation-transfer v0.1 (David, 2026-11-14): the medoid model, both representations, one donor,
 #: served at p ≥ 0.80, COG functional categories and GO slim in all three namespaces.
+#: ⭐ annotation-transfer v0.2 (David, 2026-11-23): v0.1 with ONE change — a GO namespace root loses a tied
+#: vote (nuna `functional.rank_go_slim`), so a node whose real slim class tied with the root is no longer
+#: read as unannotated and given a prediction beside its own class. Same cut, same claims
+#: (`nuna/docs/annotation_model_versions.md` §2; nuna `score_transfer_calls.SERVE_CUT` is still 0.80).
+_V0_CLAIMS = frozenset({"cog", "mf", "bp", "cc"})
 KNOWN_ANNOTATION_MODEL_VERSIONS: dict[str, AnnotationModelVersion] = {
-    "at-v0.1": AnnotationModelVersion(tag="at-v0.1", serve_cut=0.80, claims=frozenset({"cog", "mf", "bp", "cc"})),
+    "at-v0.1": AnnotationModelVersion(tag="at-v0.1", serve_cut=0.80, claims=_V0_CLAIMS),
+    "at-v0.2": AnnotationModelVersion(tag="at-v0.2", serve_cut=0.80, claims=_V0_CLAIMS),
 }
 
 #: ⛔ The producer's claim key → how BacAtlas addresses it. The GO namespace index is the
@@ -106,7 +120,7 @@ CLAIM_ADDRESS: dict[str, tuple[ServedAnnotationKind, int | None]] = {
 }
 
 def annotation_model_label(tag: str | None) -> str | None:
-    """`at-v0.1` → `annotation-transfer v0.1`; a tag this build does not know keeps its own spelling."""
+    """`at-v0.2` → `annotation-transfer v0.2`; a tag this build does not know keeps its own spelling."""
     if tag is None:
         return None
     known = KNOWN_ANNOTATION_MODEL_VERSIONS.get(tag)
@@ -195,7 +209,7 @@ class ServedLocusAnnotation(Base):
     #: The evidence behind the number: the cosine between the two loci's medoid genes in each space.
     esm_medoid_similarity: Mapped[float] = mapped_column(Float, nullable=False)
     bacformer_medoid_similarity: Mapped[float] = mapped_column(Float, nullable=False)
-    #: `at-v0.1`. ⛔ Never a bare `v0.1` — the CHECK refuses it.
+    #: `at-v0.1` or `at-v0.2`. ⛔ Never a bare `v0.1` — the CHECK refuses it.
     annotation_model_version: Mapped[str] = mapped_column(String(32), nullable=False)
 
     def __repr__(self) -> str:

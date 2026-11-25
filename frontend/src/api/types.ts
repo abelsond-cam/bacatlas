@@ -583,6 +583,12 @@ export interface PredictionDonor {
   readonly catalogue_key: string;
   readonly species_name: string;
   readonly same_catalogue: boolean;
+  /**
+   * ⛔ Whether the donor's catalogue is PUBLISHED on this site (`pangenome.is_published` — offered in the
+   * picker). A donor in another catalogue is LINKED only when this is true; otherwise it is named — its
+   * catalogue, locus and gene — with no link, because a link would open a catalogue this site does not offer.
+   */
+  readonly catalogue_published: boolean;
 }
 
 export interface ServedPrediction {
@@ -619,11 +625,14 @@ export type PredictionState = (typeof PREDICTION_STATES)[number];
 
 export interface PredictionsBlock {
   readonly state: PredictionState;
-  /** `at-v0.1` where loaded, else `null`. */
+  /** The loaded version's tag — `at-v0.1` or `at-v0.2` — else `null`. */
   readonly annotation_model_version: string | null;
-  /** `annotation-transfer v0.1`, never a bare `v0.1` (nuna's clustering ladder has one too). */
+  /**
+   * `annotation-transfer v0.2` — what the page prints, so a reader is told which version they are reading.
+   * ⛔ Never a bare `v0.2`: nuna's clustering ladder spells its versions the same way.
+   */
   readonly annotation_model_label: string | null;
-  /** The accuracy below which nothing is served — 0.80 for annotation-transfer v0.1; null unless loaded. */
+  /** The accuracy below which nothing is served — 0.80 for v0.1 and v0.2; null unless loaded and known. */
   readonly serve_cut: number | null;
   readonly calls: readonly ServedPrediction[];
 }

@@ -199,7 +199,7 @@ def read_served_annotations(path: Path) -> tuple[pd.DataFrame, AnnotationModelVe
             hints.append(
                 "⛔ No `annotation_model_version` column, so the model that made these predictions cannot be "
                 "named — and a prediction shown with an accuracy must say whose accuracy it is. nuna's "
-                "`summarise_transfer_gains.py` must write it (one constant column, e.g. `at-v0.1`); the probe "
+                "`summarise_transfer_gains.py` must write it (one constant column, e.g. `at-v0.2`); the probe "
                 "files of CSD3 job 39455187 predate the annotation model's versioning and carry none."
             )
         if CATALOGUE_RUN_COLUMN in missing or DONOR_RUN_COLUMN in missing:

@@ -1222,6 +1222,7 @@
        "bacformer_medoid_similarity": 0.290253,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "tnp",
         "gene_count": 4,
         "node_label": "8684",
@@ -3659,6 +3660,7 @@
        "bacformer_medoid_similarity": 0.76593,
        "donor": {
         "catalogue_key": "kp-probe100",
+        "catalogue_published": true,
         "display_name": "tuf",
         "gene_count": 24,
         "node_label": "5548",
@@ -4493,6 +4495,7 @@
        "bacformer_medoid_similarity": 0.415376,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "tap",
         "gene_count": 25,
         "node_label": "5242",
@@ -4519,6 +4522,7 @@
        "bacformer_medoid_similarity": 0.361559,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "locus 9943",
         "gene_count": 2,
         "node_label": "9943",
@@ -6464,6 +6468,7 @@
        "bacformer_medoid_similarity": 0.840899,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "nemA",
         "gene_count": 100,
         "node_label": "1119",
@@ -6486,6 +6491,7 @@
        "bacformer_medoid_similarity": 0.840899,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "nemA",
         "gene_count": 100,
         "node_label": "1119",
@@ -6508,6 +6514,7 @@
        "bacformer_medoid_similarity": 0.840899,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "nemA",
         "gene_count": 100,
         "node_label": "1119",
@@ -6530,6 +6537,7 @@
        "bacformer_medoid_similarity": 0.840899,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "nemA",
         "gene_count": 100,
         "node_label": "1119",

@@ -147,24 +147,49 @@ count row**, and **that the cohort carries a label a reader can read** rather th
 Then **annotation-transfer's predictions**, per catalogue, once BOTH catalogues are loaded — a donor may
 sit in the other one (on the probe, 23,556 of Kp's 25,475 predictions come from *E. coli* donors), so this
 is its own stage and not part of `all`. It reads nuna's `{set}_served_annotations.tsv`
-(`proc/analysis/annotation_transfer/medoid/` by default, `--served-annotations` to name another) into
-`served_locus_annotation`, never into `locus_annotation_entry`, and replaces whatever the catalogue held.
+(`summarise_transfer_gains.py`) into `served_locus_annotation`, never into `locus_annotation_entry`, and
+replaces whatever the catalogue held.
 
 ```bash
 .venv/bin/python -m bacatlas_backend.ingest --stage served-annotations --set-key kp --species-key kp \
   --model-label kp_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
   --run-id kp_bacformer_clever_exploded_preclusterkp98pm3b-3b0.5-excl_k100_g100_res0.1_seed0 \
-  --donor-run-id ecoli=ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
+  --served-annotations /path/to/kp_served_annotations.tsv
 ```
 
-⛔ **Refused, with every problem named at once:** a file without an `annotation_model_version` column, or
-naming a version not registered in `models/served_locus_annotation.py` (a bare `v0.1` included — nuna's
-clustering ladder has one too); a row below the version's serve cut; a GO set that is not one slim class
-closed upward through the reference; and ⭐ **a node label resolving to a locus of a different size** than
-the file's `n_recipient_genes` / `n_donor_genes` — the guard that the file was built on THIS run, because
-integer labels resolve in any run. ⭐ **No file is stored, not refused:** the catalogue is recorded as
-having no predictions (`pangenome.annotation_model_version` NULL, `omitted_sections["served_annotations"]`),
-which the Function tab says in words. A file NAMED with `--served-annotations` that is absent is refused.
+⛔ **The stage takes exactly ONE explicit instruction, and infers none:** `--served-annotations PATH` loads
+that file; `--no-served-annotations` records that the model produced none for this catalogue (a finding the
+Function tab states); `--clear-served-annotations` removes the catalogue's predictions and marks them not
+loaded. There is no default path — a path nobody gave is never read as "none produced" — and a named file
+that is absent is refused. `--set-key` must be the token the producer writes as `donor_catalogue` for a donor
+in THIS catalogue (`ecoli`, `kp`). Each row's donor is resolved through the file's own `donor_run_id`, so no
+flag names another catalogue's run (`--donor-run-id` is gone).
+
+⛔ **Refused, with every problem named at once, and nothing written:** a file without its
+`annotation_model_version`, `catalogue_run_id` or `donor_run_id` column; a version that is not EXACTLY one
+registered in `models/served_locus_annotation.py` (`at-v0.1` and `at-v0.2` today — an explicit set, never
+a prefix or a pattern; a bare `v0.1` included, since nuna's clustering ladder has one too) or two versions
+in one file; a `catalogue_run_id` that is not this catalogue's `run_id` (⭐ the identity check); a row below
+the version's serve cut; a COG `S` or a GO set that is not one slim class closed upward through the
+reference; a node label resolving to a locus of a different size than the file's `n_recipient_genes` /
+`n_donor_genes`; and ⛔ **a donor catalogue that is not loaded in this database — the WHOLE file**, because
+the producer kept one donor per node, so the rows from an absent catalogue cannot be dropped and the rest
+served.
+
+⭐ **The catalogue's state is stored, never inferred** — `pangenome.served_annotation_state` is
+`not_loaded`, `none_produced` or `loaded` (the last with `annotation_model_version` and the file's sha256),
+and the Function tab gives each its own sentence, plus a fourth for a locus the model DECLINED in a loaded
+catalogue and a fifth, failing closed, for a version this build does not register. It names the version it
+shows ("annotation-transfer v0.2"), and each prediction carries its own estimated accuracy and its donor.
+⛔ A donor in another catalogue is a LINK only when that catalogue is published on this site
+(`pangenome.is_published`); otherwise it is named — catalogue, locus and gene — with no link. The response's
+ETag carries the load fingerprint and the donor catalogues' published state, both of which change the body
+without moving the pangenome id.
+
+⛔ **Reloading a catalogue (`--stage pangenome`) while predictions are loaded:** its own predictions go with
+its loci and it is reset to `not_loaded`; but if ANOTHER catalogue's predictions take donors from it, the
+reload is refused before the frame build, naming that catalogue and the `--clear-served-annotations`
+command that clears it. Load them again after the reload.
 
 ## The API
 

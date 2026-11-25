@@ -521,7 +521,7 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
   });
 });
 
-// ── the predicted-function card: annotation-transfer v0.1, which replaced the ladder ────────────
+// ── the predicted-function card: annotation-transfer (v0.1, then v0.2), which replaced the ladder ──
 function inference(overrides: Partial<VocabularyInference> = {}): VocabularyInference {
   return { annotation_kind: "cog_orthogroup", own: null, ...overrides };
 }
@@ -557,10 +557,17 @@ function call(overrides: Partial<ServedPrediction> = {}): ServedPrediction {
       catalogue_key: "kp-probe100",
       species_name: "Klebsiella pneumoniae",
       same_catalogue: true,
+      catalogue_published: true,
     },
     ...overrides,
   };
 }
+
+/** A donor in ANOTHER catalogue (E. coli → Kp), published on this site or not. */
+function crossCatalogueDonor(published: boolean): ServedPrediction["donor"] {
+  return { node_label: "3565", display_name: "ompA", gene_count: 72, catalogue_key: "ecoli-probe100",
+           species_name: "Escherichia coli", same_catalogue: false, catalogue_published: published };
+}  // prettier-ignore
 
 function predictions(calls: ServedPrediction[]): PredictionsBlock {
   return {
@@ -576,7 +583,7 @@ function mountCard(block: PredictionsBlock) {
   return mount(PredictedFunctionCard, { props: { predictions: block } });
 }
 
-describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
+describe("⭐ the predicted-function card — annotation-transfer v0.1 and v0.2", () => {
   it("⭐ shows each prediction with ITS OWN estimated accuracy, and no band", () => {
     const card = mountCard(
       predictions([
@@ -636,18 +643,40 @@ describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
   });
 
   it("⛔ LINKS to a donor in ANOTHER catalogue by its key — labels are catalogue-private", async () => {
-    const card = mountCard(
-      predictions([
-        call({ donor: { node_label: "3565", display_name: "ompA", gene_count: 72, catalogue_key: "ecoli-probe100",
-                        species_name: "Escherichia coli", same_catalogue: false } }),
-      ]),
-    );  // prettier-ignore
+    const card = mountCard(predictions([call({ donor: crossCatalogueDonor(true) })]));
     const link = card.find("a.infer-walk");
     expect(link.attributes("href")).toBe("?catalogue=ecoli-probe100#3565");
     expect(card.find("button.infer-walk").exists()).toBe(false);
+    expect(card.find(".predict-donor-named").exists()).toBe(false);
     expect(card.text()).toContain("Escherichia coli");
+    expect(card.text()).not.toContain("does not offer");
     await link.trigger("click");
     expect(card.emitted("walk")).toBeUndefined();
+  });
+
+  it("⛔ NAMES, and never links, a donor whose catalogue this site does NOT publish", async () => {
+    const card = mountCard(predictions([call({ donor: crossCatalogueDonor(false) })]));
+    // ⛔ No link and no walk: a link would open a catalogue the picker does not offer, and a walk would
+    // land on THIS catalogue's locus 3565, a different locus wearing the same label.
+    expect(card.find("a").exists()).toBe(false);
+    expect(card.find("button").exists()).toBe(false);
+    // ⭐ …but the donor is still named: its gene, its locus, its species and its catalogue.
+    expect(card.find(".predict-donor-named").text()).toBe("ompA");
+    const from = card.find(".infer-from").text();
+    expect(from).toContain("locus 3565, 72 genes");
+    expect(from).toContain("Escherichia coli");
+    expect(from).toContain("catalogue ecoli-probe100, which this site does not offer");
+    expect(card.emitted("walk")).toBeUndefined();
+  });
+
+  it("walks to a donor in THIS catalogue whatever its published flag says — the reader is already in it", async () => {
+    const card = mountCard(
+      predictions([call({ donor: { ...call().donor, catalogue_published: false } })]),
+    );
+    expect(card.find("a").exists()).toBe(false);
+    expect(card.find(".predict-donor-named").exists()).toBe(false);
+    await card.find("button.infer-walk").trigger("click");
+    expect(card.emitted("walk")).toEqual([["3565"]]);
   });
 
   // ⛔⛔ The five answers, each its own sentence (review of 9cfa481: three shared one). Each test asserts its
@@ -681,6 +710,25 @@ describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
     expect(card.text()).toContain("so no locus in it carries a predicted function");
   });
 
+  it("⭐ the served E. coli catalogue (`--no-served-annotations`) reads as a fact about the catalogue — not a fault, not 'declined'", () => {
+    // 2026-11-25: ecoli-probe100 is served beside kp-71k with NO predictions of its own (its probe file drew
+    // on kp-probe100 donors no served database holds). Every E. coli locus gets this block. Mounted as the
+    // whole tab, so a failure banner or an alert anywhere on it would be seen.
+    const tab = mountTab({ block: block({ predictions: noPredictions("none_produced") }) });
+    const card = tab.find(".predict");
+    onlySentence(card.text(), "none_produced");
+    expect(card.text()).toContain("produced no predictions for this catalogue");
+    // ⛔ not per-locus: nothing says THIS locus was looked at and turned down
+    expect(card.text()).not.toContain("for this locus");
+    expect(card.find(".infer-tag").exists()).toBe(false);
+    expect(card.find(".predict-call").exists()).toBe(false);
+    // ⛔ not a fault: no alert, no failure wording, no retry anywhere on the tab
+    expect(tab.find("[role='alert']").exists()).toBe(false);
+    expect(tab.find(".pop-error").exists()).toBe(false);
+    expect(tab.find(".pop-retry").exists()).toBe(false);
+    expect(card.text()).not.toMatch(/error|fail|could not|cannot|unavailable|try again/i);
+  });
+
   it("⛔ 'not loaded' is a statement about THIS DATABASE, and says it is not one about the model", () => {
     const card = mountCard(noPredictions("not_loaded"));
     onlySentence(card.text(), "not_loaded");
@@ -688,15 +736,17 @@ describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
   });
 
   it("⛔ a version this build does not know FAILS CLOSED, naming it — never an empty bar", () => {
+    // ⚠ at-v9.9, not at-v0.2: v0.2 is registered since 2026-11-23, and the API labels an unknown tag
+    // with its own spelling (`served_locus_annotation.annotation_model_label`).
     const card = mountCard({
       state: "unknown_model",
-      annotation_model_version: "at-v0.2",
-      annotation_model_label: "at-v0.2",
+      annotation_model_version: "at-v9.9",
+      annotation_model_label: "at-v9.9",
       serve_cut: null,
       calls: [],
     });
     onlySentence(card.text(), "unknown_model");
-    expect(card.text()).toContain("come from at-v0.2");
+    expect(card.text()).toContain("come from at-v9.9");
     expect(card.text()).not.toMatch(/accuracy of\s+or more/);
     // ⛔ and even a calls list arriving beside a null bar is not rendered without the bar it cleared
     const guarded = mountCard({ ...predictions([call()]), serve_cut: null });
@@ -704,11 +754,36 @@ describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
     onlySentence(guarded.text(), "unknown_model");
   });
 
-  it("⛔ never writes a bare 'v0.1' — nuna's clustering ladder has one too", () => {
-    for (const block of [predictions([call()]), predictions([])]) {
+  // ⭐ v0.2 (2026-11-23: a GO namespace root loses a tied vote) — the page names the version it SHOWS, in
+  // both states that carry one, and never the other version's number.
+  function predictionsV2(calls: ServedPrediction[]): PredictionsBlock {
+    return {
+      ...predictions(calls.map((one) => ({ ...one, annotation_model_version: "at-v0.2" }))),
+      annotation_model_version: "at-v0.2",
+      annotation_model_label: "annotation-transfer v0.2",
+    };
+  }
+
+  it("⭐ names annotation-transfer v0.2 when v0.2 is what it shows — with calls, and when it declines", () => {
+    const shown = mountCard(predictionsV2([call()])).text();
+    expect(shown).toContain("From annotation-transfer v0.2:");
+    expect(shown).toContain("Estimated accuracy 92 %");
+    const declined = mountCard(predictionsV2([])).text();
+    onlySentence(declined, "declined");
+    expect(declined).toContain("annotation-transfer v0.2 makes no prediction for this locus");
+    for (const text of [shown, declined]) expect(text).not.toContain("v0.1");
+  });
+
+  it("⛔ never writes a bare version — nuna's clustering ladder spells its versions the same way", () => {
+    for (const [block, label] of [
+      [predictions([call()]), "annotation-transfer v0.1"],
+      [predictions([]), "annotation-transfer v0.1"],
+      [predictionsV2([call()]), "annotation-transfer v0.2"],
+      [predictionsV2([]), "annotation-transfer v0.2"],
+    ] as const) {
       const text = mountCard(block).text();
-      expect(text).toContain("annotation-transfer v0.1");
-      expect(text.replaceAll("annotation-transfer v0.1", "")).not.toContain("v0.1");
+      expect(text).toContain(label);
+      expect(text.replaceAll(label, "")).not.toMatch(/v0\.\d/);
     }
   });
 });

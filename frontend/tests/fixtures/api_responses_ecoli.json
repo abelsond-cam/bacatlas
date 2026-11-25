@@ -2382,6 +2382,7 @@
        "bacformer_medoid_similarity": 0.52042,
        "donor": {
         "catalogue_key": "kp-probe100",
+        "catalogue_published": true,
         "display_name": "tnp",
         "gene_count": 16,
         "node_label": "6202",
@@ -9827,6 +9828,7 @@
        "bacformer_medoid_similarity": 0.662251,
        "donor": {
         "catalogue_key": "kp-probe100",
+        "catalogue_published": true,
         "display_name": "rpsN",
         "gene_count": 100,
         "node_label": "2526",
@@ -9849,6 +9851,7 @@
        "bacformer_medoid_similarity": 0.662251,
        "donor": {
         "catalogue_key": "kp-probe100",
+        "catalogue_published": true,
         "display_name": "rpsN",
         "gene_count": 100,
         "node_label": "2526",
@@ -9871,6 +9874,7 @@
        "bacformer_medoid_similarity": 0.662251,
        "donor": {
         "catalogue_key": "kp-probe100",
+        "catalogue_published": true,
         "display_name": "rpsN",
         "gene_count": 100,
         "node_label": "2526",
@@ -9901,6 +9905,7 @@
        "bacformer_medoid_similarity": 0.706251,
        "donor": {
         "catalogue_key": "ecoli-probe100",
+        "catalogue_published": true,
         "display_name": "rplF",
         "gene_count": 100,
         "node_label": "1514",

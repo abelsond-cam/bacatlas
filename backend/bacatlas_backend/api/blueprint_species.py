@@ -56,7 +56,7 @@ from bacatlas_backend.services.projected_genome_service import (
     resolve_projected_genome,
 )
 from bacatlas_backend.services.reference_name_service import reference_names
-from bacatlas_backend.services.served_annotation_service import load_predictions
+from bacatlas_backend.services.served_annotation_service import load_predictions, predictions_data_version
 from bacatlas_backend.services.species_catalogue_service import (
     SpeciesNotPublished,
     list_catalogues,
@@ -116,8 +116,9 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     this locus, each with its own `estimated_accuracy` and donor); `calibration` REMOVED;
 #:     `inference.representation` REMOVED; and each `inference.vocabularies[]` entry loses `walk` and
 #:     `candidate`, keeping `annotation_kind` and `own`. Enumerated, as 4 is, because a reader diffing a
-#:     cached body needs the list. ⚠ The block's fields moved once more before this version left the branch
-#:     (`no_predictions_reason` → `state`); 8 was never served, so no client holds the earlier draft.
+#:     cached body needs the list. ⚠ The block's fields moved twice more before this version left the
+#:     branch (`no_predictions_reason` → `state`; each donor gained `catalogue_published`); 8 was never
+#:     served, so no client holds an earlier draft.
 RESPONSE_SHAPE_VERSION = 8
 
 #: Arrangements per page past the display cut.
@@ -154,8 +155,10 @@ def _immutable(payload, pangenome_id: int | None, *, data_version: str | None = 
         # ⚠ `data_version` is for a response whose body can change WITHOUT the pangenome id moving: the
         # served predictions are loaded into an existing catalogue by their own stage, so the catalogue's
         # load fingerprint (`Pangenome.served_annotation_fingerprint`: state, version and the file's
-        # sha256) joins the tag. The version alone did not move when a corrected file was reloaded under
-        # it (review of 9cfa481; `a-validator-must-track-shape-not-just-data`). ⛔ What it does NOT do:
+        # sha256) joins the tag, with each donor catalogue's published state
+        # (`served_annotation_service.predictions_data_version`). The version alone did not move when a
+        # corrected file was reloaded under it (review of 9cfa481;
+        # `a-validator-must-track-shape-not-just-data`). ⛔ What it does NOT do:
         # reach a browser inside `max-age`, which never asks — see `CACHE_CONTROL`.
         suffix = f"-{data_version}" if data_version else ""
         response.headers["ETag"] = f'"{pangenome_id}-v{RESPONSE_SHAPE_VERSION}{suffix}"'
@@ -587,11 +590,14 @@ def get_locus_arrangements(species_key: str, locus_label: str):
 def get_locus_function(species_key: str, locus_label: str):
     """The Function tab — fetched on tab open, not on every walk.
 
-    ⭐⭐ **Its predictions are annotation-transfer v0.1's** (`predictions`), which REPLACED the
-    5-nearest-loci ladder on 2026-11-14 (David): one donor per claim, served only at a calibrated
-    accuracy of 0.80 or more, each call carrying its OWN number and no band. A catalogue with no
-    predictions says so in `predictions.no_predictions_reason`; a locus the model declined gets an empty
-    `calls` beside the version that declined it. ⛔ The ladder's `calibration` block and the walk's
+    ⭐⭐ **Its predictions are annotation-transfer's** (`predictions` — v0.1, or v0.2 from 2026-11-23, named
+    by `annotation_model_label`), which REPLACED the 5-nearest-loci ladder on 2026-11-14 (David): one donor
+    per claim, served only at a calibrated accuracy of 0.80 or more, each call carrying its OWN number and
+    no band. `predictions.state` says where the catalogue stands (`not_loaded`, `none_produced`, `loaded`,
+    or `unknown_model` for a version this build does not register); a locus the model declined gets an
+    empty `calls` beside the version that declined it. Each donor says whether its catalogue is published
+    on this site (`catalogue_published`), which is when the page may link to it. ⛔ The ladder's
+    `calibration` block and the walk's
     `walk`/`candidate` went with it; the measurement itself survives in
     `instruments/annotation_transfer.py`, which other code reads.
 
@@ -626,6 +632,7 @@ def get_locus_function(species_key: str, locus_label: str):
         locus = detail.locus
         grouped = load_function_block(session, locus_id=locus.locus_id)
         names = reference_names(session)
+        predictions = load_predictions(session, pangenome=pangenome, locus=locus)
         return _immutable(
             {
                 "inference": load_inference(
@@ -634,7 +641,7 @@ def get_locus_function(species_key: str, locus_label: str):
                 # ⛔ Separate from `annotations` and `inference`, never merged into either: those are
                 # what this node's genes SAY, this is what the annotation model PREDICTS, and a reader
                 # cannot be left to tell them apart by context.
-                "predictions": load_predictions(session, pangenome=pangenome, locus=locus),
+                "predictions": predictions,
                 "annotations": {
                     kind: [serialise_annotation_entry(entry, names) for entry in entries]
                     for kind, entries in grouped.items()
@@ -658,7 +665,9 @@ def get_locus_function(species_key: str, locus_label: str):
                 },
             },
             pangenome.pangenome_id,
-            data_version=pangenome.served_annotation_fingerprint(),
+            # ⛔ The load fingerprint AND every donor catalogue's published state: each changes this body
+            # without moving the pangenome id (`predictions_data_version`).
+            data_version=predictions_data_version(pangenome, predictions),
         )
 
 

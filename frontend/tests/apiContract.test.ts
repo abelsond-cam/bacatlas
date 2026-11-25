@@ -832,6 +832,10 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       const across = predictions.calls.find((call) => !call.donor.same_catalogue)!;
       expect(across).toBeDefined();
       expect(across.donor.catalogue_key).not.toBe(recorded.species.pangenome.catalogue_key);
+      // ⛔ The recording's donor catalogue is published (both probes are), so the link below is licensed.
+      // A recording where it is not would test the named-donor form instead — `function.test.ts` holds both.
+      expect(across.donor.catalogue_published).toBe(true);
+
 
       const tab = mount(FunctionTab, {
         props: {
@@ -851,7 +855,7 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       // the stated GO class leads; what it implies is "within", named from the reference
       expect(card.text()).toContain(lineage.terms[0]!.name!);
       expect(card.text()).toContain(`within ${lineage.terms.slice(1).map((term) => term.name).join(", ")}`);
-      // ⛔ a donor in another catalogue is LINKED by its key, never walked inside this one
+      // ⛔ a donor in another PUBLISHED catalogue is LINKED by its key, never walked inside this one
       expect(card.find(`a.infer-walk[href="?catalogue=${across.donor.catalogue_key}#${across.donor.node_label}"]`).exists()).toBe(true);
     });
 

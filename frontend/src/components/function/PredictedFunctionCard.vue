@@ -2,9 +2,10 @@
 /**
  * **Predicted function** — what annotation-transfer suggests for this locus, each with its own accuracy.
  *
- * ⭐ It replaced the 5-nearest-loci ladder (David, 2026-11-14). annotation-transfer v0.1 copies the
- * classes of ONE similar locus — the donor, whose medoid gene is the nearest in both ESM and Bacformer
- * space by a fitted score — and serves the copy only where its calibrated accuracy is 0.80 or more.
+ * ⭐ It replaced the 5-nearest-loci ladder (David, 2026-11-14). annotation-transfer (v0.1, and v0.2 since
+ * 2026-11-23) copies the classes of ONE similar locus — the donor, whose medoid gene is the nearest in both
+ * ESM and Bacformer space by a fitted score — and serves the copy only where its calibrated accuracy is 0.80
+ * or more. ⛔ The card names the version it shows (`annotation_model_label`) in every state that has one.
  *
  * ⛔ **Separate from every other card on this tab, and it must stay separate.** The cards above print
  * what this locus's own genes SAY; this one prints what the model PREDICTS. So it keeps the dashed
@@ -14,7 +15,7 @@
  * ⛔ **Five answers, one sentence each, and none may read like another** (`PredictionsBlock.state`; the
  * review of 9cfa481 found three of them sharing one sentence):
  *  1. `loaded`, with calls → one line per claim, each with ITS OWN estimated accuracy (no bands — David,
- *     2026-10-28) and its donor, linked;
+ *     2026-10-28) and its donor — walked to, linked, or only named (`donorReach`);
  *  2. `loaded`, no calls → the model DECLINED this locus;
  *  3. `none_produced` → the model produced none for this catalogue: a finding about the model;
  *  4. `not_loaded` → none are loaded into this database: says nothing about the model;
@@ -80,15 +81,30 @@ const lines = computed(() =>
       broader,
       accuracy: estimatedAccuracyPercent(call.estimated_accuracy),
       donor: call.donor,
+      reach: donorReach(call),
       // ⛔ Locus labels are catalogue-private: a donor in ANOTHER catalogue is reached by its key, and
       // a walk inside this page would land on a different locus wearing the same number.
-      href: call.donor.same_catalogue
-        ? null
-        : `?${new URLSearchParams({ catalogue: call.donor.catalogue_key }).toString()}#${call.donor.node_label}`,
+      href: `?${new URLSearchParams({ catalogue: call.donor.catalogue_key }).toString()}#${call.donor.node_label}`,
       similarity: `ESM ${call.esm_medoid_similarity.toFixed(3)} · Bacformer ${call.bacformer_medoid_similarity.toFixed(3)}`,
     };
   }),
 );
+
+/**
+ * ⛔ How a reader reaches the donor — three ways, decided here and nowhere else.
+ *
+ *  - `walk` — the donor is in THIS catalogue: an in-page walk. ⚠ Locus labels are catalogue-private, so
+ *    this is the only case a bare label may be walked to.
+ *  - `link` — another catalogue, PUBLISHED on this site: a link by its key (`?catalogue=`).
+ *  - `named` — another catalogue this site does NOT offer: no link at all — a link would open a catalogue
+ *    the picker does not list — so the donor is named by its catalogue, locus and gene instead.
+ */
+type DonorReach = "walk" | "link" | "named";
+
+function donorReach(call: ServedPrediction): DonorReach {
+  if (call.donor.same_catalogue) return "walk";
+  return call.donor.catalogue_published ? "link" : "named";
+}
 
 /** "80 %" — the bar, in the page's own percent form. */
 const bar = computed(() =>
@@ -145,15 +161,17 @@ const bar = computed(() =>
         <p class="infer-from">
           from
           <button
-            v-if="line.href === null"
+            v-if="line.reach === 'walk'"
             type="button"
             class="infer-walk"
             @click="emit('walk', line.donor.node_label)"
           >{{ line.donor.display_name }}</button>
-          <a v-else class="infer-walk" :href="line.href">{{ line.donor.display_name }}</a>
+          <a v-else-if="line.reach === 'link'" class="infer-walk" :href="line.href">{{ line.donor.display_name }}</a>
+          <span v-else class="predict-donor-named">{{ line.donor.display_name }}</span>
           (locus {{ line.donor.node_label }}, {{ line.donor.gene_count.toLocaleString() }}
           {{ line.donor.gene_count === 1 ? "gene" : "genes" }}<template v-if="!line.donor.same_catalogue">,
-            <em>{{ line.donor.species_name }}</em></template>)
+            <em>{{ line.donor.species_name }}</em></template><template v-if="line.reach === 'named'">,
+            catalogue <code>{{ line.donor.catalogue_key }}</code>, which this site does not offer</template>)
           · medoid similarity {{ line.similarity }}
         </p>
       </div>

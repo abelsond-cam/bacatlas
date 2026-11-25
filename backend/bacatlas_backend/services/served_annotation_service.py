@@ -1,8 +1,15 @@
 """The Function tab's predictions — what annotation-transfer suggests for a locus, each with its own accuracy.
 
-⭐ **This replaced the 5-nearest-loci ladder** (David, 2026-11-14): annotation-transfer v0.1 copies the best
-donor's classes, single donor, and serves a prediction only at a calibrated accuracy of 0.80 or more. The
-page shows each prediction's OWN number and no bands (David, 2026-10-28).
+⭐ **This replaced the 5-nearest-loci ladder** (David, 2026-11-14): annotation-transfer (v0.1; v0.2 from
+2026-11-23) copies the best donor's classes, single donor, and serves a prediction only at a calibrated
+accuracy of 0.80 or more. The page shows each prediction's OWN number and no bands (David, 2026-10-28), and
+the version's label (`annotation_model_label`) beside them.
+
+⛔ **A donor in another catalogue is linked only where that catalogue is PUBLISHED on this site**
+(`donor.catalogue_published` = the donor pangenome's `is_published`, which means *offer this one in the
+picker*). The ingest guarantees the donor's catalogue is in this database, not that it is offered: a
+catalogue loaded only to donate, or staged and not yet shown, would otherwise be one click away from a
+reader. The page names such a donor — catalogue, locus and gene — without a link.
 
 ⛔ **Five answers, keyed by `state`, and none may read like another** (review of 9cfa481 found three of
 them sharing one sentence):
@@ -21,6 +28,8 @@ aggregates over the catalogue: the version is read off the pangenome row the rou
 """
 
 from __future__ import annotations
+
+from hashlib import blake2b
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, aliased
@@ -76,6 +85,7 @@ def load_predictions(session: Session, *, pangenome: Pangenome, locus: Locus) ->
             donor.member_gene_count,
             donor.pangenome_id,
             donor_pangenome.catalogue_key,
+            donor_pangenome.is_published,
             donor_species.scientific_name,
         )
         .join(donor, donor.locus_id == ServedLocusAnnotation.donor_locus_id)
@@ -117,7 +127,34 @@ def load_predictions(session: Session, *, pangenome: Pangenome, locus: Locus) ->
                     "catalogue_key": row.catalogue_key,
                     "species_name": row.scientific_name,
                     "same_catalogue": row.pangenome_id == pangenome.pangenome_id,
+                    # ⛔ Whether a LINK to the donor may be offered: its catalogue is published on this site.
+                    # Read from the donor's OWN pangenome row, so it is part of this body that neither
+                    # the recipient's id nor its load fingerprint tracks — `predictions_data_version`.
+                    "catalogue_published": bool(row.is_published),
                 },
             }
         )
     return {**block, "calls": calls}
+
+
+def predictions_data_version(pangenome: Pangenome, predictions: dict) -> str:
+    """What the Function tab's validator keys on for its `predictions` block.
+
+    ⭐ The catalogue's load fingerprint (state, version, the file's sha256), and the published state of every
+    donor's catalogue. ⛔ Both change the body without moving the recipient's pangenome id: a reload of a
+    corrected file (review of 9cfa481), and publishing or hiding a donor's catalogue, which turns a named donor
+    into a link or back. A tag that tracks only the first would replay a stale link state
+    (`a-validator-must-track-shape-not-just-data`).
+
+    ⚠ Every donor, the same-catalogue ones included: the page walks to those whatever their flag says, but
+    the flag is still in the body, and a validator tracks the body, not what one client makes of it. A locus
+    with no call carries no flag, so its version is the fingerprint alone, exactly as before.
+    """
+    fingerprint = pangenome.served_annotation_fingerprint()
+    donors = sorted(
+        {(call["donor"]["catalogue_key"], call["donor"]["catalogue_published"]) for call in predictions["calls"]}
+    )
+    if not donors:
+        return fingerprint
+    published = ",".join(f"{key}={int(flag)}" for key, flag in donors)
+    return f"{fingerprint}-d{blake2b(published.encode(), digest_size=4).hexdigest()}"

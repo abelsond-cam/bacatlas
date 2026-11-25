@@ -48,7 +48,7 @@ from bacatlas_backend.models.pathogen_species import PathogenSpecies
 #: 6 (2026-11-14): each of the shell's `similarity_baselines` gained `estimator` ("mean" | "median").
 #: 7 (2026-11-14): and `unmeasured_views` — the card views the build did not compute, which it hides.
 #: 8 (2026-11-14): the Function tab's ladder replaced by annotation-transfer v0.1 — `predictions` (with its
-#: `state`) added,
+#: `state`, and each donor's `catalogue_published`) added,
 #: `calibration`, `inference.representation` and each vocabulary's `walk`/`candidate` removed. Pinned in
 #: `test_the_function_tab_carries_PREDICTIONS_and_NOT_the_ladder` below.
 EXPECTED_RESPONSE_SHAPE_VERSION = 8
@@ -172,7 +172,7 @@ FUNCTION_PREDICTIONS = {
     "predictions.calls.donor", "predictions.calls.donor.node_label",
     "predictions.calls.donor.display_name", "predictions.calls.donor.gene_count",
     "predictions.calls.donor.catalogue_key", "predictions.calls.donor.species_name",
-    "predictions.calls.donor.same_catalogue",
+    "predictions.calls.donor.same_catalogue", "predictions.calls.donor.catalogue_published",
 }  # fmt: skip
 
 
