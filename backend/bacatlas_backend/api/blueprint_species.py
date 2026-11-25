@@ -21,7 +21,6 @@ from hashlib import blake2b
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy import select
 
-from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.models.genome import Genome
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_similarity import pair_estimator, unmeasured_views
@@ -34,7 +33,7 @@ from bacatlas_backend.serialisers.locus_serialiser import (
 )
 from bacatlas_backend.serialisers.projected_genome_serialiser import serialise_projected_genome
 from bacatlas_backend.services.audit_residual_service import load_audit_residuals
-from bacatlas_backend.services.function_inference_service import calibration_for, load_inference
+from bacatlas_backend.services.function_inference_service import load_inference
 from bacatlas_backend.services.gene_sequence_service import (
     SequenceUnavailable,
     load_gene_sequences,
@@ -57,6 +56,7 @@ from bacatlas_backend.services.projected_genome_service import (
     resolve_projected_genome,
 )
 from bacatlas_backend.services.reference_name_service import reference_names
+from bacatlas_backend.services.served_annotation_service import load_predictions
 from bacatlas_backend.services.species_catalogue_service import (
     SpeciesNotPublished,
     list_catalogues,
@@ -111,13 +111,20 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     (2026-11-14), so the similarity card names the statistic it shows: a lean build's numbers are means.
 #: 7 — `unmeasured_views` (`["weak", "own"]` on a lean build, `[]` on a full audit) ADDED to each baseline
 #:     (2026-11-14), so the card hides a view the build did not compute instead of saying "Not measurable".
-RESPONSE_SHAPE_VERSION = 7
+#: 8 — THE FUNCTION TAB'S LADDER IS REPLACED BY annotation-transfer v0.1 (2026-11-14). On the function
+#:     response: `predictions` ADDED (`state`, the version and its label, the serve cut, and the calls for
+#:     this locus, each with its own `estimated_accuracy` and donor); `calibration` REMOVED;
+#:     `inference.representation` REMOVED; and each `inference.vocabularies[]` entry loses `walk` and
+#:     `candidate`, keeping `annotation_kind` and `own`. Enumerated, as 4 is, because a reader diffing a
+#:     cached body needs the list. ⚠ The block's fields moved once more before this version left the branch
+#:     (`no_predictions_reason` → `state`); 8 was never served, so no client holds the earlier draft.
+RESPONSE_SHAPE_VERSION = 8
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
 
 
-def _immutable(payload, pangenome_id: int | None):
+def _immutable(payload, pangenome_id: int | None, *, data_version: str | None = None):
     """Attach the caching headers every response of a built catalogue is entitled to.
 
     ⛔ **The two LIST routes used to get no validator at all.** `/species` and `/catalogues` pass
@@ -144,7 +151,14 @@ def _immutable(payload, pangenome_id: int | None):
     if pangenome_id is not None:
         # ⛔ The shape version is IN the tag: the body changes when the pangenome changes OR when a
         # release changes what the response carries, and only the first of those used to be here.
-        response.headers["ETag"] = f'"{pangenome_id}-v{RESPONSE_SHAPE_VERSION}"'
+        # ⚠ `data_version` is for a response whose body can change WITHOUT the pangenome id moving: the
+        # served predictions are loaded into an existing catalogue by their own stage, so the catalogue's
+        # load fingerprint (`Pangenome.served_annotation_fingerprint`: state, version and the file's
+        # sha256) joins the tag. The version alone did not move when a corrected file was reloaded under
+        # it (review of 9cfa481; `a-validator-must-track-shape-not-just-data`). ⛔ What it does NOT do:
+        # reach a browser inside `max-age`, which never asks — see `CACHE_CONTROL`.
+        suffix = f"-{data_version}" if data_version else ""
+        response.headers["ETag"] = f'"{pangenome_id}-v{RESPONSE_SHAPE_VERSION}{suffix}"'
     else:
         digest = blake2b(response.get_data(), digest_size=8).hexdigest()
         response.headers["ETag"] = f'"{digest}-v{RESPONSE_SHAPE_VERSION}"'
@@ -369,6 +383,10 @@ def get_species_catalogue(species_key: str):
                 "example_locus_rows": catalogue.example_locus_rows,
             },
             pangenome.pangenome_id,
+            # ⚠ NO served fingerprint here, deliberately: the served stage writes nothing this body carries
+            # (since 2026-11-14 it no longer touches `omitted_sections`, which this route serialises), and the
+            # shell's tag is the one the genome listing shares by design (`test_genome_listing_endpoint`). A
+            # served field added to this body must add `data_version=pangenome.served_annotation_fingerprint()`.
         )
 
 
@@ -569,10 +587,13 @@ def get_locus_arrangements(species_key: str, locus_label: str):
 def get_locus_function(species_key: str, locus_label: str):
     """The Function tab — fetched on tab open, not on every walk.
 
-    ⭐ Carries its own **calibration**: the measured agreement rate for every (similarity tier,
-    depth) the inference ladder can quote, recomputed from the loaded catalogue rather than copied
-    out of the write-up. ~3.6 kB of cells on a cold-path response, so the reader can see the whole
-    ladder instead of one rate presented without its neighbours.
+    ⭐⭐ **Its predictions are annotation-transfer v0.1's** (`predictions`), which REPLACED the
+    5-nearest-loci ladder on 2026-11-14 (David): one donor per claim, served only at a calibrated
+    accuracy of 0.80 or more, each call carrying its OWN number and no band. A catalogue with no
+    predictions says so in `predictions.no_predictions_reason`; a locus the model declined gets an empty
+    `calls` beside the version that declined it. ⛔ The ladder's `calibration` block and the walk's
+    `walk`/`candidate` went with it; the measurement itself survives in
+    `instruments/annotation_transfer.py`, which other code reads.
 
     ⛔ **It no longer carries `go_verdicts`, and that is a retirement rather than an omission**
     (David, 2026-10-05). The verdict was `worst_relation` — Pfam's domain-architecture comparator —
@@ -584,11 +605,9 @@ def get_locus_function(species_key: str, locus_label: str):
     verdict into the STATIC payload the published pages read, and `test_catalogue_parity` pins the
     two to each other. This route simply stops serving it.
 
-    ⭐ And its **propagation** base rate, which rides INSIDE `inference` rather than beside the
-    calibration — nested on `own` and on `candidate.donor`, because it qualifies one node's call
-    (how often that call covers the members not carrying it) rather than the ladder as a whole. It
-    needs no top-level block for the same reason: a catalogue-wide table of band rates would be a
-    second copy of the one cell the page actually quotes.
+    ⭐ And its **propagation** base rate, which rides INSIDE `inference` on each vocabulary's `own`
+    call, because it qualifies one node's call (how often that call covers the members not carrying
+    it) rather than the catalogue as a whole.
     """
     with _session() as session:
         try:
@@ -609,18 +628,13 @@ def get_locus_function(species_key: str, locus_label: str):
         names = reference_names(session)
         return _immutable(
             {
-                # ⛔ Separate from `annotations`, never merged into it: one is what this node's genes
-                # SAY, the other is what a neighbour SUGGESTS, and a reader cannot be left to tell
-                # them apart by context.
                 "inference": load_inference(
                     session, pangenome_id=pangenome.pangenome_id, locus=locus
                 ),
-                "calibration": {
-                    kind.value: calibration_for(
-                        session, pangenome_id=pangenome.pangenome_id, annotation_kind=kind
-                    ).as_json()
-                    for kind in SUPPORTED_KINDS
-                },
+                # ⛔ Separate from `annotations` and `inference`, never merged into either: those are
+                # what this node's genes SAY, this is what the annotation model PREDICTS, and a reader
+                # cannot be left to tell them apart by context.
+                "predictions": load_predictions(session, pangenome=pangenome, locus=locus),
                 "annotations": {
                     kind: [serialise_annotation_entry(entry, names) for entry in entries]
                     for kind, entries in grouped.items()
@@ -644,6 +658,7 @@ def get_locus_function(species_key: str, locus_label: str):
                 },
             },
             pangenome.pangenome_id,
+            data_version=pangenome.served_annotation_fingerprint(),
         )
 
 

@@ -57,6 +57,7 @@ from bacatlas_backend.ingest.derive_locus_ranking import (
 )
 from bacatlas_backend.ingest.ingest_genome_locus_counts import write_genome_locus_counts
 from bacatlas_backend.ingest.ingest_propagation_rates import write_propagation_rates
+from bacatlas_backend.ingest.ingest_served_annotations import refuse_reload_while_donating, reset_served_state
 from bacatlas_backend.ingest.phase_report import phase
 from bacatlas_backend.ingest.staging_table_loader import copy_rows
 from bacatlas_backend.models.enumerations import (
@@ -638,8 +639,14 @@ def _delete_pangenome_layer(session: Session, pangenome_id: int) -> None:
             "re-run `--stage projection` to place them again"
         )
 
-    # `locus` last: annotation entries, the cross-tab and the geometry cascade from it.
+    # `locus` last: annotation entries, the cross-tab, the geometry and this catalogue's own served
+    # predictions cascade from it. ⚠ Served rows whose DONOR is here are held by the deferred donor key until
+    # commit, by which time the same-catalogue ones have cascaded away; another catalogue's were refused
+    # before any of this ran (`refuse_reload_while_donating`).
     session.query(Locus).filter(Locus.pangenome_id == pangenome_id).delete(synchronize_session=False)
+    # ⛔ Its predictions went with its loci, so it is NOT LOADED — never left naming a version over no rows,
+    # which made every locus read "declined" (review of 9cfa481).
+    reset_served_state(session, pangenome_id)
     session.flush()
 
 
@@ -668,6 +675,9 @@ def ingest_locus_catalogue(
     # `go_verdicts` — that mapping does no upward closure and strips no root. Two folds for one
     # question is how a stored verdict and a served one disagree with nothing to say so.
     annotation_fold = gene_ontology_fold(session)
+    # ⛔ BEFORE the frame build, which is the expensive step: a reload that would delete another catalogue's
+    # prediction donors is refused now, by name, rather than at commit hours later.
+    refuse_reload_while_donating(session, pangenome_id)
     frames = frames if frames is not None else build_catalogue_frames(
         artifacts, annotation_fold=annotation_fold, allow_missing_strand=allow_missing_strand
     )

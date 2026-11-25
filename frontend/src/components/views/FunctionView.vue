@@ -2,7 +2,7 @@
 /**
  * The Function tab — COG, GO and EC/KEGG across every member gene, fetched when the tab opens.
  *
- * ⚠ It also carries the inferred-function card, whose donor is **walkable**: a suggestion is only as
+ * ⚠ It also carries the predicted-function card, whose donor is **walkable**: a prediction is only as
  * good as the node it came from, so the reader can go and look at that node. The walk goes through
  * the same navigation store every other walkable block uses, so it lands in history identically.
  */

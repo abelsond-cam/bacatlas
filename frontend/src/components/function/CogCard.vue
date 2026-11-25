@@ -8,13 +8,12 @@
  * the card says so, because the alternative reads as a hole in the locus when it is a hole in the
  * annotation.
  *
- * ⛔ **This card still states only what the genes SAY — it does not predict.** Propagating a COG to
- * the unannotated members is *annotation transfer*, and it now exists, but as its own card
- * (`InferredFunctionCard.vue`) with the four things it needed before it could: a transfer rule (the
- * similarity ladder David chose, 2026-10-03), a confidence measure (the agreement rate measured on
- * the loaded catalogue), a decision about discordant and unverifiable loci (a call resting on one
- * gene is marked as unchecked, and the measured rate at which it still covers the node is stated
- * above the cards), and a marking that cannot be mistaken for a Bakta call. ⚠ **Keep
+ * ⛔ **This card still states only what the genes SAY — it does not predict.** Predicting a function
+ * for a locus is *annotation transfer*, and it exists, but as its own card
+ * (`PredictedFunctionCard.vue`, annotation-transfer v0.1 since 2026-11-14, which replaced the
+ * similarity ladder David chose on 2026-10-03) with what it needed before it could: a transfer rule,
+ * a calibrated accuracy per prediction, and a marking that cannot be mistaken for a Bakta call. ⚠ It
+ * predicts the COG CATEGORY (the letter), not the accession this card lists. ⚠ **Keep
  * that separation.** Nothing inferred belongs on this card; the two sit side by side so a reader can
  * see which is which, which is the whole reason the transfer was held back until it could be.
  *

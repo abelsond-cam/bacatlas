@@ -44,6 +44,7 @@ from bacatlas_backend.models.projected_genome import (  # noqa: F401
     ProjectedGenome,
 )
 from bacatlas_backend.models.reference_vocabulary import PfamFamily  # noqa: F401
+from bacatlas_backend.models.served_locus_annotation import ServedLocusAnnotation  # noqa: F401
 
 __all__ = [
     "Genome",
@@ -72,4 +73,5 @@ __all__ = [
     "PathogenSpecies",
     "ProjectedGenePlacement",
     "ProjectedGenome",
+    "ServedLocusAnnotation",
 ]

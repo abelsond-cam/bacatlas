@@ -45,10 +45,10 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        # ⚠ The default 60 s would answer 504 to a slow request that gunicorn is still serving. A
-        # worker's FIRST Function tab computes the catalogue's agreement ladder (~6 s per worker on
-        # the 71,435-genome catalogue on the laptop; more on 2 vCPU), so this matches gunicorn's own
-        # `--timeout` (backend/Dockerfile). ⚠ Cloudflare's tunnel still gives up at 100 s, whatever
+        # ⚠ The default 60 s would answer 504 to a slow request that gunicorn is still serving, so this
+        # matches gunicorn's own `--timeout` (backend/Dockerfile). The slow request it was raised for — a
+        # worker's first Function tab computing the agreement ladder — went with the ladder on 2026-11-14;
+        # the value is kept until someone decides to lower both. ⚠ Cloudflare's tunnel still gives up at 100 s, whatever
         # this says. ⛔ On the gated instance nginx serves a BIND-MOUNTED copy of this template, which
         # a `git pull` does not touch: re-render it (launching_bacatlas_org.md §7a) or this line
         # never reaches the server.

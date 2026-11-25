@@ -164,6 +164,42 @@ class AnnotationKind(enum.Enum):
     KEGG_ORTHOLOGY = "kegg_orthology"
 
 
+class ServedAnnotationKind(enum.Enum):
+    """Which vocabulary a `served_locus_annotation` row PREDICTS — annotation-transfer's own claims.
+
+    ⛔ **Its own enum, not `AnnotationKind`.** annotation-transfer v0.1 predicts COG FUNCTIONAL
+    CATEGORIES (the letters, level 1), which no `locus_annotation_entry` row holds: that table's
+    `cog_orthogroup` is the accession (`COG0450`), two orders of magnitude finer. Filing a category
+    letter under `cog_orthogroup` would make `J` read as a COG id, and adding a value to the shared
+    enum would put a vocabulary the observed table never holds into its type. GO slim is the same
+    vocabulary on both sides, so it keeps the same spelling.
+    """
+
+    COG_FUNCTIONAL_CATEGORY = "cog_functional_category"
+    GENE_ONTOLOGY_SLIM = "gene_ontology_slim"
+
+
+class ServedAnnotationState(enum.Enum):
+    """Where a catalogue stands with annotation-transfer's predictions — `pangenome.served_annotation_state`.
+
+    ⛔ **Three states, because three different facts read alike as "nothing here"** (review of 9cfa481):
+
+    * ``NOT_LOADED`` — nobody has loaded this catalogue's predictions, or a catalogue reload removed them.
+      A statement about THIS DATABASE, never about the model: the producer may well have predictions.
+    * ``NONE_PRODUCED`` — an operator stated, explicitly (`--no-served-annotations`), that the model
+      produced none for this catalogue. A finding about the model.
+    * ``LOADED`` — the rows are here, with the version and the file fingerprint they came from. A locus
+      with no row in this state is one the model DECLINED.
+
+    ⚠ ``NOT_LOADED`` is the default and the state a catalogue reload resets to, because the reload
+    cascade-deletes the rows: a version left behind would make every locus read "declined".
+    """
+
+    NOT_LOADED = "not_loaded"
+    NONE_PRODUCED = "none_produced"
+    LOADED = "loaded"
+
+
 class PropagationVerdict(enum.Enum):
     """Whether a node's own annotated genes agree — the five states, one per locus per vocabulary.
 

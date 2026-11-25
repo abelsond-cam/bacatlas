@@ -483,7 +483,7 @@ export interface ArrangementPageResponse {
 }
 
 /**
- * ⛔ **The vocabularies the inference ladder covers, pinned to the backend's `SUPPORTED_KINDS`.**
+ * ⛔ **The vocabularies a node's OWN call is reported for, pinned to the backend's `SUPPORTED_KINDS`.**
  * A string here would let a typo compile — the defect that hid 4,544 loci's EC numbers behind the
  * key `enzyme_commission` for as long as `annotations` was a `Record<string, …>`.
  */
@@ -494,42 +494,6 @@ export const INFERENCE_KINDS = [
   "ec_number",
 ] as const;
 export type InferenceKind = (typeof INFERENCE_KINDS)[number];
-
-/** One (similarity tier, facet, depth) cell of the measured ladder. */
-export interface CalibrationCell {
-  readonly tier: string;
-  /**
-   * ⛔ `null` for COG, EC and KEGG, which have one axis; one of the three GO namespaces for GO.
-   * A ladder keyed on `level` alone would collapse GO's three cells per tier into one — and they
-   * are not interchangeable: at 0.94-0.96 cellular component agrees 84.2 % / 86.2 % of the time
-   * and molecular function 60.3 % / 70.5 %.
-   */
-  readonly facet: string | null;
-  readonly level: number;
-  readonly level_label: string;
-  readonly pairs: number;
-  /** ⛔ `null` below the backend's pair floor — a cell with too few pairs has a count, not a rate. */
-  readonly agreement: number | null;
-  readonly interval_low: number | null;
-  readonly interval_high: number | null;
-  readonly chance: number;
-  /** Observed ÷ chance. ⛔ NOT an odds ratio — see `annotation_transfer.Cell.lift`. */
-  readonly lift: number | null;
-}
-
-export interface CalibrationLadder {
-  readonly annotation_kind: InferenceKind;
-  readonly representation: Representation;
-  readonly annotated_locus_count: number;
-  readonly locus_count: number;
-  readonly min_pairs: number;
-  /**
-   * ⛔ The measured-agreement bar a suggestion must clear to be made at all — a DIFFERENT thing
-   * from how deep it may be quoted. Served so the page can name the bar a refusal missed.
-   */
-  readonly calling_floor: number;
-  readonly cells: readonly CalibrationCell[];
-}
 
 /**
  * ⭐ **How often a call in this node's prevalence band covers the members that do NOT carry it.**
@@ -588,64 +552,89 @@ export interface OwnSupport {
   readonly propagation: PropagationRate;
 }
 
-/** One step of the outward walk, including the ranks that carried nothing. */
-export interface WalkStep {
-  readonly rank: number;
-  readonly cosine: number | null;
-  readonly tier: string;
-  readonly node_label: string;
-  readonly catalogue_ordinal: number;
-  readonly display_name: string | null;
-  readonly carries_annotation: boolean;
-}
-
-export interface TransferCandidate {
-  readonly rank: number;
-  readonly cosine: number | null;
-  readonly tier: string;
-  readonly donor: OwnSupport & {
-    readonly node_label: string;
-    readonly catalogue_ordinal: number;
-    readonly display_name: string | null;
-  };
-  /**
-   * ⭐ One entry per rung the donor can be READ at, each with its own verdict — up to three for GO,
-   * at most one for the others. Empty where the tier is too remote to call or the donor states
-   * nothing readable.
-   *
-   * ⛔ A rung that is quotable but NOT suggested still appears, carrying the cell that refused it.
-   * Dropping it would leave a reader unable to see that a claim was considered and declined, which
-   * is the one thing the floor owes them. **Read `suggested`, never the list being non-empty.**
-   */
-  readonly offers: readonly TransferOffer[];
-  /** How many of `offers` cleared the floor. `0` is a refusal, and the card says so. */
-  readonly suggested_count: number;
-}
-
-/** One rung of one donor: what it would say, and whether the measurement lets it. */
-export interface TransferOffer {
-  readonly facet: string | null;
-  readonly level: number;
-  readonly suggested: boolean;
-  readonly value: readonly string[];
-  readonly calibration: CalibrationCell | null;
-}
-
 export interface VocabularyInference {
   readonly annotation_kind: InferenceKind;
+  /** What this node's own genes state, or `null` where they state nothing in this vocabulary. */
   readonly own: OwnSupport | null;
-  /** ⛔ Empty where the node has its own call — a suggestion would compete with a real annotation. */
-  readonly walk: readonly WalkStep[];
-  readonly candidate: TransferCandidate | null;
+}
+
+/**
+ * ⭐ **What annotation-transfer PREDICTS for a locus** — one entry per claim it makes, each with its own
+ * calibrated accuracy. It replaced the 5-nearest-loci ladder on 2026-11-14 (David).
+ *
+ * ⛔ `cog_functional_category` is the COG LETTER (level 1), not the `cog_orthogroup` accession the
+ * observed annotations carry — two orders of magnitude coarser, and a different vocabulary.
+ */
+export const PREDICTED_KINDS = ["cog_functional_category", "gene_ontology_slim"] as const;
+export type PredictedKind = (typeof PREDICTED_KINDS)[number];
+
+/** One class of a predicted set. ⚠ `name` is null for a COG letter: the page names those itself. */
+export interface PredictedTerm {
+  readonly value: string;
+  readonly name: string | null;
+}
+
+/** The locus a prediction was copied from — a real locus, possibly in ANOTHER catalogue. */
+export interface PredictionDonor {
+  readonly node_label: string;
+  readonly display_name: string;
+  readonly gene_count: number;
+  /** ⛔ Locus labels are catalogue-private, so a cross-catalogue link must carry this key. */
+  readonly catalogue_key: string;
+  readonly species_name: string;
+  readonly same_catalogue: boolean;
+}
+
+export interface ServedPrediction {
+  readonly annotation_kind: PredictedKind;
+  /** One of the three GO namespaces for GO; `null` for a COG category. */
+  readonly gene_ontology_namespace: GeneOntologyNamespace | null;
+  /**
+   * ⭐ The predicted SET, most specific first. For GO that is the donor's slim class followed by every
+   * slim class it implies; for COG, the letters (peers).
+   */
+  readonly terms: readonly PredictedTerm[];
+  /**
+   * ⛔ The row's OWN calibrated probability that the locus carries AT LEAST ONE of `terms` — the number
+   * the page shows, never a band (David, 2026-10-28).
+   */
+  readonly estimated_accuracy: number;
+  readonly esm_medoid_similarity: number;
+  readonly bacformer_medoid_similarity: number;
+  readonly annotation_model_version: string;
+  readonly donor: PredictionDonor;
+}
+
+/**
+ * ⛔ **Where the catalogue stands with the predictions — four states, and none may read like another.**
+ * `loaded` with no calls is the fifth answer: the model DECLINED this locus.
+ *
+ * - `loaded` — the predictions are here; `calls` are this locus's.
+ * - `none_produced` — the model produced none for this catalogue (stated by whoever loaded it).
+ * - `not_loaded` — nobody loaded them into this database: says NOTHING about the model.
+ * - `unknown_model` — loaded from a version this build cannot show, so none are shown (fail closed).
+ */
+export const PREDICTION_STATES = ["loaded", "none_produced", "not_loaded", "unknown_model"] as const;
+export type PredictionState = (typeof PREDICTION_STATES)[number];
+
+export interface PredictionsBlock {
+  readonly state: PredictionState;
+  /** `at-v0.1` where loaded, else `null`. */
+  readonly annotation_model_version: string | null;
+  /** `annotation-transfer v0.1`, never a bare `v0.1` (nuna's clustering ladder has one too). */
+  readonly annotation_model_label: string | null;
+  /** The accuracy below which nothing is served — 0.80 for annotation-transfer v0.1; null unless loaded. */
+  readonly serve_cut: number | null;
+  readonly calls: readonly ServedPrediction[];
 }
 
 export interface FunctionResponse {
   readonly annotations: AnnotationsByKind;
   readonly inference: {
-    readonly representation: Representation;
     readonly vocabularies: readonly VocabularyInference[];
   };
-  readonly calibration: Readonly<Record<InferenceKind, CalibrationLadder>>;
+  /** ⭐ annotation-transfer's predictions — separate from `annotations`, which is what the genes SAY. */
+  readonly predictions: PredictionsBlock;
   readonly coverage: {
     readonly gene_count: number;
     readonly cog_annotated_gene_count: number;

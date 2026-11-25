@@ -16,10 +16,10 @@ ordinary locus for a discriminating case fails loudly rather than quietly testin
 - `over_cap` — more arrangements than the API lists, so members sit past the cap.
 - `no_window` — the most members with no recorded neighbourhood at all.
 - `function_rich` — EC and KEGG and all three GO namespaces, the parts a typical locus lacks.
-- `inferred_function` — **no COG of its own**, and a COG-bearing ESM neighbour close enough to quote,
-  so the inferred-function card renders on real bytes rather than only on a hand-built object. ⚠ Its
-  first annotated donor must sit past rank 1, because the walk reporting the empty ranks before the
-  donor is the part a fixture with a rank-1 donor would never exercise.
+- `predicted_function` — several annotation-transfer v0.1 predictions (a COG category and a GO class
+  with its lineage), at least one from a donor in ANOTHER catalogue, so the predicted-function card
+  renders on real bytes rather than only on a hand-built object. ⚠ Needs the served predictions
+  loaded (`ingest --stage served-annotations`).
 - sequences: a MINUS-strand gene well inside its contig (where the flank orientation can be wrong and
   still look plausible), and a genome with NO gene at that locus (an answer, not a failure).
 """
@@ -105,37 +105,28 @@ def choose_cases(session: Session, pangenome_id: int) -> dict[str, str]:
             .limit(1),
             "function_rich",
         ),
-        # ⭐ A node with NO COG whose first COG-bearing ESM neighbour sits past rank 1 — so the
-        # fixture exercises both the suggestion and the reported walk over the ranks that carried
-        # nothing. For *E. coli* COG only 1,679 of 4,143 transfers come from rank 1, so a rank-1
-        # donor would be the unrepresentative case.
-        # ⚠ Plain SQL: the "no NEARER neighbour carries one" clause correlates a second scan of
-        # `locus_nearest_locus` to the first, which reads clearly here and not in the ORM.
-        "inferred_function": _one(
+        # ⭐ A locus annotation-transfer v0.1 makes SEVERAL predictions for — a COG category, and a GO
+        # class with the lineage it implies — at least one copied from a donor in ANOTHER catalogue, so
+        # the predicted-function card renders every part of itself on real bytes: the stated class and
+        # its "within", a letter named on the page, and a cross-catalogue link. ⚠ Needs the catalogue's
+        # predictions loaded (`ingest --stage served-annotations`); a database without them cannot
+        # build this case, and `_one` says so.
+        "predicted_function": _one(
             session,
             text("""
                 select focal.node_label
                   from locus focal
-                  join locus_nearest_locus n
-                       on n.locus_id = focal.locus_id and n.representation = 'ESM'
-                  join locus donor on donor.locus_id = n.neighbour_locus_id
+                  join served_locus_annotation s on s.locus_id = focal.locus_id
+                  join locus donor on donor.locus_id = s.donor_locus_id
                  where focal.pangenome_id = :pangenome_id
-                   and focal.cog_distinct_id_count = 0
-                   and donor.cog_distinct_id_count > 0
-                   and n.cross_similarity >= 0.98
-                   and n.rank >= 2
-                   and not exists (
-                         select 1
-                           from locus_nearest_locus earlier
-                           join locus e on e.locus_id = earlier.neighbour_locus_id
-                          where earlier.locus_id = focal.locus_id
-                            and earlier.representation = 'ESM'
-                            and earlier.rank < n.rank
-                            and e.cog_distinct_id_count > 0)
-                 order by focal.member_gene_count desc, focal.catalogue_ordinal
+                 group by focal.locus_id, focal.node_label, focal.member_gene_count, focal.catalogue_ordinal
+                having bool_or(s.annotation_kind = 'COG_FUNCTIONAL_CATEGORY')
+                   and bool_or(s.annotation_kind = 'GENE_ONTOLOGY_SLIM' and cardinality(s.term_values) >= 2)
+                   and bool_or(donor.pangenome_id <> focal.pangenome_id)
+                 order by count(*) desc, focal.member_gene_count desc, focal.catalogue_ordinal
                  limit 1
             """).bindparams(pangenome_id=pangenome_id),
-            "inferred_function",
+            "predicted_function",
         ),
     }
 

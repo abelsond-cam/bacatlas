@@ -17,6 +17,7 @@
  *   member genes had no coordinates.
  * - `no_window` — the most members with no recorded neighbourhood at all.
  * - `function_rich` — EC and KEGG and all three GO namespaces.
+ * - `predicted_function` — several annotation-transfer v0.1 predictions, one from another catalogue.
  *
  * ⚠ Regenerate with `backend/scripts/dump_api_locus_fixture.py` whenever the serialiser changes. A
  * fixture that silently goes stale is worse than none, so the shape checks below are exhaustive
@@ -122,7 +123,7 @@ interface Recorded {
 
 // ⭐ `function_rich` carries EC *and* KEGG *and* all three GO namespaces — the parts a typical
 // locus does not exercise at all. It is in the generic loops too, so every shape assertion gains it.
-const CASES = ["ordinary", "over_cap", "no_window", "function_rich", "inferred_function"] as const;
+const CASES = ["ordinary", "over_cap", "no_window", "function_rich", "predicted_function"] as const;
 
 beforeEach(() => setActivePinia(createPinia()));
 
@@ -775,29 +776,6 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(checked).toBe(CASES.length * NAMESPACES.length);
     });
 
-    it("⭐⭐ a donor whose GO claim is a NAMESPACE ROOT suggests nothing — on real bytes", () => {
-      // ⛔ The clearest case the GO closure produces, and it turned up in the recorded bytes by
-      // itself. The kp `over_cap` locus has a 0.986 neighbour — a strong tier where GO agreement is
-      // 91.8 % — whose own top GO term is `GO:0008150`, the BIOLOGICAL PROCESS ROOT. It is an
-      // ancestor of every biological-process term, so it says only "this protein does something".
-      // Before the claim was closed and the roots removed, the page would have offered it as this
-      // node's suggested function.
-      //
-      // ⚠ Empty means "states nothing comparable", which is neither agreement nor disagreement — so
-      // the refusal is correct even though the tier and the rate would both have allowed a call.
-      const go = recorded.loci.over_cap?.function.inference.vocabularies.find(
-        (v) => v.annotation_kind === "gene_ontology_slim",
-      );
-      if (!go?.candidate) return; // ecoli's `over_cap` has no GO neighbour to refuse
-      if (go.candidate.donor.term !== "GO:0008150") return;
-      // ⚠ Not merely "nothing suggested" — NOTHING READABLE. A root-only donor has an empty claim
-      // in every namespace, so there is no rung to offer at all, which is a stronger statement than
-      // a rung that was offered and refused on its rate.
-      expect(go.candidate.offers).toEqual([]);
-      expect(go.candidate.suggested_count).toBe(0);
-      expect(go.candidate.tier).toBe("0.98-0.99");
-    });
-
     it("⭐ EC and KEGG arrive NAMED, on real bytes", () => {
       // ⚠ This assertion is the inverse of the one it replaces. Until 2026-10-05 it read "a KEGG
       // row is present and NEVER named" and the EC row carried `name: null` too — the first on a
@@ -836,68 +814,64 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
       expect(populated.length).toBeGreaterThanOrEqual(4);
     });
 
-    it("⭐ the inferred-function card renders on real bytes, with its MEASURED rate and the walk", () => {
-      // ⛔ The case is useless unless it still exercises what it was chosen for, so assert that
-      // first: no COG of its own, and a donor found past rank 1. A regenerate that quietly picked an
-      // annotated locus would otherwise leave this test passing while testing nothing.
-      const block = functionFor("inferred_function");
-      const cog = block.inference.vocabularies.find(
-        (entry) => entry.annotation_kind === "cog_orthogroup",
+    it("⭐ the predicted-function card renders on real bytes — each call with its OWN accuracy and donor", () => {
+      // ⛔ The case is useless unless it still exercises what it was chosen for, so assert that first:
+      // several calls, a COG category among them, a GO lineage, and a donor in another catalogue. A
+      // regenerate that quietly picked a locus without them would leave this passing while testing nothing.
+      const block = functionFor("predicted_function");
+      const predictions = block.predictions;
+      expect(predictions.state).toBe("loaded");
+      expect(predictions.annotation_model_version).toBe("at-v0.1");
+      expect(predictions.annotation_model_label).toBe("annotation-transfer v0.1");
+      expect(predictions.calls.length).toBeGreaterThanOrEqual(2);
+      expect(predictions.calls.some((call) => call.annotation_kind === "cog_functional_category")).toBe(true);
+      const lineage = predictions.calls.find(
+        (call) => call.annotation_kind === "gene_ontology_slim" && call.terms.length >= 2,
       )!;
-      expect(cog.own).toBeNull();
-      expect(cog.candidate).not.toBeNull();
-      expect(cog.candidate!.rank).toBeGreaterThanOrEqual(2);
-      expect(cog.walk.some((step) => !step.carries_annotation)).toBe(true);
+      expect(lineage).toBeDefined();
+      const across = predictions.calls.find((call) => !call.donor.same_catalogue)!;
+      expect(across).toBeDefined();
+      expect(across.donor.catalogue_key).not.toBe(recorded.species.pangenome.catalogue_key);
 
       const tab = mount(FunctionTab, {
         props: {
-          displayName: recorded.loci.inferred_function!.response.locus.display_name,
-          locusLabel: recorded.loci.inferred_function!.label,
+          displayName: recorded.loci.predicted_function!.response.locus.display_name,
+          locusLabel: recorded.loci.predicted_function!.label,
           block,
           status: "ready" as const,
         },
       });
-      const card = tab.find(".infer");
-      expect(card.exists()).toBe(true);
-      expect(card.find(".infer-tag").text()).toBe("inferred");
-      // ⚠ One offer per readable rung since 2026-10-06. COG has one axis, so exactly one — and
-      // asserting that keeps this test honest if COG ever gains a facet.
-      const suggested = cog.candidate!.offers.filter((offer) => offer.suggested);
-      expect(suggested).toHaveLength(1);
-      // the measured rate, with its n — both, or the rate means nothing
-      const cell = suggested[0]!.calibration!;
-      expect(card.find(".infer-rate").text()).toContain(
-        `${(cell.agreement! * 100).toFixed(1)}%`,
+      const card = tab.find(".predict");
+      expect(card.find(".infer-tag").text()).toBe("predicted");
+      // ⭐ every call's own number, as the page prints it — rounded down, never banded
+      const shown = card.findAll(".predict-accuracy").map((node) => node.text());
+      expect(shown).toEqual(
+        predictions.calls.map((call) => `${Math.floor(call.estimated_accuracy * 100 + 1e-9)} %`),
       );
-      expect(card.find(".infer-rate").text()).toContain(cell.pairs.toLocaleString());
-      // and the ranks that carried nothing are named, not skipped past
-      expect(card.text()).toContain("carried no COG");
-      // ⛔ the ladder shipped with the response, and the row the suggestion was read from
-      const used = card.findAll(".infer-row-used");
-      expect(used).toHaveLength(cog.candidate!.offers.length);
-      expect(used[0]!.text()).toContain(cell.tier);
+      // the stated GO class leads; what it implies is "within", named from the reference
+      expect(card.text()).toContain(lineage.terms[0]!.name!);
+      expect(card.text()).toContain(`within ${lineage.terms.slice(1).map((term) => term.name).join(", ")}`);
+      // ⛔ a donor in another catalogue is LINKED by its key, never walked inside this one
+      expect(card.find(`a.infer-walk[href="?catalogue=${across.donor.catalogue_key}#${across.donor.node_label}"]`).exists()).toBe(true);
     });
 
-    it("⛔ the calibration shipped with every response is self-consistent, and never a bare rate", () => {
+    it("⛔ every recorded response says WHICH model predicted, and every served accuracy clears its bar", () => {
       for (const kind of CASES) {
-        const block = functionFor(kind);
-        for (const ladder of Object.values(block.calibration)) {
-          expect(ladder.cells.length).toBeGreaterThan(0);
-          for (const cell of ladder.cells) {
-            expect(cell.pairs).toBeGreaterThan(0);
-            if (cell.pairs < ladder.min_pairs) {
-              // ⛔ below the floor there is a COUNT and no rate — a rate off a handful of pairs
-              // would be read as a measurement
-              expect(cell.agreement).toBeNull();
-              expect(cell.lift).toBeNull();
-            } else {
-              expect(cell.agreement).not.toBeNull();
-              expect(cell.interval_low!).toBeLessThanOrEqual(cell.agreement!);
-              expect(cell.interval_high!).toBeGreaterThanOrEqual(cell.agreement!);
-              expect(cell.lift!).toBeGreaterThan(1);
-            }
+        const predictions = functionFor(kind).predictions;
+        expect(predictions.state).toBe("loaded");
+        expect(predictions.annotation_model_version).toBe("at-v0.1");
+        for (const call of predictions.calls) {
+          expect(call.estimated_accuracy).toBeGreaterThanOrEqual(predictions.serve_cut!);
+          expect(call.estimated_accuracy).toBeLessThanOrEqual(1);
+          expect(call.terms.length).toBeGreaterThan(0);
+          if (call.annotation_kind === "gene_ontology_slim") {
+            for (const term of call.terms) expect(term.value).toMatch(/^GO:\d{7}$/);
+          } else {
+            for (const term of call.terms) expect(term.value).toMatch(/^[A-Z]$/);
           }
         }
+        // ⛔ and the ladder is GONE from the wire
+        expect("calibration" in (functionFor(kind) as Record<string, unknown>)).toBe(false);
       }
     });
 

@@ -622,7 +622,8 @@ def compute_calibration(
     because `chance` is a float SUM and a sum's last bits depend on the order it is taken in; the
     edges kept are then the same subsequence the full read would score, so every cell is identical
     to the bit. Together with `_claims` this took a cold Function tab on the 71k catalogue from ~23 s
-    to ~6 s per process — and the API computes it once per gunicorn worker (`calibration_for`).
+    to ~6 s per process. ⚠ No route calls it since 2026-11-14 (annotation-transfer v0.1 replaced the
+    Function tab's ladder); it stays as the measurement nuna's write-ups compare against.
     """
     levels, _terms, locus_count = _claims(session, pangenome_id, annotation_kind, fold)
     edges = (

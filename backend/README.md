@@ -144,6 +144,28 @@ count row**, and **that the cohort carries a label a reader can read** rather th
 .venv/bin/python -m bacatlas_backend.ingest --stage pangenome --publish  ...  # as above
 ```
 
+Then **annotation-transfer's predictions**, per catalogue, once BOTH catalogues are loaded — a donor may
+sit in the other one (on the probe, 23,556 of Kp's 25,475 predictions come from *E. coli* donors), so this
+is its own stage and not part of `all`. It reads nuna's `{set}_served_annotations.tsv`
+(`proc/analysis/annotation_transfer/medoid/` by default, `--served-annotations` to name another) into
+`served_locus_annotation`, never into `locus_annotation_entry`, and replaces whatever the catalogue held.
+
+```bash
+.venv/bin/python -m bacatlas_backend.ingest --stage served-annotations --set-key kp --species-key kp \
+  --model-label kp_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL \
+  --run-id kp_bacformer_clever_exploded_preclusterkp98pm3b-3b0.5-excl_k100_g100_res0.1_seed0 \
+  --donor-run-id ecoli=ecoli_bacformer_clever_exploded_preclusterstrict98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
+```
+
+⛔ **Refused, with every problem named at once:** a file without an `annotation_model_version` column, or
+naming a version not registered in `models/served_locus_annotation.py` (a bare `v0.1` included — nuna's
+clustering ladder has one too); a row below the version's serve cut; a GO set that is not one slim class
+closed upward through the reference; and ⭐ **a node label resolving to a locus of a different size** than
+the file's `n_recipient_genes` / `n_donor_genes` — the guard that the file was built on THIS run, because
+integer labels resolve in any run. ⭐ **No file is stored, not refused:** the catalogue is recorded as
+having no predictions (`pangenome.annotation_model_version` NULL, `omitted_sections["served_annotations"]`),
+which the Function tab says in words. A file NAMED with `--served-annotations` that is absent is refused.
+
 ## The API
 
 | endpoint | replaces |
@@ -152,7 +174,7 @@ count row**, and **that the cohort carries a label a reader can read** rather th
 | `GET /api/v1/species/{key}` | `meta` (incl. `model_label` and the `cohort`), the census, `meta.landing`/`examples`. ⚠ NOT the nine decoded provenance rows: `model`, `steps` and `provenance_rows` left the wire with the model axis (2026-10-27) |
 | `GET /api/v1/species/{key}/loci/{label}` | ⭐ the hot path — `show(i)` minus the function tab |
 | `GET …/loci/{label}/arrangements` | `focalCard`'s full scroller, paged |
-| `GET …/loci/{label}/function` | `renderFunction`, on tab open |
+| `GET …/loci/{label}/function` | `renderFunction`, on tab open — plus annotation-transfer's `predictions` |
 | `GET /api/v1/species/{key}/search` | `search()` and the 3.0 MB `HAY` |
 | `GET /api/v1/species/{key}/genomes` | `meta.genomes` + `anchorSearch` + `GENOME_N` — the anchor picker |
 | `GET …/genomes/{bs}/loci/{label}/sequence` | ⭐ `withSeq` + `decodeNseq` + `genesAtLocus` + `translate` |

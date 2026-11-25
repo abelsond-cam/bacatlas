@@ -107,6 +107,41 @@ def test_the_circular_publish_pointer_foreign_key_exists(probe_engine):
     assert any("DEFERRABLE" in d for d in definition)
 
 
+def test_the_served_annotation_constraints_autogenerate_cannot_see_exist_after_upgrade(probe_engine):
+    """⛔ Hand-added in `493f46d0cc95`, and invisible to the drift check below: Alembic compares no CHECK on
+    an existing table. Production databases are built from migrations, so this is the only place a missing
+    or mistyped one would show (review of 9cfa481)."""
+    _alembic("upgrade", "head")
+    with probe_engine.connect() as connection:
+        checks = dict(
+            connection.execute(
+                text(
+                    "SELECT c.conname, pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid WHERE t.relname = 'pangenome' AND c.contype = 'c'"
+                )
+            ).all()
+        )
+        donor = connection.execute(
+            text(
+                "SELECT condeferrable, condeferred FROM pg_constraint "
+                "WHERE conname = 'fk_served_locus_annotation__donor_locus_id__locus'"
+            )
+        ).one()
+    assert "'^at-v[0-9]+\\.[0-9]+$'" in checks["ck_pangenome__annotation_model_version_is_tagged"]
+    assert "annotation_model_version IS NOT NULL" in checks["ck_pangenome__served_state_names_its_version"]
+    assert "served_annotation_sha256 IS NOT NULL" in checks["ck_pangenome__served_state_names_its_file"]
+    # ⛔ Deferred to commit: a reload deleting donor and recipient together must not fail per row.
+    assert tuple(donor) == (True, True)
+    with probe_engine.begin() as connection:
+        default = connection.execute(
+            text(
+                "SELECT column_default FROM information_schema.columns "
+                "WHERE table_name = 'pangenome' AND column_name = 'served_annotation_state'"
+            )
+        ).scalar_one()
+    assert default is not None and "NOT_LOADED" in default
+
+
 def test_the_migration_still_matches_the_models(probe_engine):
     """Autogenerate against the migrated database must find NOTHING to do."""
     _alembic("upgrade", "head")

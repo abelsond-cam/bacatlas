@@ -3,7 +3,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { nextTick } from "vue";
 
 import { failure, success } from "@/api/result";
-import type { CalibrationLadder, InferenceKind } from "@/api/types";
 import { INFERENCE_KINDS, asCatalogueKey } from "@/api/types";
 import type { FunctionResponse, LocusDetailResponse } from "@/api/types";
 
@@ -43,38 +42,22 @@ function locusDetail(label: string): LocusDetailResponse {
 }
 
 /**
- * ⛔ The inference block is REQUIRED on a `FunctionResponse`, so a fixture must carry it. Empty by
- * default: a node that needs no suggestion is the ordinary case, and a fixture that silently
- * shipped a candidate would make every card under test look like an inferred one.
+ * ⛔ The own-call block and the predictions are REQUIRED on a `FunctionResponse`, so a fixture must carry
+ * them. Empty by default: a node with no own call, in a catalogue whose predictions are not loaded, is the
+ * shape a fixture can state without inventing a prediction.
  */
-function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
+function emptyInference(): Pick<FunctionResponse, "inference" | "predictions"> {
   return {
     inference: {
-      representation: "esm",
-      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
-        annotation_kind,
-        own: null,
-        walk: [],
-        candidate: null,
-      })),
+      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({ annotation_kind, own: null })),
     },
-    // ⛔ Derived from INFERENCE_KINDS, never a hand-written pair: adding a vocabulary must not
-    // require editing fixtures, and a Record missing a key fails the build rather than the test.
-    calibration: Object.fromEntries(
-      INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
-    ) as FunctionResponse["calibration"],
-  };
-}
-
-function ladder(annotation_kind: InferenceKind): CalibrationLadder {
-  return {
-    annotation_kind,
-    representation: "esm",
-    annotated_locus_count: 0,
-    locus_count: 0,
-    min_pairs: 30,
-    calling_floor: 0.8,
-    cells: [],
+    predictions: {
+      state: "not_loaded",
+      annotation_model_version: null,
+      annotation_model_label: null,
+      serve_cut: null,
+      calls: [],
+    },
   };
 }
 

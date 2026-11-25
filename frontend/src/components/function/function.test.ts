@@ -6,14 +6,12 @@ import { describe, expect, it } from "vitest";
 
 import type {
   AnnotationEntry,
-  CalibrationCell,
-  CalibrationLadder,
   FunctionResponse,
-  InferenceKind,
   OwnSupport,
+  PredictionsBlock,
   PropagationRate,
+  ServedPrediction,
   VocabularyInference,
-  WalkStep,
 } from "@/api/types";
 import { INFERENCE_KINDS } from "@/api/types";
 
@@ -21,6 +19,7 @@ import CogCard from "./CogCard.vue";
 import EnzymeAndKeggCard from "./EnzymeAndKeggCard.vue";
 import FunctionTab from "./FunctionTab.vue";
 import GeneOntologyCard from "./GeneOntologyCard.vue";
+import PredictedFunctionCard from "./PredictedFunctionCard.vue";
 
 function entry(term: string, geneCount: number, overrides: Partial<AnnotationEntry> = {}): AnnotationEntry {
   return { rank: 0, term, name: `${term} name`, gene_count: geneCount, ...overrides };
@@ -44,27 +43,21 @@ function coverage(overrides: Partial<FunctionResponse["coverage"]> = {}): Functi
 }
 
 /**
- * ⛔ The inference block is REQUIRED on a `FunctionResponse`, so a fixture must carry it. Empty by
- * default: a node that needs no suggestion is the ordinary case, and a fixture that silently
- * shipped a candidate would make every card under test look like an inferred one.
+ * ⛔ The own-call block and the predictions are REQUIRED on a `FunctionResponse`, so a fixture must carry
+ * them. Empty by default — no own call, and predictions NOT LOADED — because a fixture that silently
+ * shipped a prediction would make every tab under test look like a predicted one.
  */
-function emptyInference(): Pick<FunctionResponse, "inference" | "calibration"> {
+function emptyInference(): Pick<FunctionResponse, "inference" | "predictions"> {
   return {
     inference: {
-      representation: "esm",
-      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
-        annotation_kind,
-        own: null,
-        walk: [],
-        candidate: null,
-      })),
+      vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({ annotation_kind, own: null })),
     },
-    // ⛔ Derived from INFERENCE_KINDS, never a hand-written pair: adding a vocabulary must not
-    // require editing fixtures, and a Record missing a key fails the build rather than the test.
-    calibration: Object.fromEntries(
-      INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
-    ) as FunctionResponse["calibration"],
+    predictions: noPredictions(),
   };
+}
+
+function noPredictions(state: "not_loaded" | "none_produced" = "not_loaded"): PredictionsBlock {
+  return { state, annotation_model_version: null, annotation_model_label: null, serve_cut: null, calls: [] };
 }
 
 /**
@@ -85,18 +78,6 @@ function propagation(overrides: Partial<PropagationRate> = {}): PropagationRate 
     interval_high: 0.9993,
     min_nodes: 30,
     ...overrides,
-  };
-}
-
-function ladder(annotation_kind: InferenceKind): CalibrationLadder {
-  return {
-    annotation_kind,
-    representation: "esm",
-    annotated_locus_count: 0,
-    locus_count: 0,
-    min_pairs: 30,
-    calling_floor: 0.8,
-    cells: [],
   };
 }
 
@@ -324,19 +305,16 @@ describe("⛔ all three namespaces, or one line — never three empty cards", ()
         }),
       }),
     });
-    // ⚠ TWO GO headings is correct, and the distinction is the point: one card reports what the
-    // locus's own genes say (and here, that none of them say anything), the other offers what a
-    // neighbour suggests. The guarantee being held is that the COVERAGE side collapses to one line
-    // rather than three empty namespace cards — so filter to the cards outside `.infer`.
+    // ⚠ The guarantee being held is that the COVERAGE side collapses to one line rather than three
+    // empty namespace cards — so filter to the cards outside `.infer`, the predicted-function card.
     const coverageHeadings = tab
       .findAll(".card:not(.infer) .sub-head")
       .map((node) => node.text());
     expect(coverageHeadings.filter((heading) => heading.startsWith("GO"))).toEqual(["GO"]);
     expect(tab.text()).toContain("None of these 100 genes carries a GO term");
-    // ⚠ And the other GO heading is the inference card's, which here suggests nothing — so it
-    // carries NO "inferred" tag. The tag marks a suggestion that was made, not a card that could
-    // have made one; announcing one over a paragraph withholding it is the bug this guards.
-    expect(tab.find(".infer").text()).toContain("nothing near enough to infer from");
+    // ⚠ And the predicted card, which here predicts nothing, carries NO "predicted" tag. The tag marks a
+    // prediction that was made, not a card that could have made one.
+    expect(tab.find(".infer").text()).toContain("Annotation-transfer predictions are not loaded for this catalogue");
     expect(tab.find(".infer .infer-tag").exists()).toBe(false);
   });
 
@@ -543,37 +521,9 @@ describe("⛔ three loading states, and a failure never reads as 'nothing here'"
   });
 });
 
-// ── the inferred-function card: the three states a fixture of real bytes cannot all reach ────────
-function cell(overrides: Partial<CalibrationCell> = {}): CalibrationCell {
-  return {
-    tier: "0.98-0.99",
-    facet: null,
-    level: 2,
-    level_label: "COG orthogroup",
-    pairs: 770,
-    agreement: 0.908,
-    interval_low: 0.886,
-    interval_high: 0.926,
-    chance: 0.0024,
-    lift: 381.9,
-    ...overrides,
-  };
-}
-
-function step(rank: number, cosine: number, carries: boolean): WalkStep {
-  return {
-    rank,
-    cosine,
-    tier: "0.98-0.99",
-    node_label: `n${rank}`,
-    catalogue_ordinal: rank,
-    display_name: `node ${rank}`,
-    carries_annotation: carries,
-  };
-}
-
+// ── the predicted-function card: annotation-transfer v0.1, which replaced the ladder ────────────
 function inference(overrides: Partial<VocabularyInference> = {}): VocabularyInference {
-  return { annotation_kind: "cog_orthogroup", own: null, walk: [], candidate: null, ...overrides };
+  return { annotation_kind: "cog_orthogroup", own: null, ...overrides };
 }
 
 function withInference(entry: VocabularyInference): FunctionResponse {
@@ -581,296 +531,190 @@ function withInference(entry: VocabularyInference): FunctionResponse {
   return block({
     annotations: {},
     inference: {
-      representation: "esm",
       vocabularies: base.inference.vocabularies.map((row) =>
         row.annotation_kind === entry.annotation_kind ? entry : row,
       ),
     },
-    calibration: {
-      ...(Object.fromEntries(
-        INFERENCE_KINDS.map((kind) => [kind, ladder(kind)]),
-      ) as FunctionResponse["calibration"]),
-      cog_orthogroup: {
-        ...ladder("cog_orthogroup"),
-        cells: [cell(), cell({ tier: "0.90-0.94", agreement: 0.336, pairs: 8525, lift: 4.9 })],
-      },
-    },
   });
 }
 
-describe("the inferred-function card", () => {
-  it("⭐ states the suggestion, the depth, the measured rate AND its n", () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.999, false), step(2, 0.985, true)],
-          candidate: {
-            rank: 2,
-            cosine: 0.985,
-            tier: "0.98-0.99",
-            donor: {
-              node_label: "n2",
-              catalogue_ordinal: 2,
-              display_name: "wza",
-              term: "COG0450",
-              name: "peroxiredoxin",
-              gene_count: 97,
-              annotated_gene_count: 97,
-              member_gene_count: 99,
-              checkable: true,
-              propagation: propagation(),
-            },
-            offers: [
-              { facet: null, level: 2, suggested: true, value: ["COG0450"], calibration: cell() },
-            ],
-            suggested_count: 1,
-          },
-        }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.find(".infer-value").text()).toContain("COG0450");
-    const rate = card.find(".infer-rate").text();
-    expect(rate).toContain("90.8%");
-    expect(rate).toContain("770");
-    // ⛔ The LIFT left this sentence (David, 2026-10-05). "agree 24.3 % of the time, which is 145×
-    // more often than a random annotated node" is two true numbers telling opposite stories, and
-    // the reader carries away the second. Lift stays in the ladder table below, where comparing a
-    // 0.2 % baseline with a 16 % one is the whole point.
-    expect(rate).not.toContain("×");
-    expect(rate).not.toContain("more often than a random");
-    expect(card.find(".infer-table").text()).toContain("382×");
-    // ⛔ the rank that carried nothing is named — a card showing only the donor would imply rank 1
-    expect(card.text()).toContain("rank 1 at 0.999");
+function call(overrides: Partial<ServedPrediction> = {}): ServedPrediction {
+  return {
+    annotation_kind: "gene_ontology_slim",
+    gene_ontology_namespace: "cellular_component",
+    terms: [
+      { value: "GO:0005886", name: "plasma membrane" },
+      { value: "GO:0016020", name: "membrane" },
+    ],
+    estimated_accuracy: 0.9206349206349206,
+    esm_medoid_similarity: 0.952113,
+    bacformer_medoid_similarity: 0.772893,
+    annotation_model_version: "at-v0.1",
+    donor: {
+      node_label: "3565",
+      display_name: "ompA",
+      gene_count: 72,
+      catalogue_key: "kp-probe100",
+      species_name: "Klebsiella pneumoniae",
+      same_catalogue: true,
+    },
+    ...overrides,
+  };
+}
+
+function predictions(calls: ServedPrediction[]): PredictionsBlock {
+  return {
+    state: "loaded",
+    annotation_model_version: "at-v0.1",
+    annotation_model_label: "annotation-transfer v0.1",
+    serve_cut: 0.8,
+    calls,
+  };
+}
+
+function mountCard(block: PredictionsBlock) {
+  return mount(PredictedFunctionCard, { props: { predictions: block } });
+}
+
+describe("⭐ the predicted-function card — annotation-transfer v0.1", () => {
+  it("⭐ shows each prediction with ITS OWN estimated accuracy, and no band", () => {
+    const card = mountCard(
+      predictions([
+        call(),
+        call({ gene_ontology_namespace: "biological_process", estimated_accuracy: 0.8367,
+               terms: [{ value: "GO:0006259", name: "DNA metabolic process" },
+                       { value: "GO:0008152", name: "metabolic process" }] }),
+      ]),
+    );  // prettier-ignore
+    const text = card.text();
+    expect(text).toContain("GO cellular component:");
+    expect(text).toContain("Estimated accuracy 92 %");
+    expect(text).toContain("Estimated accuracy 83 %");
+    // ⛔ No band words anywhere: David, 2026-10-28.
+    expect(text).not.toMatch(/\b(high|medium|low) confidence\b/i);
+    expect(text).not.toMatch(/0\.(80|85|90|95)\s*[–-]\s*0\./);
+    expect(card.find(".infer-tag").text()).toBe("predicted");
   });
 
-  it("⛔⛔ refuses a CLOSE donor on the measured rate, and says which bar it missed", () => {
-    // David, 2026-10-05, on `gumC`: the page suggested a KEGG orthology from `wza`, a rank-5
-    // neighbour at cosine 0.9293, where kp KEGG agreement is 24.3 % over 481 pairs — wrong about
-    // three times in four. ⛔ "Too remote to call" would be false here: 0.929 is close. It is the
-    // measurement that refuses, and the reader is owed the number that did it.
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.9293, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.9293,
-            tier: "0.90-0.94",
-            donor: {
-              node_label: "3511",
-              catalogue_ordinal: 3511,
-              display_name: "wza",
-              term: "K01991",
-              name: null,
-              gene_count: 96,
-              annotated_gene_count: 96,
-              member_gene_count: 99,
-              checkable: true,
-              propagation: propagation(),
-            },
-            // ⛔ The refused rung is OFFERED, carrying the cell that refused it. An empty list would
-            // mean "the donor states nothing readable", which is a different and far weaker finding.
-            offers: [
-              {
-                facet: null,
-                level: 1,
-                suggested: false,
-                value: ["K01991"],
-                calibration: cell({
-                  tier: "0.90-0.94",
-                  level: 1,
-                  level_label: "KEGG orthology",
-                  agreement: 0.243,
-                  pairs: 481,
-                }),
-              },
-            ],
-            suggested_count: 0,
-          },
-        }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.find(".infer-value").exists()).toBe(false);
-    expect(card.text()).toContain("agree on their KEGG orthology only 24.3% of the time");
-    expect(card.text()).toContain("481 measured pairs");
-    expect(card.text()).toContain("below the 80% this page needs");
-    expect(card.text()).toContain("KEGG orthology \u2014 not suggested.");
-    expect(card.text()).not.toContain("too remote to call");
-    // ⭐ and the donor is still named, so a reader can go and judge it
-    expect(card.text()).toContain("wza");
-    // ⛔ but the card must not announce a suggestion it is withholding, nor argue the donor's case
-    expect(card.text()).toContain("— nothing suggested");
-    expect(card.text()).not.toContain("inferred from a neighbour");
+  it("⚠ leads with the stated GO class and lists what it implies as 'within', not as a second finding", () => {
+    const card = mountCard(predictions([call()]));
+    expect(card.find(".infer-value strong").text()).toBe("plasma membrane");
+    expect(card.find(".predict-broader").text()).toContain("within membrane");
+  });
+
+  it("⭐ names every COG letter, as peers", () => {
+    const card = mountCard(
+      predictions([
+        call({ annotation_kind: "cog_functional_category", gene_ontology_namespace: null,
+               terms: [{ value: "E", name: null }, { value: "P", name: null }] }),
+      ]),
+    );  // prettier-ignore
+    expect(card.text()).toContain("COG category:");
+    expect(card.find(".infer-value strong").text()).toBe(
+      "E — Amino acid transport and metabolism · P — Inorganic ion transport and metabolism",
+    );
+    expect(card.find(".predict-broader").exists()).toBe(false);
+  });
+
+  it("⛔ rounds a promise DOWN, never up — and prints the model's 1.0 as the model's number", () => {
+    const text = mountCard(
+      predictions([call({ estimated_accuracy: 0.995 }), call({ estimated_accuracy: 0.8 }),
+                   call({ estimated_accuracy: 1.0 })]),
+    ).text();  // prettier-ignore
+    expect(text).toContain("Estimated accuracy 99 %");
+    expect(text).toContain("Estimated accuracy 80 %");
+    expect(text).toContain("Estimated accuracy 100 %");
+  });
+
+  it("walks to a donor in THIS catalogue, so a reader can go and judge it", async () => {
+    const card = mountCard(predictions([call()]));
+    expect(card.find("a.infer-walk").exists()).toBe(false);
+    await card.find("button.infer-walk").trigger("click");
+    expect(card.emitted("walk")).toEqual([["3565"]]);
+    expect(card.text()).toContain("locus 3565, 72 genes");
+    expect(card.text()).toContain("ESM 0.952 · Bacformer 0.773");
+  });
+
+  it("⛔ LINKS to a donor in ANOTHER catalogue by its key — labels are catalogue-private", async () => {
+    const card = mountCard(
+      predictions([
+        call({ donor: { node_label: "3565", display_name: "ompA", gene_count: 72, catalogue_key: "ecoli-probe100",
+                        species_name: "Escherichia coli", same_catalogue: false } }),
+      ]),
+    );  // prettier-ignore
+    const link = card.find("a.infer-walk");
+    expect(link.attributes("href")).toBe("?catalogue=ecoli-probe100#3565");
+    expect(card.find("button.infer-walk").exists()).toBe(false);
+    expect(card.text()).toContain("Escherichia coli");
+    await link.trigger("click");
+    expect(card.emitted("walk")).toBeUndefined();
+  });
+
+  // ⛔⛔ The five answers, each its own sentence (review of 9cfa481: three shared one). Each test asserts its
+  // own sentence AND the absence of every other state's, so mapping one state onto another's words dies.
+  const SENTENCES = {
+    declined: "makes no prediction for this locus",
+    none_produced: "The annotation model produced no predictions for this catalogue",
+    not_loaded: "Annotation-transfer predictions are not loaded for this catalogue",
+    unknown_model: "which this version of BacAtlas cannot show yet",
+  } as const;
+  function onlySentence(text: string, which: keyof typeof SENTENCES) {
+    for (const [name, sentence] of Object.entries(SENTENCES)) {
+      if (name === which) expect(text).toContain(sentence);
+      else expect(text).not.toContain(sentence);
+    }
+  }
+
+  it("⛔ a locus the model DECLINED names the model and its bar — and claims nothing about its genes", () => {
+    const card = mountCard(predictions([]));
+    onlySentence(card.text(), "declined");
+    expect(card.text()).toContain("annotation-transfer v0.1 makes no prediction for this locus");
+    expect(card.text()).toContain("estimated accuracy is 80 % or more");
+    // ⛔ The retired claim: false for 426 served GO predictions on the probes.
+    expect(card.text()).not.toContain("own genes");
     expect(card.find(".infer-tag").exists()).toBe(false);
-    expect(card.text()).not.toContain("counts as a donor at all");
   });
 
-  it("⛔ says NOTHING is suggested where the only donor is too remote to call", () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.84, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.84,
-            tier: "< 0.90",
-            donor: {
-              node_label: "n1",
-              catalogue_ordinal: 1,
-              display_name: null,
-              term: "COG0450",
-              name: null,
-              gene_count: 4,
-              annotated_gene_count: 4,
-              member_gene_count: 4,
-              checkable: true,
-              propagation: propagation(),
-            },
-            offers: [],
-            suggested_count: 0,
-          },
-        }),
-      ),
+  it("⛔ 'none produced' is a statement about the MODEL", () => {
+    const card = mountCard(noPredictions("none_produced"));
+    onlySentence(card.text(), "none_produced");
+    expect(card.text()).toContain("so no locus in it carries a predicted function");
+  });
+
+  it("⛔ 'not loaded' is a statement about THIS DATABASE, and says it is not one about the model", () => {
+    const card = mountCard(noPredictions("not_loaded"));
+    onlySentence(card.text(), "not_loaded");
+    expect(card.text()).toContain("says nothing about whether the model has predictions for it");
+  });
+
+  it("⛔ a version this build does not know FAILS CLOSED, naming it — never an empty bar", () => {
+    const card = mountCard({
+      state: "unknown_model",
+      annotation_model_version: "at-v0.2",
+      annotation_model_label: "at-v0.2",
+      serve_cut: null,
+      calls: [],
     });
-    const card = tab.find(".infer");
-    expect(card.text()).toContain("too remote to call");
-    expect(card.find(".infer-value").exists()).toBe(false);
+    onlySentence(card.text(), "unknown_model");
+    expect(card.text()).toContain("come from at-v0.2");
+    expect(card.text()).not.toMatch(/accuracy of\s+or more/);
+    // ⛔ and even a calls list arriving beside a null bar is not rendered without the bar it cleared
+    const guarded = mountCard({ ...predictions([call()]), serve_cut: null });
+    expect(guarded.find(".infer-value").exists()).toBe(false);
+    onlySentence(guarded.text(), "unknown_model");
   });
 
-  it("⭐ states the DARK SET as a finding where no neighbour carries the vocabulary", () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({ walk: [1, 2, 3, 4, 5].map((rank) => step(rank, 0.97, false)) }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.text()).toContain("None of the 5 nearest nodes");
-    expect(card.find(".infer-value").exists()).toBe(false);
-    // ⚠ Three of the four vocabularies take "a" and the fourth takes "an", so a hardcoded article
-    // rendered "carries a EC number" on exactly one card.
-    const everyCard = tab.findAll(".infer").map((one) => one.text());
-    expect(everyCard.some((one) => one.includes("carries an EC number either"))).toBe(true);
-    expect(everyCard.some((one) => one.includes("carries a COG either"))).toBe(true);
-    expect(everyCard.join(" ")).not.toContain("a EC number");
+  it("⛔ never writes a bare 'v0.1' — nuna's clustering ladder has one too", () => {
+    for (const block of [predictions([call()]), predictions([])]) {
+      const text = mountCard(block).text();
+      expect(text).toContain("annotation-transfer v0.1");
+      expect(text.replaceAll("annotation-transfer v0.1", "")).not.toContain("v0.1");
+    }
   });
+});
 
-  it("⭐ says the DONOR's own call covers the donor's whole node, at the donor's rate", () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.985, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.985,
-            tier: "0.98-0.99",
-            donor: {
-              node_label: "n1",
-              catalogue_ordinal: 1,
-              display_name: null,
-              term: "COG4733",
-              name: null,
-              gene_count: 1,
-              annotated_gene_count: 1,
-              member_gene_count: 120,
-              checkable: false,
-              propagation: propagation(),
-            },
-            offers: [
-              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
-            ],
-            suggested_count: 1,
-          },
-        }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.text()).toContain("carried by 1 of its 120 genes and covers that whole node");
-    expect(card.text()).toContain("which is why a neighbour resting on one annotated gene is still a donor");
-    // ⚠ That clause is for the ONE-gene donor only; a donor resting on 57 of 100 gets the general
-    // rule instead, because the striking case read as a non-sequitur beside it.
-    expect(card.text()).not.toContain("the rule by which it counts as a donor at all");
-    // ⚠ The donor card DOES name the band: it quotes the donor's, and has no lead to carry it.
-    expect(card.text()).toContain("99.85 % of 3,253 comparable core syntelogues agree.");
-    // ⛔ The retired claim, named so it cannot come back: a one-gene donor is not a weaker donor,
-    // which is the whole reason a donor "carries" a vocabulary by the any-gene rule.
-    expect(card.text()).not.toContain("never checked against itself");
-  });
-
-  it("⛔ a donor EVERY gene of which carries the call says nothing about propagation", () => {
-    // ⚠ There is no propagation on that side to report, and a sentence saying so on every card
-    // would be noise — this is the common case (a 100-of-100 donor).
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.985, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.985,
-            tier: "0.98-0.99",
-            donor: {
-              node_label: "n1",
-              catalogue_ordinal: 1,
-              display_name: null,
-              term: "COG4733",
-              name: null,
-              gene_count: 100,
-              annotated_gene_count: 100,
-              member_gene_count: 100,
-              checkable: true,
-              propagation: propagation(),
-            },
-            offers: [
-              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
-            ],
-            suggested_count: 1,
-          },
-        }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.text()).toContain("COG4733");
-    expect(card.text()).not.toContain("covers that whole node");
-    expect(card.text()).not.toContain("comparable core syntelogues agree");
-  });
-
-  it("⚠ a donor carried by MANY of its genes gets the general rule, not the one-gene case", () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.985, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.985,
-            tier: "0.98-0.99",
-            donor: {
-              node_label: "n1",
-              catalogue_ordinal: 1,
-              display_name: null,
-              term: "COG4733",
-              name: null,
-              gene_count: 57,
-              annotated_gene_count: 57,
-              member_gene_count: 100,
-              checkable: true,
-              propagation: propagation(),
-            },
-            offers: [
-              { facet: null, level: 2, suggested: true, value: ["COG4733"], calibration: cell() },
-            ],
-            suggested_count: 1,
-          },
-        }),
-      ),
-    });
-    const card = tab.find(".infer");
-    expect(card.text()).toContain("carried by 57 of its 100 genes and covers that whole node");
-    expect(card.text()).toContain("the rule by which it counts as a donor at all");
-    expect(card.text()).not.toContain("resting on one annotated gene");
-  });
-
-  it("⛔ a node with its own call is offered no suggestion at all", () => {
+describe("the predicted card's place on the tab", () => {
+  it("⛔ a node with its own call in every vocabulary is offered no prediction here", () => {
     // ⚠ BOTH vocabularies, deliberately. With only COG given an `own` the EC card still renders —
     // which is correct, and would make a bare `.infer` assertion pass for the wrong reason.
     const own = {
@@ -886,17 +730,12 @@ describe("the inferred-function card", () => {
       block: block({
         annotations: {},
         inference: {
-          representation: "esm",
-          vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({
-            annotation_kind,
-            own,
-            walk: [],
-            candidate: null,
-          })),
+          vocabularies: INFERENCE_KINDS.map((annotation_kind) => ({ annotation_kind, own })),
         },
       }),
     });
-    expect(tab.find(".infer").exists()).toBe(false);
+    // The predicted card still renders — here saying the catalogue has none — and predicts nothing.
+    expect(tab.find(".infer .infer-value").exists()).toBe(false);
     // ⭐ But the propagation note DOES appear — the claim is made wherever a node carries a call,
     // not only where a single gene carries it. ⛔ Once per vocabulary EXCEPT COG, whose own card
     // states the rate in David's wording; listing it here as well printed the same figure in the
@@ -906,6 +745,20 @@ describe("the inferred-function card", () => {
     // … and the figure is still on the page exactly once, on the COG card itself.
     expect(tab.text()).toContain("COG is assigned to the whole node from the hit within it");
   });
+
+  it("⭐ renders the predictions the response carries, AFTER every card of real annotation", () => {
+    const tab = mountTab({ block: block({ predictions: predictions([call()]) }) });
+    const cards = tab.findAll(".card");
+    expect(cards.at(-1)!.classes()).toContain("predict");
+    expect(tab.find(".predict").text()).toContain("plasma membrane");
+  });
+
+  it("passes a same-catalogue donor walk up to the view", async () => {
+    const tab = mountTab({ block: block({ predictions: predictions([call()]) }) });
+    await tab.find(".predict button.infer-walk").trigger("click");
+    expect(tab.emitted("walk")).toEqual([["3565"]]);
+  });
+});
 
 /*
  * ⭐⭐ The block this tab was rewritten for. It previously said a call resting on one gene meant the
@@ -1004,39 +857,5 @@ describe("⭐ the call propagates across the whole syntelogue", () => {
     expect(note.text()).toContain("carried by every one of its 100 genes");
     expect(note.text()).toContain("nothing left to propagate to");
     expect(note.text()).not.toContain("applies to all 100");
-  });
-});
-
-  it("walks to the donor, so a reader can go and judge it", async () => {
-    const tab = mountTab({
-      block: withInference(
-        inference({
-          walk: [step(1, 0.985, true)],
-          candidate: {
-            rank: 1,
-            cosine: 0.985,
-            tier: "0.98-0.99",
-            donor: {
-              node_label: "4242",
-              catalogue_ordinal: 7,
-              display_name: "wza",
-              term: "COG0450",
-              name: null,
-              gene_count: 9,
-              annotated_gene_count: 9,
-              member_gene_count: 9,
-              checkable: true,
-              propagation: propagation(),
-            },
-            offers: [
-              { facet: null, level: 2, suggested: true, value: ["COG0450"], calibration: cell() },
-            ],
-            suggested_count: 1,
-          },
-        }),
-      ),
-    });
-    await tab.find(".infer-walk").trigger("click");
-    expect(tab.emitted("walk")).toEqual([["4242"]]);
   });
 });

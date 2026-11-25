@@ -103,768 +103,6 @@
       }
      ]
     },
-    "calibration": {
-     "cog_orthogroup": {
-      "annotated_locus_count": 4993,
-      "annotation_kind": "cog_orthogroup",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9889883000688231,
-        "chance": 0.0027891839606826014,
-        "facet": null,
-        "interval_high": 0.9932106784051377,
-        "interval_low": 0.9821870587270255,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 354.57980327220383,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9944941500344116,
-        "chance": 0.07533691897400512,
-        "facet": null,
-        "interval_high": 0.9972075286651817,
-        "interval_low": 0.9891728712355351,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 13.200621469236884,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9077922077922078,
-        "chance": 0.0023770500333000397,
-        "facet": null,
-        "interval_high": 0.9262528996638689,
-        "interval_low": 0.8852826910823511,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 381.89865382510567,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9571428571428572,
-        "chance": 0.07551328879453915,
-        "facet": null,
-        "interval_high": 0.9693229771534483,
-        "interval_low": 0.9404239271225691,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 12.675157875153682,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.5798387096774194,
-        "chance": 0.0020991651157981914,
-        "facet": null,
-        "interval_high": 0.6070238267423919,
-        "interval_low": 0.5521604295166044,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 276.2234877635817,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7814516129032258,
-        "chance": 0.07787669949338279,
-        "facet": null,
-        "interval_high": 0.8035654836383993,
-        "interval_low": 0.7575992177190728,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 10.03447267265899,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.298819255222525,
-        "chance": 0.0017070910186543834,
-        "facet": null,
-        "interval_high": 0.3182752471610667,
-        "interval_low": 0.280063998957059,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 175.04588329336397,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5059037238873751,
-        "chance": 0.07698593862805297,
-        "facet": null,
-        "interval_high": 0.5267579762969314,
-        "interval_low": 0.48502890812849625,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 6.57137826599192,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.14169040835707503,
-        "chance": 0.000997607568120398,
-        "facet": null,
-        "interval_high": 0.15137180713877385,
-        "interval_low": 0.13253150853501677,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 142.03020594965543,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.35764482431149097,
-        "chance": 0.07051263027491671,
-        "facet": null,
-        "interval_high": 0.37069135261729835,
-        "interval_low": 0.3448058830559092,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 5.072067556083142,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.100920245398773,
-        "chance": 0.0007498500668554411,
-        "facet": null,
-        "interval_high": 0.11173490883151979,
-        "interval_low": 0.091045029998845,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 134.58723264770848,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.3,
-        "chance": 0.06546197842928994,
-        "facet": null,
-        "interval_high": 0.31595892655597396,
-        "interval_low": 0.2845118806057461,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 4.582812912140304,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "ec_number": {
-      "annotated_locus_count": 2539,
-      "annotation_kind": "ec_number",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 1.0,
-        "chance": 0.004750134016320202,
-        "facet": null,
-        "interval_high": 1.0,
-        "interval_low": 0.9816928578508741,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 210.52037617554893,
-        "pairs": 206,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.979933110367893,
-        "chance": 0.02229981881134058,
-        "facet": null,
-        "interval_high": 0.9907716266732061,
-        "interval_low": 0.9569185189342668,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 43.943545849329844,
-        "pairs": 299,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.059466050988553676,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 16.72590729297677,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.23380424006710906,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.254087332327638,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8434343434343434,
-        "chance": 0.0032740492863192264,
-        "facet": null,
-        "interval_high": 0.8874552799499632,
-        "interval_low": 0.786340409343027,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 257.61198738170333,
-        "pairs": 198,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9520295202952029,
-        "chance": 0.020851882878879135,
-        "facet": null,
-        "interval_high": 0.9717547637088241,
-        "interval_low": 0.9196677865892385,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 45.65676518639539,
-        "pairs": 271,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9619377162629758,
-        "chance": 0.06414359861591695,
-        "facet": null,
-        "interval_high": 0.9786161784970397,
-        "interval_low": 0.9331395283424255,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 14.996628455832772,
-        "pairs": 289,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.976897689768977,
-        "chance": 0.21759291768420366,
-        "facet": null,
-        "interval_high": 0.9887652790167235,
-        "interval_low": 0.9530887590276617,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.489565653909588,
-        "pairs": 303,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.4343675417661098,
-        "chance": 0.0029149645421223985,
-        "facet": null,
-        "interval_high": 0.48221337253265495,
-        "interval_low": 0.38771427886209897,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 149.01297614064455,
-        "pairs": 419,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6566265060240963,
-        "chance": 0.017950105078307344,
-        "facet": null,
-        "interval_high": 0.696989498539895,
-        "interval_low": 0.6138655601080927,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 36.58064970425314,
-        "pairs": 498,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6908023483365949,
-        "chance": 0.056480020200744975,
-        "facet": null,
-        "interval_high": 0.7293261946519485,
-        "interval_low": 0.6494310774876766,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 12.230915390633717,
-        "pairs": 511,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7840909090909091,
-        "chance": 0.20435068772834739,
-        "facet": null,
-        "interval_high": 0.817068050447459,
-        "interval_low": 0.7470096749504789,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 3.8369868866467267,
-        "pairs": 528,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.2267818574514039,
-        "chance": 0.0018164191036496196,
-        "facet": null,
-        "interval_high": 0.2548500721808544,
-        "interval_low": 0.20097122039198806,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 124.8510638297874,
-        "pairs": 926,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.35634167385677307,
-        "chance": 0.019487330628187787,
-        "facet": null,
-        "interval_high": 0.3843472266370865,
-        "interval_low": 0.3292853093850167,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 18.2858124930326,
-        "pairs": 1159,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.3837011884550085,
-        "chance": 0.04996748178980259,
-        "facet": null,
-        "interval_high": 0.41180661320951994,
-        "interval_low": 0.3563518269740038,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 7.67901792748168,
-        "pairs": 1178,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5085020242914979,
-        "chance": 0.20815937826016478,
-        "facet": null,
-        "interval_high": 0.5363147851421542,
-        "interval_low": 0.48063653454229927,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 2.4428494576687028,
-        "pairs": 1235,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.10343228200371057,
-        "chance": 0.0014787286916997568,
-        "facet": null,
-        "interval_high": 0.11699993972003477,
-        "interval_low": 0.09127533380002338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 69.94676074406732,
-        "pairs": 2156,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.19145114942528735,
-        "chance": 0.020227388928280556,
-        "facet": null,
-        "interval_high": 0.20648759900114244,
-        "interval_low": 0.17726505036028467,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 9.464946271815311,
-        "pairs": 2784,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.23451635351426584,
-        "chance": 0.05489917951826143,
-        "facet": null,
-        "interval_high": 0.2503550217161383,
-        "interval_low": 0.21938646787800753,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 4.2717642699242395,
-        "pairs": 2874,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.4352901934623082,
-        "chance": 0.22075486625966945,
-        "facet": null,
-        "interval_high": 0.45310955071205783,
-        "interval_low": 0.4176364606697551,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.971826038707954,
-        "pairs": 2998,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.09013398294762484,
-        "chance": 0.0012329719106581045,
-        "facet": null,
-        "interval_high": 0.11167945366101317,
-        "interval_low": 0.07240631504900338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 73.10303030303051,
-        "pairs": 821,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.16608996539792387,
-        "chance": 0.0201125474998075,
-        "facet": null,
-        "interval_high": 0.1886429188487395,
-        "interval_low": 0.14574894983401857,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 8.258027253857998,
-        "pairs": 1156,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.2044517724649629,
-        "chance": 0.05478485759115,
-        "facet": null,
-        "interval_high": 0.2280644360447296,
-        "interval_low": 0.1827052154859216,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 3.7319029646978628,
-        "pairs": 1213,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.40632411067193674,
-        "chance": 0.22114359755432977,
-        "facet": null,
-        "interval_high": 0.43363407087200057,
-        "interval_low": 0.37958138486337245,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.8373767776483445,
-        "pairs": 1265,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "gene_ontology_slim": {
-      "annotated_locus_count": 5285,
-      "annotation_kind": "gene_ontology_slim",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9712,
-        "chance": 0.2749755287817964,
-        "facet": "biological_process",
-        "interval_high": 0.9817064477861096,
-        "interval_low": 0.9549364206246317,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 3.5319506586736464,
-        "pairs": 625,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9712230215827338,
-        "chance": 0.36677809606758355,
-        "facet": "cellular_component",
-        "interval_high": 0.9853477608467873,
-        "interval_low": 0.9442524117324202,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.6479853404434857,
-        "pairs": 278,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8950617283950617,
-        "chance": 0.35382013894928005,
-        "facet": "molecular_function",
-        "interval_high": 0.9143355034974312,
-        "interval_low": 0.872058310728826,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.529708260962976,
-        "pairs": 810,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8952772073921971,
-        "chance": 0.31993545709188764,
-        "facet": "biological_process",
-        "interval_high": 0.9194481198833376,
-        "interval_low": 0.8649189753261962,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.798305681808401,
-        "pairs": 487,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9616519174041298,
-        "chance": 0.41432422780540423,
-        "facet": "cellular_component",
-        "interval_high": 0.9774546725078803,
-        "interval_low": 0.9355033815905722,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.3210129962657873,
-        "pairs": 339,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.901840490797546,
-        "chance": 0.35961716062800003,
-        "facet": "molecular_function",
-        "interval_high": 0.9223793238101501,
-        "interval_low": 0.876594086842666,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.50777935408494,
-        "pairs": 652,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.8861985472154964,
-        "chance": 0.33331291266762375,
-        "facet": "biological_process",
-        "interval_high": 0.9060917207076976,
-        "interval_low": 0.8627297025615143,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.6587585225034607,
-        "pairs": 826,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.9284603421461898,
-        "chance": 0.4203953432943666,
-        "facet": "cellular_component",
-        "interval_high": 0.9459395625107462,
-        "interval_low": 0.9058918595870286,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.2085409768587017,
-        "pairs": 643,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.819838056680162,
-        "chance": 0.30237623197651675,
-        "facet": "molecular_function",
-        "interval_high": 0.8425496283894046,
-        "interval_low": 0.7946488920194995,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.71131778883941,
-        "pairs": 988,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.8010369410239793,
-        "chance": 0.38028684190206863,
-        "facet": "biological_process",
-        "interval_high": 0.8201984325967611,
-        "interval_low": 0.7803801916140178,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.106401938645729,
-        "pairs": 1543,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.9034627492130115,
-        "chance": 0.4148870239243,
-        "facet": "cellular_component",
-        "interval_high": 0.9206256699752454,
-        "interval_low": 0.8830601229501457,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.177611487260823,
-        "pairs": 953,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.6808883693746347,
-        "chance": 0.32460317617637097,
-        "facet": "molecular_function",
-        "interval_high": 0.702549292941837,
-        "interval_low": 0.6584169910578047,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.0976023013548044,
-        "pairs": 1711,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.7823046518698693,
-        "chance": 0.41077088326957806,
-        "facet": "biological_process",
-        "interval_high": 0.7960747353295677,
-        "interval_low": 0.7678758658776085,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.9044793185997642,
-        "pairs": 3289,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.8416475972540046,
-        "chance": 0.40856930563850763,
-        "facet": "cellular_component",
-        "interval_high": 0.8563539132570905,
-        "interval_low": 0.8257420410595673,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.0599873403086093,
-        "pairs": 2185,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6026557711950971,
-        "chance": 0.3531854837312671,
-        "facet": "molecular_function",
-        "interval_high": 0.6178748303179351,
-        "interval_low": 0.587235498630051,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.7063435473855648,
-        "pairs": 3916,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6189376443418014,
-        "chance": 0.37905540561012924,
-        "facet": "biological_process",
-        "interval_high": 0.6415225874899816,
-        "interval_low": 0.5958262581650599,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.6328421523116303,
-        "pairs": 1732,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.7752976190476191,
-        "chance": 0.3946469704921818,
-        "facet": "cellular_component",
-        "interval_high": 0.7968098336903654,
-        "interval_low": 0.7522161052626984,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 1.964534576512043,
-        "pairs": 1344,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.5640019617459539,
-        "chance": 0.334479988259207,
-        "facet": "molecular_function",
-        "interval_high": 0.5853860431496003,
-        "interval_low": 0.5423771666851709,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.6862053980606984,
-        "pairs": 2039,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "kegg_orthology": {
-      "annotated_locus_count": 1412,
-      "annotation_kind": "kegg_orthology",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9842931937172775,
-        "chance": 0.005758791247527851,
-        "facet": null,
-        "interval_high": 0.9927821623306607,
-        "interval_low": 0.9661605747925526,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 170.92010309278314,
-        "pairs": 382,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8564356435643564,
-        "chance": 0.004340015858424963,
-        "facet": null,
-        "interval_high": 0.8981459187273432,
-        "interval_low": 0.8014211270010226,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 197.33468067906227,
-        "pairs": 202,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.6328502415458938,
-        "chance": 0.002807478849755369,
-        "facet": null,
-        "interval_high": 0.6955400653817325,
-        "interval_low": 0.5653192716750912,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 225.41585365853692,
-        "pairs": 207,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.5548172757475083,
-        "chance": 0.002389860399189092,
-        "facet": null,
-        "interval_high": 0.6099216124746827,
-        "interval_low": 0.49833132938102215,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 232.154679802956,
-        "pairs": 301,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.34536082474226804,
-        "chance": 0.0019252266799155374,
-        "facet": null,
-        "interval_high": 0.3939815089414147,
-        "interval_low": 0.2997722936155368,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 179.38709677419365,
-        "pairs": 388,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.20212765957446807,
-        "chance": 0.0015229880724399458,
-        "facet": null,
-        "interval_high": 0.26523294229556993,
-        "interval_low": 0.15095207701202545,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 132.71782178217836,
-        "pairs": 188,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     }
-    },
     "coverage": {
      "cog_annotated_gene_count": 106,
      "cog_distinct_id_count": 1,
@@ -881,11 +119,9 @@
      ]
     },
     "inference": {
-     "representation": "esm",
      "vocabularies": [
       {
        "annotation_kind": "ec_number",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 106,
         "checkable": true,
@@ -904,12 +140,10 @@
          "unanimous_node_count": 1556
         },
         "term": "6.1.1.18"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "cog_orthogroup",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 106,
         "checkable": true,
@@ -928,12 +162,10 @@
          "unanimous_node_count": 2626
         },
         "term": "COG0008"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "gene_ontology_slim",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 106,
         "checkable": true,
@@ -952,12 +184,10 @@
          "unanimous_node_count": 2880
         },
         "term": "GO:0016874"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "kegg_orthology",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 53,
         "checkable": true,
@@ -976,10 +206,16 @@
          "unanimous_node_count": 409
         },
         "term": "K01886"
-       },
-       "walk": []
+       }
       }
      ]
+    },
+    "predictions": {
+     "annotation_model_label": "annotation-transfer v0.1",
+     "annotation_model_version": "at-v0.1",
+     "calls": [],
+     "serve_cut": 0.8,
+     "state": "loaded"
     }
    },
    "label": "17373",
@@ -3044,2458 +2280,6 @@
     ]
    }
   },
-  "inferred_function": {
-   "function": {
-    "annotations": {},
-    "calibration": {
-     "cog_orthogroup": {
-      "annotated_locus_count": 4993,
-      "annotation_kind": "cog_orthogroup",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9889883000688231,
-        "chance": 0.0027891839606826014,
-        "facet": null,
-        "interval_high": 0.9932106784051377,
-        "interval_low": 0.9821870587270255,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 354.57980327220383,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9944941500344116,
-        "chance": 0.07533691897400512,
-        "facet": null,
-        "interval_high": 0.9972075286651817,
-        "interval_low": 0.9891728712355351,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 13.200621469236884,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9077922077922078,
-        "chance": 0.0023770500333000397,
-        "facet": null,
-        "interval_high": 0.9262528996638689,
-        "interval_low": 0.8852826910823511,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 381.89865382510567,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9571428571428572,
-        "chance": 0.07551328879453915,
-        "facet": null,
-        "interval_high": 0.9693229771534483,
-        "interval_low": 0.9404239271225691,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 12.675157875153682,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.5798387096774194,
-        "chance": 0.0020991651157981914,
-        "facet": null,
-        "interval_high": 0.6070238267423919,
-        "interval_low": 0.5521604295166044,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 276.2234877635817,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7814516129032258,
-        "chance": 0.07787669949338279,
-        "facet": null,
-        "interval_high": 0.8035654836383993,
-        "interval_low": 0.7575992177190728,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 10.03447267265899,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.298819255222525,
-        "chance": 0.0017070910186543834,
-        "facet": null,
-        "interval_high": 0.3182752471610667,
-        "interval_low": 0.280063998957059,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 175.04588329336397,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5059037238873751,
-        "chance": 0.07698593862805297,
-        "facet": null,
-        "interval_high": 0.5267579762969314,
-        "interval_low": 0.48502890812849625,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 6.57137826599192,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.14169040835707503,
-        "chance": 0.000997607568120398,
-        "facet": null,
-        "interval_high": 0.15137180713877385,
-        "interval_low": 0.13253150853501677,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 142.03020594965543,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.35764482431149097,
-        "chance": 0.07051263027491671,
-        "facet": null,
-        "interval_high": 0.37069135261729835,
-        "interval_low": 0.3448058830559092,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 5.072067556083142,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.100920245398773,
-        "chance": 0.0007498500668554411,
-        "facet": null,
-        "interval_high": 0.11173490883151979,
-        "interval_low": 0.091045029998845,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 134.58723264770848,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.3,
-        "chance": 0.06546197842928994,
-        "facet": null,
-        "interval_high": 0.31595892655597396,
-        "interval_low": 0.2845118806057461,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 4.582812912140304,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "ec_number": {
-      "annotated_locus_count": 2539,
-      "annotation_kind": "ec_number",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 1.0,
-        "chance": 0.004750134016320202,
-        "facet": null,
-        "interval_high": 1.0,
-        "interval_low": 0.9816928578508741,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 210.52037617554893,
-        "pairs": 206,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.979933110367893,
-        "chance": 0.02229981881134058,
-        "facet": null,
-        "interval_high": 0.9907716266732061,
-        "interval_low": 0.9569185189342668,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 43.943545849329844,
-        "pairs": 299,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.059466050988553676,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 16.72590729297677,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.23380424006710906,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.254087332327638,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8434343434343434,
-        "chance": 0.0032740492863192264,
-        "facet": null,
-        "interval_high": 0.8874552799499632,
-        "interval_low": 0.786340409343027,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 257.61198738170333,
-        "pairs": 198,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9520295202952029,
-        "chance": 0.020851882878879135,
-        "facet": null,
-        "interval_high": 0.9717547637088241,
-        "interval_low": 0.9196677865892385,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 45.65676518639539,
-        "pairs": 271,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9619377162629758,
-        "chance": 0.06414359861591695,
-        "facet": null,
-        "interval_high": 0.9786161784970397,
-        "interval_low": 0.9331395283424255,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 14.996628455832772,
-        "pairs": 289,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.976897689768977,
-        "chance": 0.21759291768420366,
-        "facet": null,
-        "interval_high": 0.9887652790167235,
-        "interval_low": 0.9530887590276617,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.489565653909588,
-        "pairs": 303,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.4343675417661098,
-        "chance": 0.0029149645421223985,
-        "facet": null,
-        "interval_high": 0.48221337253265495,
-        "interval_low": 0.38771427886209897,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 149.01297614064455,
-        "pairs": 419,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6566265060240963,
-        "chance": 0.017950105078307344,
-        "facet": null,
-        "interval_high": 0.696989498539895,
-        "interval_low": 0.6138655601080927,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 36.58064970425314,
-        "pairs": 498,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6908023483365949,
-        "chance": 0.056480020200744975,
-        "facet": null,
-        "interval_high": 0.7293261946519485,
-        "interval_low": 0.6494310774876766,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 12.230915390633717,
-        "pairs": 511,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7840909090909091,
-        "chance": 0.20435068772834739,
-        "facet": null,
-        "interval_high": 0.817068050447459,
-        "interval_low": 0.7470096749504789,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 3.8369868866467267,
-        "pairs": 528,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.2267818574514039,
-        "chance": 0.0018164191036496196,
-        "facet": null,
-        "interval_high": 0.2548500721808544,
-        "interval_low": 0.20097122039198806,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 124.8510638297874,
-        "pairs": 926,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.35634167385677307,
-        "chance": 0.019487330628187787,
-        "facet": null,
-        "interval_high": 0.3843472266370865,
-        "interval_low": 0.3292853093850167,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 18.2858124930326,
-        "pairs": 1159,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.3837011884550085,
-        "chance": 0.04996748178980259,
-        "facet": null,
-        "interval_high": 0.41180661320951994,
-        "interval_low": 0.3563518269740038,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 7.67901792748168,
-        "pairs": 1178,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5085020242914979,
-        "chance": 0.20815937826016478,
-        "facet": null,
-        "interval_high": 0.5363147851421542,
-        "interval_low": 0.48063653454229927,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 2.4428494576687028,
-        "pairs": 1235,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.10343228200371057,
-        "chance": 0.0014787286916997568,
-        "facet": null,
-        "interval_high": 0.11699993972003477,
-        "interval_low": 0.09127533380002338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 69.94676074406732,
-        "pairs": 2156,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.19145114942528735,
-        "chance": 0.020227388928280556,
-        "facet": null,
-        "interval_high": 0.20648759900114244,
-        "interval_low": 0.17726505036028467,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 9.464946271815311,
-        "pairs": 2784,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.23451635351426584,
-        "chance": 0.05489917951826143,
-        "facet": null,
-        "interval_high": 0.2503550217161383,
-        "interval_low": 0.21938646787800753,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 4.2717642699242395,
-        "pairs": 2874,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.4352901934623082,
-        "chance": 0.22075486625966945,
-        "facet": null,
-        "interval_high": 0.45310955071205783,
-        "interval_low": 0.4176364606697551,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.971826038707954,
-        "pairs": 2998,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.09013398294762484,
-        "chance": 0.0012329719106581045,
-        "facet": null,
-        "interval_high": 0.11167945366101317,
-        "interval_low": 0.07240631504900338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 73.10303030303051,
-        "pairs": 821,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.16608996539792387,
-        "chance": 0.0201125474998075,
-        "facet": null,
-        "interval_high": 0.1886429188487395,
-        "interval_low": 0.14574894983401857,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 8.258027253857998,
-        "pairs": 1156,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.2044517724649629,
-        "chance": 0.05478485759115,
-        "facet": null,
-        "interval_high": 0.2280644360447296,
-        "interval_low": 0.1827052154859216,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 3.7319029646978628,
-        "pairs": 1213,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.40632411067193674,
-        "chance": 0.22114359755432977,
-        "facet": null,
-        "interval_high": 0.43363407087200057,
-        "interval_low": 0.37958138486337245,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.8373767776483445,
-        "pairs": 1265,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "gene_ontology_slim": {
-      "annotated_locus_count": 5285,
-      "annotation_kind": "gene_ontology_slim",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9712,
-        "chance": 0.2749755287817964,
-        "facet": "biological_process",
-        "interval_high": 0.9817064477861096,
-        "interval_low": 0.9549364206246317,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 3.5319506586736464,
-        "pairs": 625,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9712230215827338,
-        "chance": 0.36677809606758355,
-        "facet": "cellular_component",
-        "interval_high": 0.9853477608467873,
-        "interval_low": 0.9442524117324202,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.6479853404434857,
-        "pairs": 278,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8950617283950617,
-        "chance": 0.35382013894928005,
-        "facet": "molecular_function",
-        "interval_high": 0.9143355034974312,
-        "interval_low": 0.872058310728826,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.529708260962976,
-        "pairs": 810,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8952772073921971,
-        "chance": 0.31993545709188764,
-        "facet": "biological_process",
-        "interval_high": 0.9194481198833376,
-        "interval_low": 0.8649189753261962,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.798305681808401,
-        "pairs": 487,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9616519174041298,
-        "chance": 0.41432422780540423,
-        "facet": "cellular_component",
-        "interval_high": 0.9774546725078803,
-        "interval_low": 0.9355033815905722,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.3210129962657873,
-        "pairs": 339,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.901840490797546,
-        "chance": 0.35961716062800003,
-        "facet": "molecular_function",
-        "interval_high": 0.9223793238101501,
-        "interval_low": 0.876594086842666,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.50777935408494,
-        "pairs": 652,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.8861985472154964,
-        "chance": 0.33331291266762375,
-        "facet": "biological_process",
-        "interval_high": 0.9060917207076976,
-        "interval_low": 0.8627297025615143,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.6587585225034607,
-        "pairs": 826,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.9284603421461898,
-        "chance": 0.4203953432943666,
-        "facet": "cellular_component",
-        "interval_high": 0.9459395625107462,
-        "interval_low": 0.9058918595870286,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.2085409768587017,
-        "pairs": 643,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.819838056680162,
-        "chance": 0.30237623197651675,
-        "facet": "molecular_function",
-        "interval_high": 0.8425496283894046,
-        "interval_low": 0.7946488920194995,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.71131778883941,
-        "pairs": 988,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.8010369410239793,
-        "chance": 0.38028684190206863,
-        "facet": "biological_process",
-        "interval_high": 0.8201984325967611,
-        "interval_low": 0.7803801916140178,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.106401938645729,
-        "pairs": 1543,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.9034627492130115,
-        "chance": 0.4148870239243,
-        "facet": "cellular_component",
-        "interval_high": 0.9206256699752454,
-        "interval_low": 0.8830601229501457,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.177611487260823,
-        "pairs": 953,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.6808883693746347,
-        "chance": 0.32460317617637097,
-        "facet": "molecular_function",
-        "interval_high": 0.702549292941837,
-        "interval_low": 0.6584169910578047,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.0976023013548044,
-        "pairs": 1711,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.7823046518698693,
-        "chance": 0.41077088326957806,
-        "facet": "biological_process",
-        "interval_high": 0.7960747353295677,
-        "interval_low": 0.7678758658776085,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.9044793185997642,
-        "pairs": 3289,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.8416475972540046,
-        "chance": 0.40856930563850763,
-        "facet": "cellular_component",
-        "interval_high": 0.8563539132570905,
-        "interval_low": 0.8257420410595673,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.0599873403086093,
-        "pairs": 2185,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6026557711950971,
-        "chance": 0.3531854837312671,
-        "facet": "molecular_function",
-        "interval_high": 0.6178748303179351,
-        "interval_low": 0.587235498630051,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.7063435473855648,
-        "pairs": 3916,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6189376443418014,
-        "chance": 0.37905540561012924,
-        "facet": "biological_process",
-        "interval_high": 0.6415225874899816,
-        "interval_low": 0.5958262581650599,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.6328421523116303,
-        "pairs": 1732,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.7752976190476191,
-        "chance": 0.3946469704921818,
-        "facet": "cellular_component",
-        "interval_high": 0.7968098336903654,
-        "interval_low": 0.7522161052626984,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 1.964534576512043,
-        "pairs": 1344,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.5640019617459539,
-        "chance": 0.334479988259207,
-        "facet": "molecular_function",
-        "interval_high": 0.5853860431496003,
-        "interval_low": 0.5423771666851709,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.6862053980606984,
-        "pairs": 2039,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "kegg_orthology": {
-      "annotated_locus_count": 1412,
-      "annotation_kind": "kegg_orthology",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9842931937172775,
-        "chance": 0.005758791247527851,
-        "facet": null,
-        "interval_high": 0.9927821623306607,
-        "interval_low": 0.9661605747925526,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 170.92010309278314,
-        "pairs": 382,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8564356435643564,
-        "chance": 0.004340015858424963,
-        "facet": null,
-        "interval_high": 0.8981459187273432,
-        "interval_low": 0.8014211270010226,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 197.33468067906227,
-        "pairs": 202,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.6328502415458938,
-        "chance": 0.002807478849755369,
-        "facet": null,
-        "interval_high": 0.6955400653817325,
-        "interval_low": 0.5653192716750912,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 225.41585365853692,
-        "pairs": 207,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.5548172757475083,
-        "chance": 0.002389860399189092,
-        "facet": null,
-        "interval_high": 0.6099216124746827,
-        "interval_low": 0.49833132938102215,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 232.154679802956,
-        "pairs": 301,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.34536082474226804,
-        "chance": 0.0019252266799155374,
-        "facet": null,
-        "interval_high": 0.3939815089414147,
-        "interval_low": 0.2997722936155368,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 179.38709677419365,
-        "pairs": 388,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.20212765957446807,
-        "chance": 0.0015229880724399458,
-        "facet": null,
-        "interval_high": 0.26523294229556993,
-        "interval_low": 0.15095207701202545,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 132.71782178217836,
-        "pairs": 188,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     }
-    },
-    "coverage": {
-     "cog_annotated_gene_count": 0,
-     "cog_distinct_id_count": 0,
-     "ec_annotated_gene_count": 0,
-     "gene_count": 102,
-     "go_annotated_gene_count": {
-      "biological_process": 0,
-      "cellular_component": 0,
-      "molecular_function": 0
-     },
-     "kegg_annotated_gene_count": 0,
-     "modal_cog_categories": null
-    },
-    "inference": {
-     "representation": "esm",
-     "vocabularies": [
-      {
-       "annotation_kind": "ec_number",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4130,
-         "cosine": 0.989086,
-         "display_name": "yecV",
-         "node_label": "4130",
-         "rank": 1,
-         "tier": "0.98-0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 2604,
-         "cosine": 0.986387,
-         "display_name": "ychT",
-         "node_label": "2604",
-         "rank": 2,
-         "tier": "0.98-0.99"
-        }
-       ]
-      },
-      {
-       "annotation_kind": "cog_orthogroup",
-       "candidate": {
-        "cosine": 0.986387,
-        "donor": {
-         "annotated_gene_count": 100,
-         "catalogue_ordinal": 2604,
-         "checkable": true,
-         "display_name": "ychT",
-         "gene_count": 100,
-         "member_gene_count": 100,
-         "name": "Small neutral amino acid transporter SnatA, MarC family",
-         "node_label": "2604",
-         "propagation": {
-          "annotation_kind": "cog_orthogroup",
-          "checkable_node_count": 2634,
-          "interval_high": 0.9984602144375139,
-          "interval_low": 0.9940178782576654,
-          "min_nodes": 30,
-          "one_gene_node_count": 28,
-          "prevalence_band": "core",
-          "rate": 0.996962794229309,
-          "unanimous_node_count": 2626
-         },
-         "term": "COG2095"
-        },
-        "offers": [
-         {
-          "calibration": {
-           "agreement": 0.9077922077922078,
-           "chance": 0.0023770500333000397,
-           "facet": null,
-           "interval_high": 0.9262528996638689,
-           "interval_low": 0.8852826910823511,
-           "level": 2,
-           "level_label": "COG orthogroup",
-           "lift": 381.89865382510567,
-           "pairs": 770,
-           "tier": "0.98-0.99"
-          },
-          "facet": null,
-          "level": 2,
-          "suggested": true,
-          "value": [
-           "COG2095"
-          ]
-         }
-        ],
-        "rank": 2,
-        "suggested_count": 1,
-        "tier": "0.98-0.99"
-       },
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4130,
-         "cosine": 0.989086,
-         "display_name": "yecV",
-         "node_label": "4130",
-         "rank": 1,
-         "tier": "0.98-0.99"
-        },
-        {
-         "carries_annotation": true,
-         "catalogue_ordinal": 2604,
-         "cosine": 0.986387,
-         "display_name": "ychT",
-         "node_label": "2604",
-         "rank": 2,
-         "tier": "0.98-0.99"
-        }
-       ]
-      },
-      {
-       "annotation_kind": "gene_ontology_slim",
-       "candidate": {
-        "cosine": 0.986387,
-        "donor": {
-         "annotated_gene_count": 100,
-         "catalogue_ordinal": 2604,
-         "checkable": true,
-         "display_name": "ychT",
-         "gene_count": 100,
-         "member_gene_count": 100,
-         "name": "membrane",
-         "node_label": "2604",
-         "propagation": {
-          "annotation_kind": "gene_ontology_slim",
-          "checkable_node_count": 2889,
-          "interval_high": 0.9983601824612844,
-          "interval_low": 0.9940895942565284,
-          "min_nodes": 30,
-          "one_gene_node_count": 2,
-          "prevalence_band": "core",
-          "rate": 0.9968847352024922,
-          "unanimous_node_count": 2880
-         },
-         "term": "GO:0016020"
-        },
-        "offers": [
-         {
-          "calibration": {
-           "agreement": 0.9616519174041298,
-           "chance": 0.41432422780540423,
-           "facet": "cellular_component",
-           "interval_high": 0.9774546725078803,
-           "interval_low": 0.9355033815905722,
-           "level": 1,
-           "level_label": "GO cellular component",
-           "lift": 2.3210129962657873,
-           "pairs": 339,
-           "tier": "0.98-0.99"
-          },
-          "facet": "cellular_component",
-          "level": 1,
-          "suggested": true,
-          "value": [
-           "membrane"
-          ]
-         }
-        ],
-        "rank": 2,
-        "suggested_count": 1,
-        "tier": "0.98-0.99"
-       },
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4130,
-         "cosine": 0.989086,
-         "display_name": "yecV",
-         "node_label": "4130",
-         "rank": 1,
-         "tier": "0.98-0.99"
-        },
-        {
-         "carries_annotation": true,
-         "catalogue_ordinal": 2604,
-         "cosine": 0.986387,
-         "display_name": "ychT",
-         "node_label": "2604",
-         "rank": 2,
-         "tier": "0.98-0.99"
-        }
-       ]
-      },
-      {
-       "annotation_kind": "kegg_orthology",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4130,
-         "cosine": 0.989086,
-         "display_name": "yecV",
-         "node_label": "4130",
-         "rank": 1,
-         "tier": "0.98-0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 2604,
-         "cosine": 0.986387,
-         "display_name": "ychT",
-         "node_label": "2604",
-         "rank": 2,
-         "tier": "0.98-0.99"
-        }
-       ]
-      }
-     ]
-    }
-   },
-   "label": "17513",
-   "response": {
-    "anchor": {
-     "arrangement_ranks": [],
-     "is_anchored": false,
-     "kind": null,
-     "projected_copies": []
-    },
-    "annotations": {
-     "gene_symbol": [
-      {
-       "gene_count": 102,
-       "name": null,
-       "rank": 0,
-       "term": "evgL"
-      }
-     ],
-     "protein_product": [
-      {
-       "gene_count": 102,
-       "name": null,
-       "rank": 0,
-       "term": "Protein EvgL"
-      }
-     ]
-    },
-    "arrangements": {
-     "arrangements_not_listed": 1,
-     "listed": [
-      {
-       "gene_count": 47,
-       "genome_count": 47,
-       "is_recorded_reverse_complement": false,
-       "rank": 0,
-       "slots": [
-        {
-         "absence_reason": null,
-         "locus": "4016",
-         "same_strand": false,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "4079",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "17490",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": null,
-         "locus": "2889",
-         "same_strand": false,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": null,
-         "locus": "1773",
-         "same_strand": false,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": null,
-         "locus": "1772",
-         "same_strand": false,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 46,
-       "genome_count": 46,
-       "is_recorded_reverse_complement": false,
-       "rank": 1,
-       "slots": [
-        {
-         "absence_reason": null,
-         "locus": "3945",
-         "same_strand": false,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "3924",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "17490",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": null,
-         "locus": "2889",
-         "same_strand": false,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": null,
-         "locus": "1773",
-         "same_strand": false,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": null,
-         "locus": "1772",
-         "same_strand": false,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 2,
-       "genome_count": 2,
-       "is_recorded_reverse_complement": false,
-       "rank": 2,
-       "slots": [
-        {
-         "absence_reason": null,
-         "locus": "3945",
-         "same_strand": false,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "3924",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "17490",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 1,
-       "genome_count": 1,
-       "is_recorded_reverse_complement": false,
-       "rank": 3,
-       "slots": [
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "15667",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": null,
-         "locus": "2889",
-         "same_strand": false,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": null,
-         "locus": "1773",
-         "same_strand": false,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": null,
-         "locus": "1772",
-         "same_strand": false,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 1,
-       "genome_count": 1,
-       "is_recorded_reverse_complement": false,
-       "rank": 4,
-       "slots": [
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "17419",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": null,
-         "locus": "2889",
-         "same_strand": false,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": null,
-         "locus": "1773",
-         "same_strand": false,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": null,
-         "locus": "1772",
-         "same_strand": false,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 1,
-       "genome_count": 1,
-       "is_recorded_reverse_complement": false,
-       "rank": 5,
-       "slots": [
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "3924",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "17490",
-         "same_strand": true,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 1,
-       "genome_count": 1,
-       "is_recorded_reverse_complement": false,
-       "rank": 6,
-       "slots": [
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "5840",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "4099",
-         "same_strand": false,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "4982",
-         "same_strand": true,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "17357",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": "contig_end",
-         "locus": null,
-         "same_strand": null,
-         "signed_offset": 5
-        }
-       ]
-      },
-      {
-       "gene_count": 1,
-       "genome_count": 1,
-       "is_recorded_reverse_complement": false,
-       "rank": 7,
-       "slots": [
-        {
-         "absence_reason": null,
-         "locus": "4079",
-         "same_strand": true,
-         "signed_offset": -5
-        },
-        {
-         "absence_reason": null,
-         "locus": "17490",
-         "same_strand": true,
-         "signed_offset": -4
-        },
-        {
-         "absence_reason": null,
-         "locus": "2176",
-         "same_strand": false,
-         "signed_offset": -3
-        },
-        {
-         "absence_reason": null,
-         "locus": "39",
-         "same_strand": false,
-         "signed_offset": -2
-        },
-        {
-         "absence_reason": null,
-         "locus": "12939",
-         "same_strand": false,
-         "signed_offset": -1
-        },
-        {
-         "absence_reason": null,
-         "locus": "3172",
-         "same_strand": true,
-         "signed_offset": 1
-        },
-        {
-         "absence_reason": null,
-         "locus": "287",
-         "same_strand": true,
-         "signed_offset": 2
-        },
-        {
-         "absence_reason": null,
-         "locus": "2889",
-         "same_strand": false,
-         "signed_offset": 3
-        },
-        {
-         "absence_reason": null,
-         "locus": "1773",
-         "same_strand": false,
-         "signed_offset": 4
-        },
-        {
-         "absence_reason": null,
-         "locus": "1772",
-         "same_strand": false,
-         "signed_offset": 5
-        }
-       ]
-      }
-     ],
-     "members_in_arrangements_not_listed": 1,
-     "members_without_a_neighbourhood": 1,
-     "membership_is_complete": true,
-     "total": 9
-    },
-    "intergenic_gaps": [
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "17490",
-       "3924"
-      ],
-      "length_variance_score": 0.05740740740740741,
-      "maximum_signed_length_nt": 17,
-      "median_signed_length_nt": 17,
-      "minimum_signed_length_nt": -14,
-      "modal_length_nt": 17,
-      "observed_genome_count": 54,
-      "quartile1_signed_length_nt": 17,
-      "quartile3_signed_length_nt": 17
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "17490",
-       "2176"
-      ],
-      "length_variance_score": 0.001525843982452794,
-      "maximum_signed_length_nt": 108,
-      "median_signed_length_nt": 107,
-      "minimum_signed_length_nt": 104,
-      "modal_length_nt": 107,
-      "observed_genome_count": 98,
-      "quartile1_signed_length_nt": 107,
-      "quartile3_signed_length_nt": 107
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "2176",
-       "39"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": -1,
-      "median_signed_length_nt": -1,
-      "minimum_signed_length_nt": -1,
-      "modal_length_nt": -1,
-      "observed_genome_count": 100,
-      "quartile1_signed_length_nt": -1,
-      "quartile3_signed_length_nt": -1
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "17513",
-       "39"
-      ],
-      "length_variance_score": 0.00010386642777388277,
-      "maximum_signed_length_nt": 389,
-      "median_signed_length_nt": 389,
-      "minimum_signed_length_nt": 388,
-      "modal_length_nt": 389,
-      "observed_genome_count": 99,
-      "quartile1_signed_length_nt": 389,
-      "quartile3_signed_length_nt": 389
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "17513",
-       "3172"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": -4,
-      "median_signed_length_nt": -4,
-      "minimum_signed_length_nt": -4,
-      "modal_length_nt": -4,
-      "observed_genome_count": 98,
-      "quartile1_signed_length_nt": -4,
-      "quartile3_signed_length_nt": -4
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "287",
-       "3172"
-      ],
-      "length_variance_score": 0.07806122448979591,
-      "maximum_signed_length_nt": 55,
-      "median_signed_length_nt": 4,
-      "minimum_signed_length_nt": 4,
-      "modal_length_nt": 4,
-      "observed_genome_count": 98,
-      "quartile1_signed_length_nt": 4,
-      "quartile3_signed_length_nt": 4
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "1772",
-       "1773"
-      ],
-      "length_variance_score": 0.003333333333333333,
-      "maximum_signed_length_nt": 69,
-      "median_signed_length_nt": 69,
-      "minimum_signed_length_nt": 68,
-      "modal_length_nt": 69,
-      "observed_genome_count": 100,
-      "quartile1_signed_length_nt": 69,
-      "quartile3_signed_length_nt": 69
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "4099",
-       "4982"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 123,
-      "median_signed_length_nt": 123,
-      "minimum_signed_length_nt": 123,
-      "modal_length_nt": 123,
-      "observed_genome_count": 28,
-      "quartile1_signed_length_nt": 123,
-      "quartile3_signed_length_nt": 123
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "3924",
-       "3945"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 217,
-      "median_signed_length_nt": 217,
-      "minimum_signed_length_nt": 217,
-      "modal_length_nt": 217,
-      "observed_genome_count": 52,
-      "quartile1_signed_length_nt": 217,
-      "quartile3_signed_length_nt": 217
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "287",
-       "2889"
-      ],
-      "length_variance_score": 0.00018365472910927456,
-      "maximum_signed_length_nt": 55,
-      "median_signed_length_nt": 55,
-      "minimum_signed_length_nt": 54,
-      "modal_length_nt": 55,
-      "observed_genome_count": 99,
-      "quartile1_signed_length_nt": 55,
-      "quartile3_signed_length_nt": 55
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "1773",
-       "2889"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 73,
-      "median_signed_length_nt": 73,
-      "minimum_signed_length_nt": 73,
-      "modal_length_nt": 73,
-      "observed_genome_count": 99,
-      "quartile1_signed_length_nt": 73,
-      "quartile3_signed_length_nt": 73
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "15667",
-       "2176"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 104,
-      "median_signed_length_nt": 104,
-      "minimum_signed_length_nt": 104,
-      "modal_length_nt": 104,
-      "observed_genome_count": 1,
-      "quartile1_signed_length_nt": 104,
-      "quartile3_signed_length_nt": 104
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "4016",
-       "4079"
-      ],
-      "length_variance_score": 0.007042253521126761,
-      "maximum_signed_length_nt": 284,
-      "median_signed_length_nt": 284,
-      "minimum_signed_length_nt": 272,
-      "modal_length_nt": 284,
-      "observed_genome_count": 48,
-      "quartile1_signed_length_nt": 284,
-      "quartile3_signed_length_nt": 284
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "17490",
-       "4079"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 17,
-      "median_signed_length_nt": 17,
-      "minimum_signed_length_nt": 17,
-      "modal_length_nt": 17,
-      "observed_genome_count": 48,
-      "quartile1_signed_length_nt": 17,
-      "quartile3_signed_length_nt": 17
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "12939",
-       "39"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 2,
-      "median_signed_length_nt": 2,
-      "minimum_signed_length_nt": 2,
-      "modal_length_nt": 2,
-      "observed_genome_count": 1,
-      "quartile1_signed_length_nt": 2,
-      "quartile3_signed_length_nt": 2
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "12939",
-       "17513"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 389,
-      "median_signed_length_nt": 389,
-      "minimum_signed_length_nt": 389,
-      "modal_length_nt": 389,
-      "observed_genome_count": 1,
-      "quartile1_signed_length_nt": 389,
-      "quartile3_signed_length_nt": 389
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": false,
-      "flanking_loci": [
-       "17357",
-       "4982"
-      ],
-      "length_variance_score": 0.0007590132827324478,
-      "maximum_signed_length_nt": 531,
-      "median_signed_length_nt": 527,
-      "minimum_signed_length_nt": 527,
-      "modal_length_nt": 527,
-      "observed_genome_count": 10,
-      "quartile1_signed_length_nt": 527,
-      "quartile3_signed_length_nt": 527
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "4099",
-       "5840"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 337,
-      "median_signed_length_nt": 337,
-      "minimum_signed_length_nt": 337,
-      "modal_length_nt": 337,
-      "observed_genome_count": 2,
-      "quartile1_signed_length_nt": 337,
-      "quartile3_signed_length_nt": 337
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "17357",
-       "17513"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 836,
-      "median_signed_length_nt": 836,
-      "minimum_signed_length_nt": 836,
-      "modal_length_nt": 836,
-      "observed_genome_count": 1,
-      "quartile1_signed_length_nt": 836,
-      "quartile3_signed_length_nt": 836
-     },
-     {
-      "distinct_named_feature_count": 0,
-      "every_genome_agrees": true,
-      "flanking_loci": [
-       "17419",
-       "2176"
-      ],
-      "length_variance_score": 0.0,
-      "maximum_signed_length_nt": 107,
-      "median_signed_length_nt": 107,
-      "minimum_signed_length_nt": 107,
-      "modal_length_nt": 107,
-      "observed_genome_count": 1,
-      "quartile1_signed_length_nt": 107,
-      "quartile3_signed_length_nt": 107
-     }
-    ],
-    "locus": {
-     "bakta_gene_symbol": "evgL",
-     "best_product": "Protein EvgL",
-     "catalogue_ordinal": 17513,
-     "display_name": "evgL",
-     "display_name_source": "bakta_symbol",
-     "display_name_source_accession": null,
-     "evidence": {
-      "collapse_bucket": "synteny_only",
-      "collapse_tier": "esm_homology",
-      "resolved_threshold": null,
-      "resolved_threshold_is_capped_at_50_members": true,
-      "syntenic_a5": 0.8805
-     },
-     "gene_count": 102,
-     "gene_length_interquartile_range_nt": 0,
-     "genome_count": 100,
-     "interest_score": 2264150.0102,
-     "label": "17513",
-     "median_gene_length_nt": 30,
-     "named_gene_count": 102,
-     "pfam": {
-      "annotated_gene_count": 0,
-      "architecture_count": 0,
-      "concordance_class": "no_coverage"
-     },
-     "prevalence_band": "core",
-     "similarity": {
-      "bacformer": {
-       "nearest_loci": [
-        {
-         "catalogue_ordinal": 39,
-         "cross_similarity": 0.437145,
-         "rank": 1
-        },
-        {
-         "catalogue_ordinal": 12939,
-         "cross_similarity": 0.407845,
-         "rank": 2
-        },
-        {
-         "catalogue_ordinal": 2176,
-         "cross_similarity": 0.361928,
-         "rank": 3
-        },
-        {
-         "catalogue_ordinal": 3172,
-         "cross_similarity": 0.289008,
-         "rank": 4
-        },
-        {
-         "catalogue_ordinal": 5384,
-         "cross_similarity": 0.283957,
-         "rank": 5
-        }
-       ],
-       "nearest_similarity": 0.437145,
-       "own_fraction_percentile": 0.10782450632074692,
-       "own_neighbour_fraction": 0.980392,
-       "separation_percentile": 0.8517309757911262,
-       "weak_margin_percentile": 0.01933404940923738,
-       "weak_other_similarity": 0.56249,
-       "weak_own_similarity": 0.442061,
-       "within_similarity": 0.965113
-      },
-      "esm": {
-       "nearest_loci": [
-        {
-         "catalogue_ordinal": 4130,
-         "cross_similarity": 0.989086,
-         "rank": 1
-        },
-        {
-         "catalogue_ordinal": 2604,
-         "cross_similarity": 0.986387,
-         "rank": 2
-        }
-       ],
-       "nearest_similarity": 0.989086,
-       "own_fraction_percentile": 0.525159051474841,
-       "own_neighbour_fraction": 1.0,
-       "separation_percentile": 0.2428323556143105,
-       "weak_margin_percentile": 0.27836073700735353,
-       "weak_other_similarity": 0.989086,
-       "weak_own_similarity": 1.0,
-       "within_similarity": 1.0
-      }
-     },
-     "uniref50": {
-      "coverage": 0.0,
-      "family_count": 0,
-      "impurity": null,
-      "labelled_gene_count": 0,
-      "major_family_count": 0
-     }
-    },
-    "neighbour_display_rows": [
-     {
-      "best_product": "EmrKY-TolC multidrug resistance efflux pump, membrane fusion protein component",
-      "catalogue_ordinal": 12939,
-      "display_name": "locus 12939",
-      "display_name_source": "label",
-      "genome_count": 1,
-      "label": "12939",
-      "median_gene_length_nt": 540,
-      "prevalence_band": "rare"
-     },
-     {
-      "best_product": "D-serine dehydratase",
-      "catalogue_ordinal": 15667,
-      "display_name": "locus 15667",
-      "display_name_source": "label",
-      "genome_count": 1,
-      "label": "15667",
-      "median_gene_length_nt": 399,
-      "prevalence_band": "rare"
-     },
-     {
-      "best_product": "IS3 family IS911 transposase",
-      "catalogue_ordinal": 17187,
-      "display_name": "tnp",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 28,
-      "label": "17187",
-      "median_gene_length_nt": 654,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "IS1 family transposase",
-      "catalogue_ordinal": 17357,
-      "display_name": "tnp",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 63,
-      "label": "17357",
-      "median_gene_length_nt": 210,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "D-serine ammonia-lyase",
-      "catalogue_ordinal": 17419,
-      "display_name": "dsdA",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 1,
-      "label": "17419",
-      "median_gene_length_nt": 600,
-      "prevalence_band": "rare"
-     },
-     {
-      "best_product": "D-serine ammonia-lyase",
-      "catalogue_ordinal": 17490,
-      "display_name": "dsdA",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 98,
-      "label": "17490",
-      "median_gene_length_nt": 1329,
-      "prevalence_band": "soft_core"
-     },
-     {
-      "best_product": "Protein EvgL",
-      "catalogue_ordinal": 17513,
-      "display_name": "evgL",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "17513",
-      "median_gene_length_nt": 30,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "oxalyl-CoA decarboxylase",
-      "catalogue_ordinal": 1772,
-      "display_name": "oxc",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "1772",
-      "median_gene_length_nt": 1695,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "transporter YfdV",
-      "catalogue_ordinal": 1773,
-      "display_name": "yfdV",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "1773",
-      "median_gene_length_nt": 945,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "multidrug efflux MFS transporter permease subunit EmrY",
-      "catalogue_ordinal": 2176,
-      "display_name": "emrY",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "2176",
-      "median_gene_length_nt": 1539,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "YchE family NAAT transporter",
-      "catalogue_ordinal": 2604,
-      "display_name": "ychT",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "2604",
-      "median_gene_length_nt": 54,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "acid-sensing system histidine kinase EvgS",
-      "catalogue_ordinal": 287,
-      "display_name": "evgS",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "287",
-      "median_gene_length_nt": 3594,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "CoA:oxalate CoA-transferase",
-      "catalogue_ordinal": 2889,
-      "display_name": "yfdE",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 99,
-      "label": "2889",
-      "median_gene_length_nt": 1146,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "acid-sensing system DNA-binding response regulator EvgA",
-      "catalogue_ordinal": 3172,
-      "display_name": "evgA",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 98,
-      "label": "3172",
-      "median_gene_length_nt": 615,
-      "prevalence_band": "soft_core"
-     },
-     {
-      "best_product": "multidrug efflux MFS transporter periplasmic adaptor subunit EmrK",
-      "catalogue_ordinal": 39,
-      "display_name": "emrK",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 100,
-      "label": "39",
-      "median_gene_length_nt": 1164,
-      "prevalence_band": "core"
-     },
-     {
-      "best_product": "D-serine transporter DsdX",
-      "catalogue_ordinal": 3924,
-      "display_name": "dsdX",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 55,
-      "label": "3924",
-      "median_gene_length_nt": 1338,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "DNA-binding transcriptional regulator DsdC",
-      "catalogue_ordinal": 3945,
-      "display_name": "dsdC",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 54,
-      "label": "3945",
-      "median_gene_length_nt": 936,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "DNA-binding transcriptional regulator, LacI/PurR family",
-      "catalogue_ordinal": 4016,
-      "display_name": "purR",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 51,
-      "label": "4016",
-      "median_gene_length_nt": 954,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "D-serine transporter DsdX",
-      "catalogue_ordinal": 4079,
-      "display_name": "dsdX",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 48,
-      "label": "4079",
-      "median_gene_length_nt": 219,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "Biofilm development YmgB/AriR family protein",
-      "catalogue_ordinal": 4099,
-      "display_name": "AriR",
-      "display_name_source": "product",
-      "genome_count": 48,
-      "label": "4099",
-      "median_gene_length_nt": 258,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "Protein YecV",
-      "catalogue_ordinal": 4130,
-      "display_name": "yecV",
-      "display_name_source": "bakta_symbol",
-      "genome_count": 47,
-      "label": "4130",
-      "median_gene_length_nt": 45,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "hypothetical protein",
-      "catalogue_ordinal": 4982,
-      "display_name": "locus 4982",
-      "display_name_source": "label",
-      "genome_count": 32,
-      "label": "4982",
-      "median_gene_length_nt": 111,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "hypothetical protein",
-      "catalogue_ordinal": 5384,
-      "display_name": "locus 5384",
-      "display_name_source": "label",
-      "genome_count": 23,
-      "label": "5384",
-      "median_gene_length_nt": 96,
-      "prevalence_band": "shell"
-     },
-     {
-      "best_product": "Integrase catalytic domain-containing protein",
-      "catalogue_ordinal": 5840,
-      "display_name": "locus 5840",
-      "display_name_source": "label",
-      "genome_count": 16,
-      "label": "5840",
-      "median_gene_length_nt": 357,
-      "prevalence_band": "shell"
-     }
-    ],
-    "offsets": [
-     {
-      "members_without_an_observation": 5,
-      "observed_member_count": 97,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 48,
-        "locus": "3945",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 47,
-        "locus": "4016",
-        "rank": 1,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "4079",
-        "rank": 2,
-        "same_strand_gene_count": 1
-       },
-       {
-        "gene_count": 1,
-        "locus": "17187",
-        "rank": 3,
-        "same_strand_gene_count": 1
-       }
-      ],
-      "signed_offset": -5
-     },
-     {
-      "members_without_an_observation": 3,
-      "observed_member_count": 99,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 50,
-        "locus": "3924",
-        "rank": 0,
-        "same_strand_gene_count": 50
-       },
-       {
-        "gene_count": 47,
-        "locus": "4079",
-        "rank": 1,
-        "same_strand_gene_count": 47
-       },
-       {
-        "gene_count": 1,
-        "locus": "5840",
-        "rank": 2,
-        "same_strand_gene_count": 1
-       },
-       {
-        "gene_count": 1,
-        "locus": "17490",
-        "rank": 3,
-        "same_strand_gene_count": 1
-       }
-      ],
-      "signed_offset": -4
-     },
-     {
-      "members_without_an_observation": 1,
-      "observed_member_count": 101,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 97,
-        "locus": "17490",
-        "rank": 0,
-        "same_strand_gene_count": 97
-       },
-       {
-        "gene_count": 1,
-        "locus": "2176",
-        "rank": 1,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "4099",
-        "rank": 2,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "15667",
-        "rank": 3,
-        "same_strand_gene_count": 1
-       },
-       {
-        "gene_count": 1,
-        "locus": "17419",
-        "rank": 4,
-        "same_strand_gene_count": 1
-       }
-      ],
-      "signed_offset": -3
-     },
-     {
-      "members_without_an_observation": 1,
-      "observed_member_count": 101,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 99,
-        "locus": "2176",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "39",
-        "rank": 1,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "4982",
-        "rank": 2,
-        "same_strand_gene_count": 1
-       }
-      ],
-      "signed_offset": -2
-     },
-     {
-      "members_without_an_observation": 1,
-      "observed_member_count": 101,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 99,
-        "locus": "39",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "12939",
-        "rank": 1,
-        "same_strand_gene_count": 0
-       },
-       {
-        "gene_count": 1,
-        "locus": "17357",
-        "rank": 2,
-        "same_strand_gene_count": 0
-       }
-      ],
-      "signed_offset": -1
-     },
-     {
-      "members_without_an_observation": 4,
-      "observed_member_count": 98,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 98,
-        "locus": "3172",
-        "rank": 0,
-        "same_strand_gene_count": 98
-       }
-      ],
-      "signed_offset": 1
-     },
-     {
-      "members_without_an_observation": 4,
-      "observed_member_count": 98,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 98,
-        "locus": "287",
-        "rank": 0,
-        "same_strand_gene_count": 98
-       }
-      ],
-      "signed_offset": 2
-     },
-     {
-      "members_without_an_observation": 5,
-      "observed_member_count": 97,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 97,
-        "locus": "2889",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       }
-      ],
-      "signed_offset": 3
-     },
-     {
-      "members_without_an_observation": 5,
-      "observed_member_count": 97,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 97,
-        "locus": "1773",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       }
-      ],
-      "signed_offset": 4
-     },
-     {
-      "members_without_an_observation": 5,
-      "observed_member_count": 97,
-      "observed_not_listed": 0,
-      "occupants": [
-       {
-        "gene_count": 97,
-        "locus": "1772",
-        "rank": 0,
-        "same_strand_gene_count": 0
-       }
-      ],
-      "signed_offset": 5
-     }
-    ],
-    "pfam_reference": {},
-    "resolved_neighbour_count": 24,
-    "uniref50_families": []
-   }
-  },
   "no_window": {
    "function": {
     "annotations": {
@@ -5517,768 +2301,6 @@
       }
      ]
     },
-    "calibration": {
-     "cog_orthogroup": {
-      "annotated_locus_count": 4993,
-      "annotation_kind": "cog_orthogroup",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9889883000688231,
-        "chance": 0.0027891839606826014,
-        "facet": null,
-        "interval_high": 0.9932106784051377,
-        "interval_low": 0.9821870587270255,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 354.57980327220383,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9944941500344116,
-        "chance": 0.07533691897400512,
-        "facet": null,
-        "interval_high": 0.9972075286651817,
-        "interval_low": 0.9891728712355351,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 13.200621469236884,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9077922077922078,
-        "chance": 0.0023770500333000397,
-        "facet": null,
-        "interval_high": 0.9262528996638689,
-        "interval_low": 0.8852826910823511,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 381.89865382510567,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9571428571428572,
-        "chance": 0.07551328879453915,
-        "facet": null,
-        "interval_high": 0.9693229771534483,
-        "interval_low": 0.9404239271225691,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 12.675157875153682,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.5798387096774194,
-        "chance": 0.0020991651157981914,
-        "facet": null,
-        "interval_high": 0.6070238267423919,
-        "interval_low": 0.5521604295166044,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 276.2234877635817,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7814516129032258,
-        "chance": 0.07787669949338279,
-        "facet": null,
-        "interval_high": 0.8035654836383993,
-        "interval_low": 0.7575992177190728,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 10.03447267265899,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.298819255222525,
-        "chance": 0.0017070910186543834,
-        "facet": null,
-        "interval_high": 0.3182752471610667,
-        "interval_low": 0.280063998957059,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 175.04588329336397,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5059037238873751,
-        "chance": 0.07698593862805297,
-        "facet": null,
-        "interval_high": 0.5267579762969314,
-        "interval_low": 0.48502890812849625,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 6.57137826599192,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.14169040835707503,
-        "chance": 0.000997607568120398,
-        "facet": null,
-        "interval_high": 0.15137180713877385,
-        "interval_low": 0.13253150853501677,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 142.03020594965543,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.35764482431149097,
-        "chance": 0.07051263027491671,
-        "facet": null,
-        "interval_high": 0.37069135261729835,
-        "interval_low": 0.3448058830559092,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 5.072067556083142,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.100920245398773,
-        "chance": 0.0007498500668554411,
-        "facet": null,
-        "interval_high": 0.11173490883151979,
-        "interval_low": 0.091045029998845,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 134.58723264770848,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.3,
-        "chance": 0.06546197842928994,
-        "facet": null,
-        "interval_high": 0.31595892655597396,
-        "interval_low": 0.2845118806057461,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 4.582812912140304,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "ec_number": {
-      "annotated_locus_count": 2539,
-      "annotation_kind": "ec_number",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 1.0,
-        "chance": 0.004750134016320202,
-        "facet": null,
-        "interval_high": 1.0,
-        "interval_low": 0.9816928578508741,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 210.52037617554893,
-        "pairs": 206,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.979933110367893,
-        "chance": 0.02229981881134058,
-        "facet": null,
-        "interval_high": 0.9907716266732061,
-        "interval_low": 0.9569185189342668,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 43.943545849329844,
-        "pairs": 299,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.059466050988553676,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 16.72590729297677,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.23380424006710906,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.254087332327638,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8434343434343434,
-        "chance": 0.0032740492863192264,
-        "facet": null,
-        "interval_high": 0.8874552799499632,
-        "interval_low": 0.786340409343027,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 257.61198738170333,
-        "pairs": 198,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9520295202952029,
-        "chance": 0.020851882878879135,
-        "facet": null,
-        "interval_high": 0.9717547637088241,
-        "interval_low": 0.9196677865892385,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 45.65676518639539,
-        "pairs": 271,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9619377162629758,
-        "chance": 0.06414359861591695,
-        "facet": null,
-        "interval_high": 0.9786161784970397,
-        "interval_low": 0.9331395283424255,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 14.996628455832772,
-        "pairs": 289,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.976897689768977,
-        "chance": 0.21759291768420366,
-        "facet": null,
-        "interval_high": 0.9887652790167235,
-        "interval_low": 0.9530887590276617,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.489565653909588,
-        "pairs": 303,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.4343675417661098,
-        "chance": 0.0029149645421223985,
-        "facet": null,
-        "interval_high": 0.48221337253265495,
-        "interval_low": 0.38771427886209897,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 149.01297614064455,
-        "pairs": 419,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6566265060240963,
-        "chance": 0.017950105078307344,
-        "facet": null,
-        "interval_high": 0.696989498539895,
-        "interval_low": 0.6138655601080927,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 36.58064970425314,
-        "pairs": 498,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6908023483365949,
-        "chance": 0.056480020200744975,
-        "facet": null,
-        "interval_high": 0.7293261946519485,
-        "interval_low": 0.6494310774876766,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 12.230915390633717,
-        "pairs": 511,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7840909090909091,
-        "chance": 0.20435068772834739,
-        "facet": null,
-        "interval_high": 0.817068050447459,
-        "interval_low": 0.7470096749504789,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 3.8369868866467267,
-        "pairs": 528,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.2267818574514039,
-        "chance": 0.0018164191036496196,
-        "facet": null,
-        "interval_high": 0.2548500721808544,
-        "interval_low": 0.20097122039198806,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 124.8510638297874,
-        "pairs": 926,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.35634167385677307,
-        "chance": 0.019487330628187787,
-        "facet": null,
-        "interval_high": 0.3843472266370865,
-        "interval_low": 0.3292853093850167,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 18.2858124930326,
-        "pairs": 1159,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.3837011884550085,
-        "chance": 0.04996748178980259,
-        "facet": null,
-        "interval_high": 0.41180661320951994,
-        "interval_low": 0.3563518269740038,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 7.67901792748168,
-        "pairs": 1178,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5085020242914979,
-        "chance": 0.20815937826016478,
-        "facet": null,
-        "interval_high": 0.5363147851421542,
-        "interval_low": 0.48063653454229927,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 2.4428494576687028,
-        "pairs": 1235,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.10343228200371057,
-        "chance": 0.0014787286916997568,
-        "facet": null,
-        "interval_high": 0.11699993972003477,
-        "interval_low": 0.09127533380002338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 69.94676074406732,
-        "pairs": 2156,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.19145114942528735,
-        "chance": 0.020227388928280556,
-        "facet": null,
-        "interval_high": 0.20648759900114244,
-        "interval_low": 0.17726505036028467,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 9.464946271815311,
-        "pairs": 2784,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.23451635351426584,
-        "chance": 0.05489917951826143,
-        "facet": null,
-        "interval_high": 0.2503550217161383,
-        "interval_low": 0.21938646787800753,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 4.2717642699242395,
-        "pairs": 2874,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.4352901934623082,
-        "chance": 0.22075486625966945,
-        "facet": null,
-        "interval_high": 0.45310955071205783,
-        "interval_low": 0.4176364606697551,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.971826038707954,
-        "pairs": 2998,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.09013398294762484,
-        "chance": 0.0012329719106581045,
-        "facet": null,
-        "interval_high": 0.11167945366101317,
-        "interval_low": 0.07240631504900338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 73.10303030303051,
-        "pairs": 821,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.16608996539792387,
-        "chance": 0.0201125474998075,
-        "facet": null,
-        "interval_high": 0.1886429188487395,
-        "interval_low": 0.14574894983401857,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 8.258027253857998,
-        "pairs": 1156,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.2044517724649629,
-        "chance": 0.05478485759115,
-        "facet": null,
-        "interval_high": 0.2280644360447296,
-        "interval_low": 0.1827052154859216,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 3.7319029646978628,
-        "pairs": 1213,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.40632411067193674,
-        "chance": 0.22114359755432977,
-        "facet": null,
-        "interval_high": 0.43363407087200057,
-        "interval_low": 0.37958138486337245,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.8373767776483445,
-        "pairs": 1265,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "gene_ontology_slim": {
-      "annotated_locus_count": 5285,
-      "annotation_kind": "gene_ontology_slim",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9712,
-        "chance": 0.2749755287817964,
-        "facet": "biological_process",
-        "interval_high": 0.9817064477861096,
-        "interval_low": 0.9549364206246317,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 3.5319506586736464,
-        "pairs": 625,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9712230215827338,
-        "chance": 0.36677809606758355,
-        "facet": "cellular_component",
-        "interval_high": 0.9853477608467873,
-        "interval_low": 0.9442524117324202,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.6479853404434857,
-        "pairs": 278,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8950617283950617,
-        "chance": 0.35382013894928005,
-        "facet": "molecular_function",
-        "interval_high": 0.9143355034974312,
-        "interval_low": 0.872058310728826,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.529708260962976,
-        "pairs": 810,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8952772073921971,
-        "chance": 0.31993545709188764,
-        "facet": "biological_process",
-        "interval_high": 0.9194481198833376,
-        "interval_low": 0.8649189753261962,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.798305681808401,
-        "pairs": 487,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9616519174041298,
-        "chance": 0.41432422780540423,
-        "facet": "cellular_component",
-        "interval_high": 0.9774546725078803,
-        "interval_low": 0.9355033815905722,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.3210129962657873,
-        "pairs": 339,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.901840490797546,
-        "chance": 0.35961716062800003,
-        "facet": "molecular_function",
-        "interval_high": 0.9223793238101501,
-        "interval_low": 0.876594086842666,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.50777935408494,
-        "pairs": 652,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.8861985472154964,
-        "chance": 0.33331291266762375,
-        "facet": "biological_process",
-        "interval_high": 0.9060917207076976,
-        "interval_low": 0.8627297025615143,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.6587585225034607,
-        "pairs": 826,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.9284603421461898,
-        "chance": 0.4203953432943666,
-        "facet": "cellular_component",
-        "interval_high": 0.9459395625107462,
-        "interval_low": 0.9058918595870286,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.2085409768587017,
-        "pairs": 643,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.819838056680162,
-        "chance": 0.30237623197651675,
-        "facet": "molecular_function",
-        "interval_high": 0.8425496283894046,
-        "interval_low": 0.7946488920194995,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.71131778883941,
-        "pairs": 988,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.8010369410239793,
-        "chance": 0.38028684190206863,
-        "facet": "biological_process",
-        "interval_high": 0.8201984325967611,
-        "interval_low": 0.7803801916140178,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.106401938645729,
-        "pairs": 1543,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.9034627492130115,
-        "chance": 0.4148870239243,
-        "facet": "cellular_component",
-        "interval_high": 0.9206256699752454,
-        "interval_low": 0.8830601229501457,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.177611487260823,
-        "pairs": 953,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.6808883693746347,
-        "chance": 0.32460317617637097,
-        "facet": "molecular_function",
-        "interval_high": 0.702549292941837,
-        "interval_low": 0.6584169910578047,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.0976023013548044,
-        "pairs": 1711,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.7823046518698693,
-        "chance": 0.41077088326957806,
-        "facet": "biological_process",
-        "interval_high": 0.7960747353295677,
-        "interval_low": 0.7678758658776085,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.9044793185997642,
-        "pairs": 3289,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.8416475972540046,
-        "chance": 0.40856930563850763,
-        "facet": "cellular_component",
-        "interval_high": 0.8563539132570905,
-        "interval_low": 0.8257420410595673,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.0599873403086093,
-        "pairs": 2185,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6026557711950971,
-        "chance": 0.3531854837312671,
-        "facet": "molecular_function",
-        "interval_high": 0.6178748303179351,
-        "interval_low": 0.587235498630051,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.7063435473855648,
-        "pairs": 3916,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6189376443418014,
-        "chance": 0.37905540561012924,
-        "facet": "biological_process",
-        "interval_high": 0.6415225874899816,
-        "interval_low": 0.5958262581650599,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.6328421523116303,
-        "pairs": 1732,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.7752976190476191,
-        "chance": 0.3946469704921818,
-        "facet": "cellular_component",
-        "interval_high": 0.7968098336903654,
-        "interval_low": 0.7522161052626984,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 1.964534576512043,
-        "pairs": 1344,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.5640019617459539,
-        "chance": 0.334479988259207,
-        "facet": "molecular_function",
-        "interval_high": 0.5853860431496003,
-        "interval_low": 0.5423771666851709,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.6862053980606984,
-        "pairs": 2039,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "kegg_orthology": {
-      "annotated_locus_count": 1412,
-      "annotation_kind": "kegg_orthology",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9842931937172775,
-        "chance": 0.005758791247527851,
-        "facet": null,
-        "interval_high": 0.9927821623306607,
-        "interval_low": 0.9661605747925526,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 170.92010309278314,
-        "pairs": 382,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8564356435643564,
-        "chance": 0.004340015858424963,
-        "facet": null,
-        "interval_high": 0.8981459187273432,
-        "interval_low": 0.8014211270010226,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 197.33468067906227,
-        "pairs": 202,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.6328502415458938,
-        "chance": 0.002807478849755369,
-        "facet": null,
-        "interval_high": 0.6955400653817325,
-        "interval_low": 0.5653192716750912,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 225.41585365853692,
-        "pairs": 207,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.5548172757475083,
-        "chance": 0.002389860399189092,
-        "facet": null,
-        "interval_high": 0.6099216124746827,
-        "interval_low": 0.49833132938102215,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 232.154679802956,
-        "pairs": 301,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.34536082474226804,
-        "chance": 0.0019252266799155374,
-        "facet": null,
-        "interval_high": 0.3939815089414147,
-        "interval_low": 0.2997722936155368,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 179.38709677419365,
-        "pairs": 388,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.20212765957446807,
-        "chance": 0.0015229880724399458,
-        "facet": null,
-        "interval_high": 0.26523294229556993,
-        "interval_low": 0.15095207701202545,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 132.71782178217836,
-        "pairs": 188,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     }
-    },
     "coverage": {
      "cog_annotated_gene_count": 76,
      "cog_distinct_id_count": 1,
@@ -6295,63 +2317,13 @@
      ]
     },
     "inference": {
-     "representation": "esm",
      "vocabularies": [
       {
        "annotation_kind": "ec_number",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 8513,
-         "cosine": 0.971008,
-         "display_name": "locus 8513",
-         "node_label": "8513",
-         "rank": 1,
-         "tier": "0.97-0.98"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4050,
-         "cosine": 0.957919,
-         "display_name": "tnp",
-         "node_label": "4050",
-         "rank": 2,
-         "tier": "0.94-0.96"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 16011,
-         "cosine": 0.928232,
-         "display_name": "locus 16011",
-         "node_label": "16011",
-         "rank": 3,
-         "tier": "0.90-0.94"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 16217,
-         "cosine": 0.920929,
-         "display_name": "locus 16217",
-         "node_label": "16217",
-         "rank": 4,
-         "tier": "0.90-0.94"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4119,
-         "cosine": 0.888043,
-         "display_name": "tnp",
-         "node_label": "4119",
-         "rank": 5,
-         "tier": "< 0.90"
-        }
-       ]
+       "own": null
       },
       {
        "annotation_kind": "cog_orthogroup",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 76,
         "checkable": true,
@@ -6370,12 +2342,10 @@
          "unanimous_node_count": 992
         },
         "term": "COG3316"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "gene_ontology_slim",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 76,
         "checkable": true,
@@ -6394,62 +2364,47 @@
          "unanimous_node_count": 1028
         },
         "term": "GO:0004803"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "kegg_orthology",
-       "candidate": null,
-       "own": null,
-       "walk": [
+       "own": null
+      }
+     ]
+    },
+    "predictions": {
+     "annotation_model_label": "annotation-transfer v0.1",
+     "annotation_model_version": "at-v0.1",
+     "calls": [
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "annotation_model_version": "at-v0.1",
+       "bacformer_medoid_similarity": 0.52042,
+       "donor": {
+        "catalogue_key": "kp-probe100",
+        "display_name": "tnp",
+        "gene_count": 16,
+        "node_label": "6202",
+        "same_catalogue": false,
+        "species_name": "Klebsiella pneumoniae"
+       },
+       "esm_medoid_similarity": 0.836521,
+       "estimated_accuracy": 0.8636363636363636,
+       "gene_ontology_namespace": "biological_process",
+       "terms": [
         {
-         "carries_annotation": false,
-         "catalogue_ordinal": 8513,
-         "cosine": 0.971008,
-         "display_name": "locus 8513",
-         "node_label": "8513",
-         "rank": 1,
-         "tier": "0.97-0.98"
+         "name": "DNA metabolic process",
+         "value": "GO:0006259"
         },
         {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4050,
-         "cosine": 0.957919,
-         "display_name": "tnp",
-         "node_label": "4050",
-         "rank": 2,
-         "tier": "0.94-0.96"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 16011,
-         "cosine": 0.928232,
-         "display_name": "locus 16011",
-         "node_label": "16011",
-         "rank": 3,
-         "tier": "0.90-0.94"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 16217,
-         "cosine": 0.920929,
-         "display_name": "locus 16217",
-         "node_label": "16217",
-         "rank": 4,
-         "tier": "0.90-0.94"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 4119,
-         "cosine": 0.888043,
-         "display_name": "tnp",
-         "node_label": "4119",
-         "rank": 5,
-         "tier": "< 0.90"
+         "name": "metabolic process",
+         "value": "GO:0008152"
         }
        ]
       }
-     ]
+     ],
+     "serve_cut": 0.8,
+     "state": "loaded"
     }
    },
    "label": "17243",
@@ -9374,768 +5329,6 @@
       }
      ]
     },
-    "calibration": {
-     "cog_orthogroup": {
-      "annotated_locus_count": 4993,
-      "annotation_kind": "cog_orthogroup",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9889883000688231,
-        "chance": 0.0027891839606826014,
-        "facet": null,
-        "interval_high": 0.9932106784051377,
-        "interval_low": 0.9821870587270255,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 354.57980327220383,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9944941500344116,
-        "chance": 0.07533691897400512,
-        "facet": null,
-        "interval_high": 0.9972075286651817,
-        "interval_low": 0.9891728712355351,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 13.200621469236884,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9077922077922078,
-        "chance": 0.0023770500333000397,
-        "facet": null,
-        "interval_high": 0.9262528996638689,
-        "interval_low": 0.8852826910823511,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 381.89865382510567,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9571428571428572,
-        "chance": 0.07551328879453915,
-        "facet": null,
-        "interval_high": 0.9693229771534483,
-        "interval_low": 0.9404239271225691,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 12.675157875153682,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.5798387096774194,
-        "chance": 0.0020991651157981914,
-        "facet": null,
-        "interval_high": 0.6070238267423919,
-        "interval_low": 0.5521604295166044,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 276.2234877635817,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7814516129032258,
-        "chance": 0.07787669949338279,
-        "facet": null,
-        "interval_high": 0.8035654836383993,
-        "interval_low": 0.7575992177190728,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 10.03447267265899,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.298819255222525,
-        "chance": 0.0017070910186543834,
-        "facet": null,
-        "interval_high": 0.3182752471610667,
-        "interval_low": 0.280063998957059,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 175.04588329336397,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5059037238873751,
-        "chance": 0.07698593862805297,
-        "facet": null,
-        "interval_high": 0.5267579762969314,
-        "interval_low": 0.48502890812849625,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 6.57137826599192,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.14169040835707503,
-        "chance": 0.000997607568120398,
-        "facet": null,
-        "interval_high": 0.15137180713877385,
-        "interval_low": 0.13253150853501677,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 142.03020594965543,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.35764482431149097,
-        "chance": 0.07051263027491671,
-        "facet": null,
-        "interval_high": 0.37069135261729835,
-        "interval_low": 0.3448058830559092,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 5.072067556083142,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.100920245398773,
-        "chance": 0.0007498500668554411,
-        "facet": null,
-        "interval_high": 0.11173490883151979,
-        "interval_low": 0.091045029998845,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 134.58723264770848,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.3,
-        "chance": 0.06546197842928994,
-        "facet": null,
-        "interval_high": 0.31595892655597396,
-        "interval_low": 0.2845118806057461,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 4.582812912140304,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "ec_number": {
-      "annotated_locus_count": 2539,
-      "annotation_kind": "ec_number",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 1.0,
-        "chance": 0.004750134016320202,
-        "facet": null,
-        "interval_high": 1.0,
-        "interval_low": 0.9816928578508741,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 210.52037617554893,
-        "pairs": 206,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.979933110367893,
-        "chance": 0.02229981881134058,
-        "facet": null,
-        "interval_high": 0.9907716266732061,
-        "interval_low": 0.9569185189342668,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 43.943545849329844,
-        "pairs": 299,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.059466050988553676,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 16.72590729297677,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.23380424006710906,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.254087332327638,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8434343434343434,
-        "chance": 0.0032740492863192264,
-        "facet": null,
-        "interval_high": 0.8874552799499632,
-        "interval_low": 0.786340409343027,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 257.61198738170333,
-        "pairs": 198,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9520295202952029,
-        "chance": 0.020851882878879135,
-        "facet": null,
-        "interval_high": 0.9717547637088241,
-        "interval_low": 0.9196677865892385,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 45.65676518639539,
-        "pairs": 271,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9619377162629758,
-        "chance": 0.06414359861591695,
-        "facet": null,
-        "interval_high": 0.9786161784970397,
-        "interval_low": 0.9331395283424255,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 14.996628455832772,
-        "pairs": 289,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.976897689768977,
-        "chance": 0.21759291768420366,
-        "facet": null,
-        "interval_high": 0.9887652790167235,
-        "interval_low": 0.9530887590276617,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.489565653909588,
-        "pairs": 303,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.4343675417661098,
-        "chance": 0.0029149645421223985,
-        "facet": null,
-        "interval_high": 0.48221337253265495,
-        "interval_low": 0.38771427886209897,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 149.01297614064455,
-        "pairs": 419,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6566265060240963,
-        "chance": 0.017950105078307344,
-        "facet": null,
-        "interval_high": 0.696989498539895,
-        "interval_low": 0.6138655601080927,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 36.58064970425314,
-        "pairs": 498,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6908023483365949,
-        "chance": 0.056480020200744975,
-        "facet": null,
-        "interval_high": 0.7293261946519485,
-        "interval_low": 0.6494310774876766,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 12.230915390633717,
-        "pairs": 511,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7840909090909091,
-        "chance": 0.20435068772834739,
-        "facet": null,
-        "interval_high": 0.817068050447459,
-        "interval_low": 0.7470096749504789,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 3.8369868866467267,
-        "pairs": 528,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.2267818574514039,
-        "chance": 0.0018164191036496196,
-        "facet": null,
-        "interval_high": 0.2548500721808544,
-        "interval_low": 0.20097122039198806,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 124.8510638297874,
-        "pairs": 926,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.35634167385677307,
-        "chance": 0.019487330628187787,
-        "facet": null,
-        "interval_high": 0.3843472266370865,
-        "interval_low": 0.3292853093850167,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 18.2858124930326,
-        "pairs": 1159,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.3837011884550085,
-        "chance": 0.04996748178980259,
-        "facet": null,
-        "interval_high": 0.41180661320951994,
-        "interval_low": 0.3563518269740038,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 7.67901792748168,
-        "pairs": 1178,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5085020242914979,
-        "chance": 0.20815937826016478,
-        "facet": null,
-        "interval_high": 0.5363147851421542,
-        "interval_low": 0.48063653454229927,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 2.4428494576687028,
-        "pairs": 1235,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.10343228200371057,
-        "chance": 0.0014787286916997568,
-        "facet": null,
-        "interval_high": 0.11699993972003477,
-        "interval_low": 0.09127533380002338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 69.94676074406732,
-        "pairs": 2156,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.19145114942528735,
-        "chance": 0.020227388928280556,
-        "facet": null,
-        "interval_high": 0.20648759900114244,
-        "interval_low": 0.17726505036028467,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 9.464946271815311,
-        "pairs": 2784,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.23451635351426584,
-        "chance": 0.05489917951826143,
-        "facet": null,
-        "interval_high": 0.2503550217161383,
-        "interval_low": 0.21938646787800753,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 4.2717642699242395,
-        "pairs": 2874,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.4352901934623082,
-        "chance": 0.22075486625966945,
-        "facet": null,
-        "interval_high": 0.45310955071205783,
-        "interval_low": 0.4176364606697551,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.971826038707954,
-        "pairs": 2998,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.09013398294762484,
-        "chance": 0.0012329719106581045,
-        "facet": null,
-        "interval_high": 0.11167945366101317,
-        "interval_low": 0.07240631504900338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 73.10303030303051,
-        "pairs": 821,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.16608996539792387,
-        "chance": 0.0201125474998075,
-        "facet": null,
-        "interval_high": 0.1886429188487395,
-        "interval_low": 0.14574894983401857,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 8.258027253857998,
-        "pairs": 1156,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.2044517724649629,
-        "chance": 0.05478485759115,
-        "facet": null,
-        "interval_high": 0.2280644360447296,
-        "interval_low": 0.1827052154859216,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 3.7319029646978628,
-        "pairs": 1213,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.40632411067193674,
-        "chance": 0.22114359755432977,
-        "facet": null,
-        "interval_high": 0.43363407087200057,
-        "interval_low": 0.37958138486337245,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.8373767776483445,
-        "pairs": 1265,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "gene_ontology_slim": {
-      "annotated_locus_count": 5285,
-      "annotation_kind": "gene_ontology_slim",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9712,
-        "chance": 0.2749755287817964,
-        "facet": "biological_process",
-        "interval_high": 0.9817064477861096,
-        "interval_low": 0.9549364206246317,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 3.5319506586736464,
-        "pairs": 625,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9712230215827338,
-        "chance": 0.36677809606758355,
-        "facet": "cellular_component",
-        "interval_high": 0.9853477608467873,
-        "interval_low": 0.9442524117324202,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.6479853404434857,
-        "pairs": 278,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8950617283950617,
-        "chance": 0.35382013894928005,
-        "facet": "molecular_function",
-        "interval_high": 0.9143355034974312,
-        "interval_low": 0.872058310728826,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.529708260962976,
-        "pairs": 810,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8952772073921971,
-        "chance": 0.31993545709188764,
-        "facet": "biological_process",
-        "interval_high": 0.9194481198833376,
-        "interval_low": 0.8649189753261962,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.798305681808401,
-        "pairs": 487,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9616519174041298,
-        "chance": 0.41432422780540423,
-        "facet": "cellular_component",
-        "interval_high": 0.9774546725078803,
-        "interval_low": 0.9355033815905722,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.3210129962657873,
-        "pairs": 339,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.901840490797546,
-        "chance": 0.35961716062800003,
-        "facet": "molecular_function",
-        "interval_high": 0.9223793238101501,
-        "interval_low": 0.876594086842666,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.50777935408494,
-        "pairs": 652,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.8861985472154964,
-        "chance": 0.33331291266762375,
-        "facet": "biological_process",
-        "interval_high": 0.9060917207076976,
-        "interval_low": 0.8627297025615143,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.6587585225034607,
-        "pairs": 826,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.9284603421461898,
-        "chance": 0.4203953432943666,
-        "facet": "cellular_component",
-        "interval_high": 0.9459395625107462,
-        "interval_low": 0.9058918595870286,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.2085409768587017,
-        "pairs": 643,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.819838056680162,
-        "chance": 0.30237623197651675,
-        "facet": "molecular_function",
-        "interval_high": 0.8425496283894046,
-        "interval_low": 0.7946488920194995,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.71131778883941,
-        "pairs": 988,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.8010369410239793,
-        "chance": 0.38028684190206863,
-        "facet": "biological_process",
-        "interval_high": 0.8201984325967611,
-        "interval_low": 0.7803801916140178,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.106401938645729,
-        "pairs": 1543,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.9034627492130115,
-        "chance": 0.4148870239243,
-        "facet": "cellular_component",
-        "interval_high": 0.9206256699752454,
-        "interval_low": 0.8830601229501457,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.177611487260823,
-        "pairs": 953,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.6808883693746347,
-        "chance": 0.32460317617637097,
-        "facet": "molecular_function",
-        "interval_high": 0.702549292941837,
-        "interval_low": 0.6584169910578047,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.0976023013548044,
-        "pairs": 1711,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.7823046518698693,
-        "chance": 0.41077088326957806,
-        "facet": "biological_process",
-        "interval_high": 0.7960747353295677,
-        "interval_low": 0.7678758658776085,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.9044793185997642,
-        "pairs": 3289,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.8416475972540046,
-        "chance": 0.40856930563850763,
-        "facet": "cellular_component",
-        "interval_high": 0.8563539132570905,
-        "interval_low": 0.8257420410595673,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.0599873403086093,
-        "pairs": 2185,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6026557711950971,
-        "chance": 0.3531854837312671,
-        "facet": "molecular_function",
-        "interval_high": 0.6178748303179351,
-        "interval_low": 0.587235498630051,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.7063435473855648,
-        "pairs": 3916,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6189376443418014,
-        "chance": 0.37905540561012924,
-        "facet": "biological_process",
-        "interval_high": 0.6415225874899816,
-        "interval_low": 0.5958262581650599,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.6328421523116303,
-        "pairs": 1732,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.7752976190476191,
-        "chance": 0.3946469704921818,
-        "facet": "cellular_component",
-        "interval_high": 0.7968098336903654,
-        "interval_low": 0.7522161052626984,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 1.964534576512043,
-        "pairs": 1344,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.5640019617459539,
-        "chance": 0.334479988259207,
-        "facet": "molecular_function",
-        "interval_high": 0.5853860431496003,
-        "interval_low": 0.5423771666851709,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.6862053980606984,
-        "pairs": 2039,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "kegg_orthology": {
-      "annotated_locus_count": 1412,
-      "annotation_kind": "kegg_orthology",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9842931937172775,
-        "chance": 0.005758791247527851,
-        "facet": null,
-        "interval_high": 0.9927821623306607,
-        "interval_low": 0.9661605747925526,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 170.92010309278314,
-        "pairs": 382,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8564356435643564,
-        "chance": 0.004340015858424963,
-        "facet": null,
-        "interval_high": 0.8981459187273432,
-        "interval_low": 0.8014211270010226,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 197.33468067906227,
-        "pairs": 202,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.6328502415458938,
-        "chance": 0.002807478849755369,
-        "facet": null,
-        "interval_high": 0.6955400653817325,
-        "interval_low": 0.5653192716750912,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 225.41585365853692,
-        "pairs": 207,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.5548172757475083,
-        "chance": 0.002389860399189092,
-        "facet": null,
-        "interval_high": 0.6099216124746827,
-        "interval_low": 0.49833132938102215,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 232.154679802956,
-        "pairs": 301,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.34536082474226804,
-        "chance": 0.0019252266799155374,
-        "facet": null,
-        "interval_high": 0.3939815089414147,
-        "interval_low": 0.2997722936155368,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 179.38709677419365,
-        "pairs": 388,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.20212765957446807,
-        "chance": 0.0015229880724399458,
-        "facet": null,
-        "interval_high": 0.26523294229556993,
-        "interval_low": 0.15095207701202545,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 132.71782178217836,
-        "pairs": 188,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     }
-    },
     "coverage": {
      "cog_annotated_gene_count": 103,
      "cog_distinct_id_count": 1,
@@ -10152,11 +5345,9 @@
      ]
     },
     "inference": {
-     "representation": "esm",
      "vocabularies": [
       {
        "annotation_kind": "ec_number",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 103,
         "checkable": true,
@@ -10175,12 +5366,10 @@
          "unanimous_node_count": 1556
         },
         "term": "3.5.1.88"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "cog_orthogroup",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 103,
         "checkable": true,
@@ -10199,12 +5388,10 @@
          "unanimous_node_count": 2626
         },
         "term": "COG0242"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "gene_ontology_slim",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 103,
         "checkable": true,
@@ -10223,26 +5410,20 @@
          "unanimous_node_count": 2880
         },
         "term": "GO:0016787"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "kegg_orthology",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 3013,
-         "cosine": 0.942132,
-         "display_name": "lysS",
-         "node_label": "3013",
-         "rank": 1,
-         "tier": "0.94-0.96"
-        }
-       ]
+       "own": null
       }
      ]
+    },
+    "predictions": {
+     "annotation_model_label": "annotation-transfer v0.1",
+     "annotation_model_version": "at-v0.1",
+     "calls": [],
+     "serve_cut": 0.8,
+     "state": "loaded"
     }
    },
    "label": "17526",
@@ -11754,768 +6935,6 @@
       }
      ]
     },
-    "calibration": {
-     "cog_orthogroup": {
-      "annotated_locus_count": 4993,
-      "annotation_kind": "cog_orthogroup",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9889883000688231,
-        "chance": 0.0027891839606826014,
-        "facet": null,
-        "interval_high": 0.9932106784051377,
-        "interval_low": 0.9821870587270255,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 354.57980327220383,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9944941500344116,
-        "chance": 0.07533691897400512,
-        "facet": null,
-        "interval_high": 0.9972075286651817,
-        "interval_low": 0.9891728712355351,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 13.200621469236884,
-        "pairs": 1453,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9077922077922078,
-        "chance": 0.0023770500333000397,
-        "facet": null,
-        "interval_high": 0.9262528996638689,
-        "interval_low": 0.8852826910823511,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 381.89865382510567,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9571428571428572,
-        "chance": 0.07551328879453915,
-        "facet": null,
-        "interval_high": 0.9693229771534483,
-        "interval_low": 0.9404239271225691,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 12.675157875153682,
-        "pairs": 770,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.5798387096774194,
-        "chance": 0.0020991651157981914,
-        "facet": null,
-        "interval_high": 0.6070238267423919,
-        "interval_low": 0.5521604295166044,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 276.2234877635817,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7814516129032258,
-        "chance": 0.07787669949338279,
-        "facet": null,
-        "interval_high": 0.8035654836383993,
-        "interval_low": 0.7575992177190728,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 10.03447267265899,
-        "pairs": 1240,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.298819255222525,
-        "chance": 0.0017070910186543834,
-        "facet": null,
-        "interval_high": 0.3182752471610667,
-        "interval_low": 0.280063998957059,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 175.04588329336397,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5059037238873751,
-        "chance": 0.07698593862805297,
-        "facet": null,
-        "interval_high": 0.5267579762969314,
-        "interval_low": 0.48502890812849625,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 6.57137826599192,
-        "pairs": 2202,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.14169040835707503,
-        "chance": 0.000997607568120398,
-        "facet": null,
-        "interval_high": 0.15137180713877385,
-        "interval_low": 0.13253150853501677,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 142.03020594965543,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.35764482431149097,
-        "chance": 0.07051263027491671,
-        "facet": null,
-        "interval_high": 0.37069135261729835,
-        "interval_low": 0.3448058830559092,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 5.072067556083142,
-        "pairs": 5265,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.100920245398773,
-        "chance": 0.0007498500668554411,
-        "facet": null,
-        "interval_high": 0.11173490883151979,
-        "interval_low": 0.091045029998845,
-        "level": 2,
-        "level_label": "COG orthogroup",
-        "lift": 134.58723264770848,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.3,
-        "chance": 0.06546197842928994,
-        "facet": null,
-        "interval_high": 0.31595892655597396,
-        "interval_low": 0.2845118806057461,
-        "level": 1,
-        "level_label": "COG category",
-        "lift": 4.582812912140304,
-        "pairs": 3260,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "ec_number": {
-      "annotated_locus_count": 2539,
-      "annotation_kind": "ec_number",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 1.0,
-        "chance": 0.004750134016320202,
-        "facet": null,
-        "interval_high": 1.0,
-        "interval_low": 0.9816928578508741,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 210.52037617554893,
-        "pairs": 206,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.979933110367893,
-        "chance": 0.02229981881134058,
-        "facet": null,
-        "interval_high": 0.9907716266732061,
-        "interval_low": 0.9569185189342668,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 43.943545849329844,
-        "pairs": 299,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.059466050988553676,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 16.72590729297677,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9946236559139785,
-        "chance": 0.23380424006710906,
-        "facet": null,
-        "interval_high": 0.9985244031239926,
-        "interval_low": 0.9806114881663808,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.254087332327638,
-        "pairs": 372,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8434343434343434,
-        "chance": 0.0032740492863192264,
-        "facet": null,
-        "interval_high": 0.8874552799499632,
-        "interval_low": 0.786340409343027,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 257.61198738170333,
-        "pairs": 198,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9520295202952029,
-        "chance": 0.020851882878879135,
-        "facet": null,
-        "interval_high": 0.9717547637088241,
-        "interval_low": 0.9196677865892385,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 45.65676518639539,
-        "pairs": 271,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9619377162629758,
-        "chance": 0.06414359861591695,
-        "facet": null,
-        "interval_high": 0.9786161784970397,
-        "interval_low": 0.9331395283424255,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 14.996628455832772,
-        "pairs": 289,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.976897689768977,
-        "chance": 0.21759291768420366,
-        "facet": null,
-        "interval_high": 0.9887652790167235,
-        "interval_low": 0.9530887590276617,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 4.489565653909588,
-        "pairs": 303,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.4343675417661098,
-        "chance": 0.0029149645421223985,
-        "facet": null,
-        "interval_high": 0.48221337253265495,
-        "interval_low": 0.38771427886209897,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 149.01297614064455,
-        "pairs": 419,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6566265060240963,
-        "chance": 0.017950105078307344,
-        "facet": null,
-        "interval_high": 0.696989498539895,
-        "interval_low": 0.6138655601080927,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 36.58064970425314,
-        "pairs": 498,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.6908023483365949,
-        "chance": 0.056480020200744975,
-        "facet": null,
-        "interval_high": 0.7293261946519485,
-        "interval_low": 0.6494310774876766,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 12.230915390633717,
-        "pairs": 511,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.7840909090909091,
-        "chance": 0.20435068772834739,
-        "facet": null,
-        "interval_high": 0.817068050447459,
-        "interval_low": 0.7470096749504789,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 3.8369868866467267,
-        "pairs": 528,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.2267818574514039,
-        "chance": 0.0018164191036496196,
-        "facet": null,
-        "interval_high": 0.2548500721808544,
-        "interval_low": 0.20097122039198806,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 124.8510638297874,
-        "pairs": 926,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.35634167385677307,
-        "chance": 0.019487330628187787,
-        "facet": null,
-        "interval_high": 0.3843472266370865,
-        "interval_low": 0.3292853093850167,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 18.2858124930326,
-        "pairs": 1159,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.3837011884550085,
-        "chance": 0.04996748178980259,
-        "facet": null,
-        "interval_high": 0.41180661320951994,
-        "interval_low": 0.3563518269740038,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 7.67901792748168,
-        "pairs": 1178,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.5085020242914979,
-        "chance": 0.20815937826016478,
-        "facet": null,
-        "interval_high": 0.5363147851421542,
-        "interval_low": 0.48063653454229927,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 2.4428494576687028,
-        "pairs": 1235,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.10343228200371057,
-        "chance": 0.0014787286916997568,
-        "facet": null,
-        "interval_high": 0.11699993972003477,
-        "interval_low": 0.09127533380002338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 69.94676074406732,
-        "pairs": 2156,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.19145114942528735,
-        "chance": 0.020227388928280556,
-        "facet": null,
-        "interval_high": 0.20648759900114244,
-        "interval_low": 0.17726505036028467,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 9.464946271815311,
-        "pairs": 2784,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.23451635351426584,
-        "chance": 0.05489917951826143,
-        "facet": null,
-        "interval_high": 0.2503550217161383,
-        "interval_low": 0.21938646787800753,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 4.2717642699242395,
-        "pairs": 2874,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.4352901934623082,
-        "chance": 0.22075486625966945,
-        "facet": null,
-        "interval_high": 0.45310955071205783,
-        "interval_low": 0.4176364606697551,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.971826038707954,
-        "pairs": 2998,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.09013398294762484,
-        "chance": 0.0012329719106581045,
-        "facet": null,
-        "interval_high": 0.11167945366101317,
-        "interval_low": 0.07240631504900338,
-        "level": 4,
-        "level_label": "full EC code",
-        "lift": 73.10303030303051,
-        "pairs": 821,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.16608996539792387,
-        "chance": 0.0201125474998075,
-        "facet": null,
-        "interval_high": 0.1886429188487395,
-        "interval_low": 0.14574894983401857,
-        "level": 3,
-        "level_label": "EC sub-subclass",
-        "lift": 8.258027253857998,
-        "pairs": 1156,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.2044517724649629,
-        "chance": 0.05478485759115,
-        "facet": null,
-        "interval_high": 0.2280644360447296,
-        "interval_low": 0.1827052154859216,
-        "level": 2,
-        "level_label": "EC subclass",
-        "lift": 3.7319029646978628,
-        "pairs": 1213,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.40632411067193674,
-        "chance": 0.22114359755432977,
-        "facet": null,
-        "interval_high": 0.43363407087200057,
-        "interval_low": 0.37958138486337245,
-        "level": 1,
-        "level_label": "EC class",
-        "lift": 1.8373767776483445,
-        "pairs": 1265,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "gene_ontology_slim": {
-      "annotated_locus_count": 5285,
-      "annotation_kind": "gene_ontology_slim",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9712,
-        "chance": 0.2749755287817964,
-        "facet": "biological_process",
-        "interval_high": 0.9817064477861096,
-        "interval_low": 0.9549364206246317,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 3.5319506586736464,
-        "pairs": 625,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.9712230215827338,
-        "chance": 0.36677809606758355,
-        "facet": "cellular_component",
-        "interval_high": 0.9853477608467873,
-        "interval_low": 0.9442524117324202,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.6479853404434857,
-        "pairs": 278,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8950617283950617,
-        "chance": 0.35382013894928005,
-        "facet": "molecular_function",
-        "interval_high": 0.9143355034974312,
-        "interval_low": 0.872058310728826,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.529708260962976,
-        "pairs": 810,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8952772073921971,
-        "chance": 0.31993545709188764,
-        "facet": "biological_process",
-        "interval_high": 0.9194481198833376,
-        "interval_low": 0.8649189753261962,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.798305681808401,
-        "pairs": 487,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.9616519174041298,
-        "chance": 0.41432422780540423,
-        "facet": "cellular_component",
-        "interval_high": 0.9774546725078803,
-        "interval_low": 0.9355033815905722,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.3210129962657873,
-        "pairs": 339,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.901840490797546,
-        "chance": 0.35961716062800003,
-        "facet": "molecular_function",
-        "interval_high": 0.9223793238101501,
-        "interval_low": 0.876594086842666,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.50777935408494,
-        "pairs": 652,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.8861985472154964,
-        "chance": 0.33331291266762375,
-        "facet": "biological_process",
-        "interval_high": 0.9060917207076976,
-        "interval_low": 0.8627297025615143,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.6587585225034607,
-        "pairs": 826,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.9284603421461898,
-        "chance": 0.4203953432943666,
-        "facet": "cellular_component",
-        "interval_high": 0.9459395625107462,
-        "interval_low": 0.9058918595870286,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.2085409768587017,
-        "pairs": 643,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.819838056680162,
-        "chance": 0.30237623197651675,
-        "facet": "molecular_function",
-        "interval_high": 0.8425496283894046,
-        "interval_low": 0.7946488920194995,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.71131778883941,
-        "pairs": 988,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.8010369410239793,
-        "chance": 0.38028684190206863,
-        "facet": "biological_process",
-        "interval_high": 0.8201984325967611,
-        "interval_low": 0.7803801916140178,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 2.106401938645729,
-        "pairs": 1543,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.9034627492130115,
-        "chance": 0.4148870239243,
-        "facet": "cellular_component",
-        "interval_high": 0.9206256699752454,
-        "interval_low": 0.8830601229501457,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.177611487260823,
-        "pairs": 953,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.6808883693746347,
-        "chance": 0.32460317617637097,
-        "facet": "molecular_function",
-        "interval_high": 0.702549292941837,
-        "interval_low": 0.6584169910578047,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 2.0976023013548044,
-        "pairs": 1711,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.7823046518698693,
-        "chance": 0.41077088326957806,
-        "facet": "biological_process",
-        "interval_high": 0.7960747353295677,
-        "interval_low": 0.7678758658776085,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.9044793185997642,
-        "pairs": 3289,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.8416475972540046,
-        "chance": 0.40856930563850763,
-        "facet": "cellular_component",
-        "interval_high": 0.8563539132570905,
-        "interval_low": 0.8257420410595673,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 2.0599873403086093,
-        "pairs": 2185,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6026557711950971,
-        "chance": 0.3531854837312671,
-        "facet": "molecular_function",
-        "interval_high": 0.6178748303179351,
-        "interval_low": 0.587235498630051,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.7063435473855648,
-        "pairs": 3916,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.6189376443418014,
-        "chance": 0.37905540561012924,
-        "facet": "biological_process",
-        "interval_high": 0.6415225874899816,
-        "interval_low": 0.5958262581650599,
-        "level": 1,
-        "level_label": "GO biological process",
-        "lift": 1.6328421523116303,
-        "pairs": 1732,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.7752976190476191,
-        "chance": 0.3946469704921818,
-        "facet": "cellular_component",
-        "interval_high": 0.7968098336903654,
-        "interval_low": 0.7522161052626984,
-        "level": 1,
-        "level_label": "GO cellular component",
-        "lift": 1.964534576512043,
-        "pairs": 1344,
-        "tier": "0.90-0.94"
-       },
-       {
-        "agreement": 0.5640019617459539,
-        "chance": 0.334479988259207,
-        "facet": "molecular_function",
-        "interval_high": 0.5853860431496003,
-        "interval_low": 0.5423771666851709,
-        "level": 1,
-        "level_label": "GO molecular function",
-        "lift": 1.6862053980606984,
-        "pairs": 2039,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     },
-     "kegg_orthology": {
-      "annotated_locus_count": 1412,
-      "annotation_kind": "kegg_orthology",
-      "calling_floor": 0.8,
-      "cells": [
-       {
-        "agreement": 0.9842931937172775,
-        "chance": 0.005758791247527851,
-        "facet": null,
-        "interval_high": 0.9927821623306607,
-        "interval_low": 0.9661605747925526,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 170.92010309278314,
-        "pairs": 382,
-        "tier": ">= 0.99"
-       },
-       {
-        "agreement": 0.8564356435643564,
-        "chance": 0.004340015858424963,
-        "facet": null,
-        "interval_high": 0.8981459187273432,
-        "interval_low": 0.8014211270010226,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 197.33468067906227,
-        "pairs": 202,
-        "tier": "0.98-0.99"
-       },
-       {
-        "agreement": 0.6328502415458938,
-        "chance": 0.002807478849755369,
-        "facet": null,
-        "interval_high": 0.6955400653817325,
-        "interval_low": 0.5653192716750912,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 225.41585365853692,
-        "pairs": 207,
-        "tier": "0.97-0.98"
-       },
-       {
-        "agreement": 0.5548172757475083,
-        "chance": 0.002389860399189092,
-        "facet": null,
-        "interval_high": 0.6099216124746827,
-        "interval_low": 0.49833132938102215,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 232.154679802956,
-        "pairs": 301,
-        "tier": "0.96-0.97"
-       },
-       {
-        "agreement": 0.34536082474226804,
-        "chance": 0.0019252266799155374,
-        "facet": null,
-        "interval_high": 0.3939815089414147,
-        "interval_low": 0.2997722936155368,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 179.38709677419365,
-        "pairs": 388,
-        "tier": "0.94-0.96"
-       },
-       {
-        "agreement": 0.20212765957446807,
-        "chance": 0.0015229880724399458,
-        "facet": null,
-        "interval_high": 0.26523294229556993,
-        "interval_low": 0.15095207701202545,
-        "level": 1,
-        "level_label": "KEGG orthology",
-        "lift": 132.71782178217836,
-        "pairs": 188,
-        "tier": "0.90-0.94"
-       }
-      ],
-      "locus_count": 17531,
-      "min_pairs": 30,
-      "representation": "esm"
-     }
-    },
     "coverage": {
      "cog_annotated_gene_count": 111,
      "cog_distinct_id_count": 1,
@@ -12532,63 +6951,13 @@
      ]
     },
     "inference": {
-     "representation": "esm",
      "vocabularies": [
       {
        "annotation_kind": "ec_number",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 12120,
-         "cosine": 0.998644,
-         "display_name": "radC",
-         "node_label": "12120",
-         "rank": 1,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 5385,
-         "cosine": 0.998624,
-         "display_name": "radC",
-         "node_label": "5385",
-         "rank": 2,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 5975,
-         "cosine": 0.99842,
-         "display_name": "radC",
-         "node_label": "5975",
-         "rank": 3,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 14225,
-         "cosine": 0.995552,
-         "display_name": "radC",
-         "node_label": "14225",
-         "rank": 4,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 13450,
-         "cosine": 0.994365,
-         "display_name": "radC",
-         "node_label": "13450",
-         "rank": 5,
-         "tier": ">= 0.99"
-        }
-       ]
+       "own": null
       },
       {
        "annotation_kind": "cog_orthogroup",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 111,
         "checkable": true,
@@ -12607,12 +6976,10 @@
          "unanimous_node_count": 992
         },
         "term": "COG2003"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "gene_ontology_slim",
-       "candidate": null,
        "own": {
         "annotated_gene_count": 30,
         "checkable": true,
@@ -12631,62 +6998,20 @@
          "unanimous_node_count": 1028
         },
         "term": "GO:0003676"
-       },
-       "walk": []
+       }
       },
       {
        "annotation_kind": "kegg_orthology",
-       "candidate": null,
-       "own": null,
-       "walk": [
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 12120,
-         "cosine": 0.998644,
-         "display_name": "radC",
-         "node_label": "12120",
-         "rank": 1,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 5385,
-         "cosine": 0.998624,
-         "display_name": "radC",
-         "node_label": "5385",
-         "rank": 2,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 5975,
-         "cosine": 0.99842,
-         "display_name": "radC",
-         "node_label": "5975",
-         "rank": 3,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 14225,
-         "cosine": 0.995552,
-         "display_name": "radC",
-         "node_label": "14225",
-         "rank": 4,
-         "tier": ">= 0.99"
-        },
-        {
-         "carries_annotation": false,
-         "catalogue_ordinal": 13450,
-         "cosine": 0.994365,
-         "display_name": "radC",
-         "node_label": "13450",
-         "rank": 5,
-         "tier": ">= 0.99"
-        }
-       ]
+       "own": null
       }
      ]
+    },
+    "predictions": {
+     "annotation_model_label": "annotation-transfer v0.1",
+     "annotation_model_version": "at-v0.1",
+     "calls": [],
+     "serve_cut": 0.8,
+     "state": "loaded"
     }
    },
    "label": "17315",
@@ -15455,6 +9780,840 @@
      }
     ]
    }
+  },
+  "predicted_function": {
+   "function": {
+    "annotations": {},
+    "coverage": {
+     "cog_annotated_gene_count": 0,
+     "cog_distinct_id_count": 0,
+     "ec_annotated_gene_count": 0,
+     "gene_count": 100,
+     "go_annotated_gene_count": {
+      "biological_process": 0,
+      "cellular_component": 0,
+      "molecular_function": 0
+     },
+     "kegg_annotated_gene_count": 0,
+     "modal_cog_categories": null
+    },
+    "inference": {
+     "vocabularies": [
+      {
+       "annotation_kind": "ec_number",
+       "own": null
+      },
+      {
+       "annotation_kind": "cog_orthogroup",
+       "own": null
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "own": null
+      },
+      {
+       "annotation_kind": "kegg_orthology",
+       "own": null
+      }
+     ]
+    },
+    "predictions": {
+     "annotation_model_label": "annotation-transfer v0.1",
+     "annotation_model_version": "at-v0.1",
+     "calls": [
+      {
+       "annotation_kind": "cog_functional_category",
+       "annotation_model_version": "at-v0.1",
+       "bacformer_medoid_similarity": 0.662251,
+       "donor": {
+        "catalogue_key": "kp-probe100",
+        "display_name": "rpsN",
+        "gene_count": 100,
+        "node_label": "2526",
+        "same_catalogue": false,
+        "species_name": "Klebsiella pneumoniae"
+       },
+       "esm_medoid_similarity": 0.916918,
+       "estimated_accuracy": 1.0,
+       "gene_ontology_namespace": null,
+       "terms": [
+        {
+         "name": null,
+         "value": "J"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "annotation_model_version": "at-v0.1",
+       "bacformer_medoid_similarity": 0.662251,
+       "donor": {
+        "catalogue_key": "kp-probe100",
+        "display_name": "rpsN",
+        "gene_count": 100,
+        "node_label": "2526",
+        "same_catalogue": false,
+        "species_name": "Klebsiella pneumoniae"
+       },
+       "esm_medoid_similarity": 0.916918,
+       "estimated_accuracy": 0.9256756756756755,
+       "gene_ontology_namespace": "molecular_function",
+       "terms": [
+        {
+         "name": "nucleic acid binding",
+         "value": "GO:0003676"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "annotation_model_version": "at-v0.1",
+       "bacformer_medoid_similarity": 0.662251,
+       "donor": {
+        "catalogue_key": "kp-probe100",
+        "display_name": "rpsN",
+        "gene_count": 100,
+        "node_label": "2526",
+        "same_catalogue": false,
+        "species_name": "Klebsiella pneumoniae"
+       },
+       "esm_medoid_similarity": 0.916918,
+       "estimated_accuracy": 0.9527027027027029,
+       "gene_ontology_namespace": "biological_process",
+       "terms": [
+        {
+         "name": "translation",
+         "value": "GO:0006412"
+        },
+        {
+         "name": "biosynthetic process",
+         "value": "GO:0009058"
+        },
+        {
+         "name": "metabolic process",
+         "value": "GO:0008152"
+        }
+       ]
+      },
+      {
+       "annotation_kind": "gene_ontology_slim",
+       "annotation_model_version": "at-v0.1",
+       "bacformer_medoid_similarity": 0.706251,
+       "donor": {
+        "catalogue_key": "ecoli-probe100",
+        "display_name": "rplF",
+        "gene_count": 100,
+        "node_label": "1514",
+        "same_catalogue": true,
+        "species_name": "Escherichia coli"
+       },
+       "esm_medoid_similarity": 0.910994,
+       "estimated_accuracy": 0.9230769230769232,
+       "gene_ontology_namespace": "cellular_component",
+       "terms": [
+        {
+         "name": "ribosome",
+         "value": "GO:0005840"
+        },
+        {
+         "name": "intracellular anatomical structure",
+         "value": "GO:0005622"
+        }
+       ]
+      }
+     ],
+     "serve_cut": 0.8,
+     "state": "loaded"
+    }
+   },
+   "label": "1515",
+   "response": {
+    "anchor": {
+     "arrangement_ranks": [],
+     "is_anchored": false,
+     "kind": null,
+     "projected_copies": []
+    },
+    "annotations": {
+     "pfam_architecture": [
+      {
+       "gene_count": 100,
+       "name": null,
+       "rank": 0,
+       "term": "PF00410"
+      }
+     ],
+     "protein_product": [
+      {
+       "gene_count": 100,
+       "name": null,
+       "rank": 0,
+       "term": "Small ribosomal subunit protein uS8"
+      }
+     ]
+    },
+    "arrangements": {
+     "arrangements_not_listed": 0,
+     "listed": [
+      {
+       "gene_count": 100,
+       "genome_count": 100,
+       "is_recorded_reverse_complement": false,
+       "rank": 0,
+       "slots": [
+        {
+         "absence_reason": null,
+         "locus": "1520",
+         "same_strand": true,
+         "signed_offset": -5
+        },
+        {
+         "absence_reason": null,
+         "locus": "1519",
+         "same_strand": true,
+         "signed_offset": -4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1518",
+         "same_strand": true,
+         "signed_offset": -3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1517",
+         "same_strand": true,
+         "signed_offset": -2
+        },
+        {
+         "absence_reason": null,
+         "locus": "1516",
+         "same_strand": true,
+         "signed_offset": -1
+        },
+        {
+         "absence_reason": null,
+         "locus": "1514",
+         "same_strand": true,
+         "signed_offset": 1
+        },
+        {
+         "absence_reason": null,
+         "locus": "1513",
+         "same_strand": true,
+         "signed_offset": 2
+        },
+        {
+         "absence_reason": null,
+         "locus": "1048",
+         "same_strand": true,
+         "signed_offset": 3
+        },
+        {
+         "absence_reason": null,
+         "locus": "1047",
+         "same_strand": true,
+         "signed_offset": 4
+        },
+        {
+         "absence_reason": null,
+         "locus": "1046",
+         "same_strand": true,
+         "signed_offset": 5
+        }
+       ]
+      }
+     ],
+     "members_in_arrangements_not_listed": 0,
+     "members_without_a_neighbourhood": 0,
+     "membership_is_complete": true,
+     "total": 1
+    },
+    "intergenic_gaps": [
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1046",
+       "1047"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 3,
+      "median_signed_length_nt": 3,
+      "minimum_signed_length_nt": 3,
+      "modal_length_nt": 3,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 3,
+      "quartile3_signed_length_nt": 3
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1047",
+       "1048"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 3,
+      "median_signed_length_nt": 3,
+      "minimum_signed_length_nt": 3,
+      "modal_length_nt": 3,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 3,
+      "quartile3_signed_length_nt": 3
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1048",
+       "1513"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 14,
+      "median_signed_length_nt": 14,
+      "minimum_signed_length_nt": 14,
+      "modal_length_nt": 14,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 14,
+      "quartile3_signed_length_nt": 14
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1513",
+       "1514"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 9,
+      "median_signed_length_nt": 9,
+      "minimum_signed_length_nt": 9,
+      "modal_length_nt": 9,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 9,
+      "quartile3_signed_length_nt": 9
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1514",
+       "1515"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 12,
+      "median_signed_length_nt": 12,
+      "minimum_signed_length_nt": 12,
+      "modal_length_nt": 12,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 12,
+      "quartile3_signed_length_nt": 12
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1515",
+       "1516"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 33,
+      "median_signed_length_nt": 33,
+      "minimum_signed_length_nt": 33,
+      "modal_length_nt": 33,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 33,
+      "quartile3_signed_length_nt": 33
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1516",
+       "1517"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 14,
+      "median_signed_length_nt": 14,
+      "minimum_signed_length_nt": 14,
+      "modal_length_nt": 14,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 14,
+      "quartile3_signed_length_nt": 14
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1517",
+       "1518"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 14,
+      "median_signed_length_nt": 14,
+      "minimum_signed_length_nt": 14,
+      "modal_length_nt": 14,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 14,
+      "quartile3_signed_length_nt": 14
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1518",
+       "1519"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 10,
+      "median_signed_length_nt": 10,
+      "minimum_signed_length_nt": 10,
+      "modal_length_nt": 10,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 10,
+      "quartile3_signed_length_nt": 10
+     },
+     {
+      "distinct_named_feature_count": 0,
+      "every_genome_agrees": true,
+      "flanking_loci": [
+       "1519",
+       "1520"
+      ],
+      "length_variance_score": 0.0,
+      "maximum_signed_length_nt": 164,
+      "median_signed_length_nt": 164,
+      "minimum_signed_length_nt": 164,
+      "modal_length_nt": 164,
+      "observed_genome_count": 100,
+      "quartile1_signed_length_nt": 164,
+      "quartile3_signed_length_nt": 164
+     }
+    ],
+    "locus": {
+     "bakta_gene_symbol": null,
+     "best_product": "Small ribosomal subunit protein uS8",
+     "catalogue_ordinal": 1515,
+     "display_name": "locus 1515",
+     "display_name_source": "label",
+     "display_name_source_accession": null,
+     "evidence": {
+      "collapse_bucket": "mmseq@0.98",
+      "collapse_tier": "mmseq@0.98",
+      "resolved_threshold": 0.98,
+      "resolved_threshold_is_capped_at_50_members": true,
+      "syntenic_a5": 1.0
+     },
+     "gene_count": 100,
+     "gene_length_interquartile_range_nt": 0,
+     "genome_count": 100,
+     "interest_score": 1840000.01,
+     "label": "1515",
+     "median_gene_length_nt": 393,
+     "named_gene_count": 0,
+     "pfam": {
+      "annotated_gene_count": 100,
+      "architecture_count": 1,
+      "concordance_class": "single"
+     },
+     "prevalence_band": "core",
+     "similarity": {
+      "bacformer": {
+       "nearest_loci": [
+        {
+         "catalogue_ordinal": 1516,
+         "cross_similarity": 0.700611,
+         "rank": 1
+        },
+        {
+         "catalogue_ordinal": 1514,
+         "cross_similarity": 0.691567,
+         "rank": 2
+        },
+        {
+         "catalogue_ordinal": 1045,
+         "cross_similarity": 0.656658,
+         "rank": 3
+        },
+        {
+         "catalogue_ordinal": 1520,
+         "cross_similarity": 0.636921,
+         "rank": 4
+        },
+        {
+         "catalogue_ordinal": 1039,
+         "cross_similarity": 0.569116,
+         "rank": 5
+        }
+       ],
+       "nearest_similarity": 0.700611,
+       "own_fraction_percentile": 0.5577129637280013,
+       "own_neighbour_fraction": 1.0,
+       "separation_percentile": 0.3373543749483599,
+       "weak_margin_percentile": 0.44790547798066593,
+       "weak_other_similarity": 0.731327,
+       "weak_own_similarity": 0.974154,
+       "within_similarity": 0.96965
+      },
+      "esm": {
+       "nearest_loci": [
+        {
+         "catalogue_ordinal": 1693,
+         "cross_similarity": 0.94726,
+         "rank": 1
+        },
+        {
+         "catalogue_ordinal": 1694,
+         "cross_similarity": 0.942149,
+         "rank": 2
+        },
+        {
+         "catalogue_ordinal": 1513,
+         "cross_similarity": 0.925865,
+         "rank": 3
+        },
+        {
+         "catalogue_ordinal": 489,
+         "cross_similarity": 0.924551,
+         "rank": 4
+        }
+       ],
+       "nearest_similarity": 0.94726,
+       "own_fraction_percentile": 0.525159051474841,
+       "own_neighbour_fraction": 1.0,
+       "separation_percentile": 0.8383045525902669,
+       "weak_margin_percentile": 0.8579690985706023,
+       "weak_other_similarity": 0.94726,
+       "weak_own_similarity": 1.0,
+       "within_similarity": 1.0
+      }
+     },
+     "uniref50": {
+      "coverage": 0.0,
+      "family_count": 0,
+      "impurity": null,
+      "labelled_gene_count": 0,
+      "major_family_count": 0
+     }
+    },
+    "neighbour_display_rows": [
+     {
+      "best_product": "30S ribosomal protein S4",
+      "catalogue_ordinal": 1039,
+      "display_name": "rpsD",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1039",
+      "median_gene_length_nt": 384,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "preprotein translocase subunit SecY",
+      "catalogue_ordinal": 1045,
+      "display_name": "secY",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1045",
+      "median_gene_length_nt": 1332,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L15",
+      "catalogue_ordinal": 1046,
+      "display_name": "rplO",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1046",
+      "median_gene_length_nt": 435,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L30",
+      "catalogue_ordinal": 1047,
+      "display_name": "rpmD",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1047",
+      "median_gene_length_nt": 180,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "30S ribosomal protein S5",
+      "catalogue_ordinal": 1048,
+      "display_name": "rpsE",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1048",
+      "median_gene_length_nt": 504,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L18",
+      "catalogue_ordinal": 1513,
+      "display_name": "rplR",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1513",
+      "median_gene_length_nt": 354,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L6",
+      "catalogue_ordinal": 1514,
+      "display_name": "rplF",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1514",
+      "median_gene_length_nt": 534,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "Small ribosomal subunit protein uS8",
+      "catalogue_ordinal": 1515,
+      "display_name": "locus 1515",
+      "display_name_source": "label",
+      "genome_count": 100,
+      "label": "1515",
+      "median_gene_length_nt": 393,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "30S ribosomal protein S14",
+      "catalogue_ordinal": 1516,
+      "display_name": "rpsN",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1516",
+      "median_gene_length_nt": 306,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L5",
+      "catalogue_ordinal": 1517,
+      "display_name": "rplE",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1517",
+      "median_gene_length_nt": 540,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L24",
+      "catalogue_ordinal": 1518,
+      "display_name": "rplX",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1518",
+      "median_gene_length_nt": 315,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L14",
+      "catalogue_ordinal": 1519,
+      "display_name": "rplN",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1519",
+      "median_gene_length_nt": 372,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "30S ribosomal protein S17",
+      "catalogue_ordinal": 1520,
+      "display_name": "rpsQ",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1520",
+      "median_gene_length_nt": 255,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L4",
+      "catalogue_ordinal": 1693,
+      "display_name": "rplD",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1693",
+      "median_gene_length_nt": 606,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "50S ribosomal protein L3",
+      "catalogue_ordinal": 1694,
+      "display_name": "rplC",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "1694",
+      "median_gene_length_nt": 630,
+      "prevalence_band": "core"
+     },
+     {
+      "best_product": "30S ribosomal protein S15",
+      "catalogue_ordinal": 489,
+      "display_name": "rpsO",
+      "display_name_source": "bakta_symbol",
+      "genome_count": 100,
+      "label": "489",
+      "median_gene_length_nt": 270,
+      "prevalence_band": "core"
+     }
+    ],
+    "offsets": [
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1520",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": -5
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1519",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": -4
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1518",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": -3
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1517",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": -2
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1516",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": -1
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1514",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": 1
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1513",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": 2
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1048",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": 3
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1047",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": 4
+     },
+     {
+      "members_without_an_observation": 0,
+      "observed_member_count": 100,
+      "observed_not_listed": 0,
+      "occupants": [
+       {
+        "gene_count": 100,
+        "locus": "1046",
+        "rank": 0,
+        "same_strand_gene_count": 100
+       }
+      ],
+      "signed_offset": 5
+     }
+    ],
+    "pfam_reference": {
+     "PF00410": {
+      "clan_accession": "",
+      "clan_name": "",
+      "description": "Ribosomal protein S8",
+      "interpro_accession": "IPR000630",
+      "interpro_name": "Small ribosomal subunit protein uS8",
+      "short_name": "Ribosomal_S8"
+     }
+    },
+    "resolved_neighbour_count": 16,
+    "uniref50_families": []
+   }
   }
  },
  "recorded_from": "the API test client",
@@ -16424,13 +11583,9 @@
       "end_position": 4014,
       "flat_index": 3,
       "gc_percent": 36.770833333333336,
-      "gene_symbol": null,
       "gff_phase": 0,
       "is_five_prime_partial": false,
       "length_nt": 960,
-      "locus_tag": "ONFFFB_00025",
-      "product": "Fimbrial-type adhesion domain-containing protein",
-      "protein_length_aa": 319,
       "protein_sequence": "MKWLLLITLSLYSFIVQSAPCALTNVGEQRGTYILKPLSMKGNLTAEKIENTGNIIECTDLQETTNAIKVHFLTQNALRFKVGSRHYIINFPFEYDGKKIELPGKSSYNLEEMLSAINFTIPYSIASVSDSSNTADIFPGTPFPLLFEIEVSSCTGNNTNCNSVRFNYNLNTILQVNLMTCGFEDQSIDTGRFVLSRINNENYQFHHIRFDCIQGEQGELVFEPSDVEYYFEPVTIQESGTSILKNELENSEDGAGQVGFQLSNDGTNEIQYGKSNYYSFQHPHEGSNQIPLFIRPRTYGNNVSSGQIMSRVKIVVMYN",
       "seqid": "SAMEA103923484.contig00001",
       "start_position": 3055,
@@ -16535,8 +11690,8 @@
     "ncbi_complete": 0,
     "ncbi_draft": 0
    },
-   "git_sha": "95f10bc",
-   "ingested_at": "2026-10-28T12:31:46.235767+00:00",
+   "git_sha": "661b6f48",
+   "ingested_at": "2026-11-14T22:46:00.691942+00:00",
    "locus_count": 17531,
    "model_label": "ecoli_nuna4_g2_0.98_3b0.5rhoPAIRMAX_step4g0.1rhoCEIL",
    "omitted_sections": {
@@ -16561,7 +11716,6 @@
   "similarity_baselines": [
    {
     "estimator": "median",
-    "unmeasured_views": [],
     "floor_median": 0.7416989207267761,
     "floor_p25": 0.6013510823249817,
     "floor_p75": 0.8229839205741882,
@@ -16569,11 +11723,11 @@
     "form": "raw",
     "measurable_locus_count": 12104,
     "neighbour_knn_k": 200,
-    "representation": "esm"
+    "representation": "esm",
+    "unmeasured_views": []
    },
    {
     "estimator": "median",
-    "unmeasured_views": [],
     "floor_median": 0.05870269238948822,
     "floor_p25": 0.02728018257766962,
     "floor_p75": 0.09382157772779465,
@@ -16581,7 +11735,8 @@
     "form": "raw",
     "measurable_locus_count": 12104,
     "neighbour_knn_k": 200,
-    "representation": "bacformer"
+    "representation": "bacformer",
+    "unmeasured_views": []
    }
   ],
   "species": {

@@ -221,8 +221,9 @@ export function propagationCarriage(own: OwnSupport): string {
  * there rather than an edge: *unmeasured* and *unreliable* are different claims and the page may
  * not let one read as the other.
  *
- * ⚠ `namesBand` is false where the band has already been named once for the whole block, and true
- * on the inferred-function card, which quotes the DONOR's band with no lead to carry it.
+ * ⚠ `namesBand` is false where the band has already been named once for the whole block — the
+ * propagation summary, its one caller since the inferred-function card it was written for went with the
+ * ladder (2026-11-14). The default stays true for a caller quoting one band with no lead to carry it.
  */
 export function propagationRateSentence(
   propagation: PropagationRate,
@@ -241,4 +242,21 @@ export function propagationRateSentence(
     `${(propagation.rate * 100).toFixed(2)} % of ${comparable} comparable ` +
     `${band}syntelogues agree`
   );
+}
+
+/**
+ * ⭐ A served prediction's estimated accuracy, as the page prints it: whole percent, **rounded DOWN**.
+ *
+ * ⛔ **The row's own number, never a band** (David, 2026-10-28: *"we would just be explicit about the
+ * estimated percent accuracy for each prediction"*). Rounded down so a promise is never printed higher
+ * than the model made it — 0.8007 is "80 %", 0.995 is "99 %", not "100 %".
+ *
+ * ⚠ An isotonic calibration can only map onto values it observed, so it does promise exactly 1.0 on
+ * some rows (1,960 of the probe's 39,009), and this prints those as "100 %" because that is the
+ * model's number. Whether the page should is an open question for David: on held-out loci the
+ * 0.95–1.00 band delivered 0.9745 (`nuna/docs/model_evaluation/annotation_transfer_gains.md` §3.2).
+ */
+export function estimatedAccuracyPercent(probability: number): string {
+  // ⚠ The epsilon keeps a float like 0.57 × 100 = 56.99999… from flooring a whole point low.
+  return `${Math.floor(probability * 100 + 1e-9)} %`;
 }

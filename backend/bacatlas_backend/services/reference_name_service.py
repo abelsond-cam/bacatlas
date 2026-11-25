@@ -6,7 +6,7 @@ KEGG ones, because Bakta does not emit a name for either. So a locus card showed
 rather than written into `locus_annotation_entry`, so refreshing a reference is
 `ingest --stage reference` and never a catalogue re-ingest.
 
-⛔ **Cached per PROCESS, like `_CALIBRATIONS`** — a global vocabulary does not change between
+⛔ **Cached per PROCESS** — a global vocabulary does not change between
 requests, and re-reading 28,516 KEGG rows per request would be visible in the route budget.
 `clear_reference_name_cache()` exists for the tests that load a reference mid-process.
 
@@ -120,7 +120,7 @@ def gene_ontology_fold(session: Session) -> GeneOntologyFold:
     """The GO reference the measurement compares through, cached per process.
 
     ⚠ **38,092 terms and 99 ancestor edges, read once.** Two statements on a cold process and zero
-    thereafter, exactly like `reference_names` and `_CALIBRATIONS` — the Function tab's warm route
+    thereafter, exactly like `reference_names` — the Function tab's warm route
     budget is what makes that a requirement rather than an optimisation.
 
     ⛔ **An empty fold is a valid, expected state**, not a failure: a deployment that has not run

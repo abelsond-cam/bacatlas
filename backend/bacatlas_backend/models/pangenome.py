@@ -34,6 +34,7 @@ from bacatlas_backend.models.enumerations import (
     EvaluationKind,
     GateVerdict,
     RhoRule,
+    ServedAnnotationState,
 )
 
 
@@ -54,6 +55,23 @@ class Pangenome(Base):
         # catalogue could be inserted at all. ⭐ Nothing decodes a run_id here any more, so there
         # is no decode to be inconsistent with: the id is stored verbatim and the token is in it.
         # ⚠ The structurally identical trap in `catalogue_key` is NOT retired — see below.
+        # ⛔ Both version ladders have a "v0.1"; the database refuses the bare spelling here too. The
+        # pattern is `served_locus_annotation.ANNOTATION_MODEL_VERSION_PATTERN`, written out because a
+        # model module importing another for a CHECK string would be an import cycle waiting to happen.
+        CheckConstraint(
+            r"annotation_model_version IS NULL OR annotation_model_version ~ '^at-v[0-9]+\.[0-9]+$'",
+            name="annotation_model_version_is_tagged",
+        ),
+        # ⛔ The served state and what it names cannot disagree: a version and a fingerprint exactly when
+        # the rows were LOADED. A reload that cleared the rows but kept the version is unrepresentable.
+        CheckConstraint(
+            "(served_annotation_state = 'LOADED') = (annotation_model_version IS NOT NULL)",
+            name="served_state_names_its_version",
+        ),
+        CheckConstraint(
+            "(served_annotation_state = 'LOADED') = (served_annotation_sha256 IS NOT NULL)",
+            name="served_state_names_its_file",
+        ),
     )
 
     pangenome_id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
@@ -136,6 +154,32 @@ class Pangenome(Base):
     #: here means *the fold was never recorded*, and a stored verdict with no recorded fold cannot be
     #: trusted to mean what a reader assumes.
     annotation_fold_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    #: ⭐ **Where this catalogue stands with annotation-transfer's predictions** — see
+    #: `ServedAnnotationState`. ⛔ Explicit, because "never loaded", "none produced" and "loaded, and this
+    #: locus declined" are three facts that an absent row cannot tell apart. Written only by
+    #: `ingest --stage served-annotations`, and RESET to `not_loaded` by a catalogue reload
+    #: (`_delete_pangenome_layer`), whose cascade removes the rows.
+    served_annotation_state: Mapped[ServedAnnotationState] = mapped_column(
+        nullable=False,
+        default=ServedAnnotationState.NOT_LOADED,
+        server_default=ServedAnnotationState.NOT_LOADED.name,
+    )
+    #: ⭐ **Which annotation model the loaded predictions came from — `at-v0.1` — set exactly when LOADED.**
+    #: ⚠ On the pangenome and not only on the rows, because a locus with NO prediction must still be able
+    #: to say which model declined it, and a catalogue-wide `DISTINCT` over the rows per request is the
+    #: aggregation `test_route_cost` forbids.
+    annotation_model_version: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: ⭐ The sha256 of the file the loaded predictions came from — provenance, and the LOAD FINGERPRINT
+    #: the Function tab's and the shell's validators carry. ⛔ A reload of a corrected file under the same
+    #: version changes every body and not the version, so the tag cannot key on the version alone.
+    served_annotation_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    def served_annotation_fingerprint(self) -> str:
+        """What a validator keys on for the served predictions: the state, and the file where loaded."""
+        if self.served_annotation_state is ServedAnnotationState.LOADED:
+            return f"{self.annotation_model_version}-{(self.served_annotation_sha256 or '')[:16]}"
+        return self.served_annotation_state.value
 
     #: ⭐ **The locus the page opens on, and the four chips beside it.** Stored, because neither is
     #: derivable from `locus.interest_score`: `render_page.landing` FILTERS the ranking for the

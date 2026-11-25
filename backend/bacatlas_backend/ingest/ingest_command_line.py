@@ -42,11 +42,21 @@ from bacatlas_backend.ingest.ingest_pangenome_run import catalogue_key_for, inge
 from bacatlas_backend.ingest.ingest_pathogen_species import ingest_pathogen_species
 from bacatlas_backend.ingest.ingest_projected_genomes import ProjectionRefused, load_projection
 from bacatlas_backend.ingest.ingest_reference_vocabularies import load_reference_vocabularies
+from bacatlas_backend.ingest.ingest_served_annotations import (
+    ServedAnnotationsRefused,
+    ServedDonorsBlockReload,
+    clear_served_annotations,
+    gene_ontology_slim_classes,
+    load_served_annotations,
+    newest_pangenome,
+    record_none_produced,
+)
 from bacatlas_backend.ingest.publish_pangenome import PublishRefused, publish_pangenome
 from bacatlas_backend.models.genome import Genome, GenomeContig
 from bacatlas_backend.models.genome_genes import GenomeGenes
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.pangenome import Pangenome
+from bacatlas_backend.services.reference_name_service import gene_ontology_fold
 
 #: ⭐ The reason stored on `genome.gene_table_omitted_reason` for every genome named by
 #: `--genomes-without-gene-table`. One sentence, because the Sequence tab shows it to a reader and the
@@ -567,15 +577,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-label", default=None, help="the audit's --model-label")
     parser.add_argument("--run-id", default=None, help="the assignment stem")
     parser.add_argument("--database-url", default=os.environ.get("BACATLAS_DATABASE_URL"))
-    parser.add_argument("--stage", choices=("reference", "genomes", "pangenome", "projection", "all"),
+    parser.add_argument("--stage",
+                        choices=("reference", "genomes", "pangenome", "projection", "served-annotations", "all"),
                         default="all",
                         help="`reference` is the public vocabularies, global to every species and "
                              "model; `genomes` is model-INDEPENDENT and a new pangenome must never "
                              "rewrite it; `pangenome` needs it already loaded; `projection` places "
                              "genomes the model never clustered and is DELIBERATELY not in `all` — "
-                             "it is an addition to a published catalogue, not part of building one")
+                             "it is an addition to a published catalogue, not part of building one. "
+                             "`served-annotations` loads annotation-transfer's predictions for this "
+                             "catalogue, and is not in `all` either: a donor may sit in ANOTHER catalogue, "
+                             "so both must be loaded first. It takes exactly one of --served-annotations, "
+                             "--no-served-annotations or --clear-served-annotations")
     parser.add_argument("--projection-dir", type=Path, default=None,
                         help="where nuna wrote *_placed_windows.tsv (default: the locator's own path)")
+    served = parser.add_mutually_exclusive_group()
+    served.add_argument("--served-annotations", type=Path, default=None,
+                        help="`served-annotations`: LOAD this `{set}_served_annotations.tsv` (nuna's "
+                             "`summarise_transfer_gains.py`), replacing the catalogue's predictions. "
+                             "\u26d4 There is no default path: a path nobody gave is never read as \"none "
+                             "produced\". A file named here that does not exist is refused")  # fmt: skip
+    served.add_argument("--no-served-annotations", action="store_true",
+                        help="`served-annotations`: RECORD that the model produced no predictions for this "
+                             "catalogue — a finding the page states. Removes any loaded rows")  # fmt: skip
+    served.add_argument("--clear-served-annotations", action="store_true",
+                        help="`served-annotations`: REMOVE this catalogue's predictions and mark them not "
+                             "loaded — what a reload of a catalogue they take donors from asks for")  # fmt: skip
     parser.add_argument("--publish", action="store_true",
                         help="after loading, VERIFY the catalogue and point its species at it. The "
                              "pointer is what the service reads, so this is a separate, explicit "
@@ -680,9 +707,13 @@ def main(argv: list[str] | None = None) -> int:
         model_label=args.model_label, run_id=args.run_id,
         species_key=args.species_key,
         gene_universe_path=args.gene_universe, assignment_path=args.assignment,
-        nseq_root=args.nseq_dir,
+        nseq_root=args.nseq_dir, served_annotations_path=args.served_annotations,
     )
-    if args.stage == "genomes":
+    if args.stage == "served-annotations":
+        # ⭐ It reads one file and the database, never the catalogue's build artifacts — so it asks for
+        # none of them, and can run wherever the database and that file are.
+        artifacts.verify(roles=frozenset())
+    elif args.stage == "genomes":
         # ⭐ The genome layer is model-independent: of the catalogue's artifacts it reads the gene
         # universe (its roster) and nothing else, so nothing else is demanded of it. It can therefore
         # be loaded while a catalogue's artifacts are still being produced.
@@ -757,18 +788,69 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"PROJECTION REFUSED: {error}", file=sys.stderr)
                 return 1
             return 0
+        # ⛔ NOT part of `all`, for the projection's reason and one more: a donor may sit in another
+        # catalogue, which this run did not load.
+        if args.stage == "served-annotations":
+            if not (args.served_annotations or args.no_served_annotations or args.clear_served_annotations):
+                print(
+                    "--stage served-annotations needs exactly one instruction: --served-annotations PATH (load "
+                    "it), --no-served-annotations (the model produced none) or --clear-served-annotations. "
+                    "⛔ None is inferred from a path nobody gave.",
+                    file=sys.stderr,
+                )
+                return 2
+            pangenome = newest_pangenome(session, artifacts.run_id)
+            if pangenome is None:
+                print(f"no pangenome with run_id {artifacts.run_id} — load it first", file=sys.stderr)
+                return 2
+            if args.no_served_annotations or args.clear_served_annotations:
+                record = record_none_produced if args.no_served_annotations else clear_served_annotations
+                print(record(session, pangenome=pangenome).render())
+                session.commit()
+                return 0
+            path = artifacts.served_annotations
+            if path is None or not path.is_file():
+                print(
+                    f"--served-annotations names {path}, which is not a file. Refused, and nothing recorded: "
+                    "the catalogue was said to have predictions.",
+                    file=sys.stderr,
+                )
+                return 2
+            try:
+                report = load_served_annotations(
+                    session,
+                    pangenome=pangenome,
+                    set_key=artifacts.set_key,
+                    path=path,
+                    fold=gene_ontology_fold(session),
+                    slim_classes=gene_ontology_slim_classes(session),
+                )
+            except ServedAnnotationsRefused as error:
+                session.rollback()
+                print(f"SERVED ANNOTATIONS REFUSED: {error}", file=sys.stderr)
+                return 1
+            session.commit()
+            print(report.render())
+            return 0
         if args.stage in ("pangenome", "all"):
-            for line in load_pangenome_layer(
-                session,
-                artifacts,
-                species_key=args.species_key or artifacts.species_key,
-                catalogue_key=args.catalogue_key,
-                collection_key=args.collection_key,
-                collection_label=args.collection_label,
-                allow_missing_strand=args.allow_missing_strand,
-                genomes_without_gene_table=without_gene_table,
-                read_workers=args.read_workers,
-            ):
+            try:
+                lines = load_pangenome_layer(
+                    session,
+                    artifacts,
+                    species_key=args.species_key or artifacts.species_key,
+                    catalogue_key=args.catalogue_key,
+                    collection_key=args.collection_key,
+                    collection_label=args.collection_label,
+                    allow_missing_strand=args.allow_missing_strand,
+                    genomes_without_gene_table=without_gene_table,
+                    read_workers=args.read_workers,
+                )
+            except ServedDonorsBlockReload as error:
+                # ⛔ Raised before the frame build: nothing was written, so the exit says refused, not failed.
+                session.rollback()
+                print(f"PANGENOME RELOAD REFUSED: {error}", file=sys.stderr)
+                return 1
+            for line in lines:
                 print(line)
             session.commit()
             reconcilable = pangenome_is_reconcilable(artifacts)

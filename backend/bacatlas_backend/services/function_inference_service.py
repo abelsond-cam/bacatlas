@@ -1,7 +1,4 @@
-"""The Function tab's inference block — what this node's function rests on, and how sure that is.
-
-Two mechanisms, reported separately because they are not equally trustworthy and the page must never
-let them read alike (`nuna/docs/model_evaluation/function_inference.md`):
+"""The Function tab's own-call block — what this node's function rests on, and how sure that is.
 
 * **its own genes.** The node's call is already a modal vote over its member genes, and `checkable`
   says whether that vote had more than one voter. ⛔ A node with exactly ONE annotated gene is
@@ -11,14 +8,14 @@ let them read alike (`nuna/docs/model_evaluation/function_inference.md`):
   covers the node's other 99 genes, and `propagation` is the measured rate at which it is right to.
   (David, 2026-10-04: *"the whole point of our method is effectively the carrying by one is
   enough."*)
-* **a neighbour.** Walk the stored ESM neighbours outward until one carries the vocabulary, then
-  quote it only as deep as its similarity earns — and carry the **measured** agreement rate for that
-  depth so the reader judges the suggestion instead of trusting it.
 
-⚠ **The walk is reported, not just its result.** David, 2026-10-03: *"If they don't have any
-annotation, then look to next neighbour etc. Then note the similarity."* A card that printed only the
-supplying neighbour would hide that ranks 1-4 were empty — and for *E. coli* COG only 1,679 of 4,143
-assignments come from rank 1, so that is the common case rather than the exception.
+⛔ **The second mechanism that lived here — walk the five stored ESM neighbours until one carries the
+vocabulary, and quote it as deep as a measured agreement ladder allowed — is RETIRED** (David,
+2026-11-14). annotation-transfer v0.1 replaces it: `served_annotation_service` serves the model's
+predictions, each with its own calibrated accuracy. The ladder's MEASUREMENT survives in
+`instruments/annotation_transfer.py`, which `within_node_propagation`, `transfer/claims` and the
+propagation ingest read; only the per-request walk, its process-cached calibration and the route's
+`calibration` block went.
 """
 
 from __future__ import annotations
@@ -28,50 +25,22 @@ from collections import defaultdict
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
-from bacatlas_backend.instruments.annotation_transfer import (
-    GENE_ONTOLOGY_FACETS,
-    LOCUS_ANNOTATED_COUNT_COLUMN,
-    NOT_CALLED,
-    SUPPORTED_KINDS,
-    Calibration,
-    callable_rungs,
-    cog_levels,
-    compute_calibration,
-    ec_levels,
-    go_rung,
-    quotable_rungs,
-    single_rung,
-    tier_for,
-)
-from bacatlas_backend.instruments.gene_ontology_fold import GeneOntologyFold
+from bacatlas_backend.instruments.annotation_transfer import LOCUS_ANNOTATED_COUNT_COLUMN, SUPPORTED_KINDS
 from bacatlas_backend.instruments.within_node_propagation import PropagationRate
-from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepresentation, PrevalenceBand
+from bacatlas_backend.models.enumerations import AnnotationKind, PrevalenceBand
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_annotation import LocusAnnotationEntry
-from bacatlas_backend.models.locus_similarity import LocusNearestLocus
 from bacatlas_backend.models.pangenome_propagation_rate import PangenomePropagationRate
-from bacatlas_backend.services.reference_name_service import gene_ontology_fold, reference_names
+from bacatlas_backend.services.reference_name_service import reference_names
 
 #: ⚠ A process-lifetime cache, legitimate only because this service is READ-ONLY and a catalogue
-#: cannot change without a re-ingest and a restart — the same ground the `ETag: "{pangenome_id}"` on
-#: every response already stands on. Measured at **0.19-0.42 s** per (catalogue, vocabulary) on the
-#: 100-genome catalogues, so the first request after a restart pays that once — PER gunicorn worker.
-#: ⛔ At 71,435 genomes it is the catalogue's one remaining catalogue-wide read: **~23 s** per worker
-#: for the four vocabularies before 2026-11-14, **5.75 s** after `_claims` and `compute_calibration`
-#: read only what can be scored (laptop, on the restored kp-71k dump). `deploy_database.sh` warms
-#: every worker; anything else that restarts one leaves its first reader to pay it. The fix that
-#: removes it is to store the ladder at ingest, as `_stored_propagation` does for the base rates.
-#: ⛔ Tests must call `clear_calibration_cache()` between catalogues, or one fixture's ladder answers
-#: another's — the trap `gene_sequence_service.clear_parsed_genome_cache` exists for.
-_CALIBRATIONS: dict[tuple[int, AnnotationKind, EmbeddingRepresentation], Calibration] = {}
-
-#: ⚠ The same stance as `_CALIBRATIONS` and the same justification, but a **heavier** scan: it reads
-#: every annotated GENE rather than every stored edge, measured at **0.22-1.94 s** per (catalogue,
-#: vocabulary) on the published catalogues — so a cold *E. coli* Function tab pays ~5.8 s across the
-#: four, once per process. ⛔ Keyed WITHOUT a representation, which is a finding and not an omission:
+#: cannot change without a re-ingest and a restart — the ground the `ETag: "{pangenome_id}"` on every
+#: response already stands on. It holds at most five stored rows per (catalogue, vocabulary)
+#: (`_stored_propagation`). ⛔ Keyed WITHOUT a representation, which is a finding and not an omission:
 #: within-node unanimity is 99.8-100 % at every band of BOTH representations (ESM's within-node
 #: similarity is saturated at p50 1.000 and cannot discriminate at all), so no similarity enters this
-#: number. See `within_node_propagation`'s header.
+#: number. See `within_node_propagation`'s header. ⛔ Tests call `clear_propagation_cache()` between
+#: catalogues, or one fixture's rates answer another's.
 _PROPAGATION: dict[tuple[int, AnnotationKind], dict[str, PropagationRate]] = {}
 
 
@@ -104,13 +73,8 @@ def _annotated_counts(session: Session, locus_ids: set[int]) -> dict[int, dict[A
     }
 
 
-def clear_calibration_cache() -> None:
-    """Drop every cached ladder. Call between catalogues in tests."""
-    _CALIBRATIONS.clear()
-
-
 def clear_propagation_cache() -> None:
-    """Drop every cached base rate. ⛔ Call between catalogues in tests, like its twin above."""
+    """Drop every cached base rate. ⛔ Call between catalogues in tests."""
     _PROPAGATION.clear()
 
 
@@ -190,53 +154,11 @@ def propagation_for(
     )
 
 
-def calibration_for(
-    session: Session,
-    *,
-    pangenome_id: int,
-    annotation_kind: AnnotationKind,
-    representation: EmbeddingRepresentation = EmbeddingRepresentation.ESM,
-) -> Calibration:
-    """The agreement ladder for this catalogue, computed once per process."""
-    key = (pangenome_id, annotation_kind, representation)
-    if key not in _CALIBRATIONS:
-        _CALIBRATIONS[key] = compute_calibration(
-            session,
-            pangenome_id=pangenome_id,
-            annotation_kind=annotation_kind,
-            representation=representation,
-            # ⭐ The closed GO claim. Without it `plasma membrane` and `membrane` are different
-            # classes and the ladder counts a disagreement that is not one.
-            fold=gene_ontology_fold(session),
-        )
-    return _CALIBRATIONS[key]
-
-
-def _fold(
-    annotation_kind: AnnotationKind,
-    terms: list[str],
-    categories: list[str] | None,
-    fold: GeneOntologyFold | None = None,
-):
-    """A node's stated terms folded onto the ladder for its vocabulary.
-
-    ⚠ `terms` is a LIST because rank 0 is not unique per locus: `top_go_slim` ranks within
-    (locus, namespace), so a GO-bearing node states up to three rank-0 terms and reading one would
-    discard the rest.
-    """
-    if annotation_kind is AnnotationKind.EC_NUMBER:
-        return ec_levels(terms[0]) if terms else None
-    if annotation_kind is AnnotationKind.COG_ORTHOGROUP:
-        return cog_levels(terms[0] if terms else None, categories)
-    if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
-        return go_rung(terms, fold)
-    return single_rung(terms)
-
-
 def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, AnnotationKind], list]:
     """Every supported vocabulary's rank-0 entries for every locus, in one statement.
 
-    ⛔ A LIST per (locus, kind), not a single row — see `_fold`.
+    ⛔ A LIST per (locus, kind), not a single row: `top_go_slim` ranks within (locus, namespace), so a
+    GO-bearing node states up to three rank-0 terms and reading one would discard the rest.
     """
     if not locus_ids:
         return {}
@@ -253,7 +175,7 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.annotation_kind.in_(SUPPORTED_KINDS),
             LocusAnnotationEntry.rank_within_locus == 0,
         )
-        # ⛔ **ORDER BY, because `said[0]` is load-bearing.** `_fold` and `_walk` take the FIRST
+        # ⛔ **ORDER BY, because `said[0]` is load-bearing.** `load_inference` takes the FIRST
         # entry of each (locus, kind) list, and a GO-bearing locus has THREE rank-0 rows — one per
         # namespace. With no ordering the term the card printed was whichever namespace Postgres
         # happened to return first, which is arbitrary and can change between runs. Namespace order
@@ -267,11 +189,8 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
             LocusAnnotationEntry.term_value,
         )
     ).all()
-    # ⭐ The EC and KEGG names are filled HERE rather than in each consumer, because both the focal
-    # node's own term and every donor on the walk come out of this one statement — and a card that
-    # names the focal node's `2.7.10.-` while the suggestion beside it says only `K01991` is the
-    # asymmetry that made the licence look like an oversight. `term_name` still wins where it
-    # exists; see `serialise_annotation_entry` for why that ordering is the guarantee.
+    # ⭐ The EC and KEGG names are filled HERE rather than in each consumer. `term_name` still wins
+    # where it exists; see `serialise_annotation_entry` for why that ordering is the guarantee.
     names = reference_names(session)
     grouped: dict[tuple[int, AnnotationKind], list] = defaultdict(list)
     for locus_id, kind, term, name, support in rows:
@@ -279,39 +198,10 @@ def _top_entries(session: Session, locus_ids: set[int]) -> dict[tuple[int, Annot
     return grouped
 
 
-def load_inference(
-    session: Session,
-    *,
-    pangenome_id: int,
-    locus: Locus,
-    representation: EmbeddingRepresentation = EmbeddingRepresentation.ESM,
-) -> dict:
-    """What can be said about this node's function, by which mechanism, and at what measured rate."""
-    neighbours = session.execute(
-        select(
-            LocusNearestLocus.rank,
-            LocusNearestLocus.cross_similarity,
-            Locus.locus_id,
-            Locus.node_label,
-            Locus.catalogue_ordinal,
-            Locus.display_name,
-            Locus.member_gene_count,
-            Locus.modal_cog_categories,
-            # ⚠ Read for the DONOR's propagation rate: a donor resting on one annotated gene is a
-            # valid donor, and the reason is its own band's base rate, not the focal node's.
-            Locus.prevalence_band,
-        )
-        .join(Locus, Locus.locus_id == LocusNearestLocus.neighbour_locus_id)
-        .where(
-            LocusNearestLocus.locus_id == locus.locus_id,
-            LocusNearestLocus.representation == representation,
-        )
-        .order_by(LocusNearestLocus.rank)
-    ).all()
-
-    touched = {locus.locus_id, *(row.locus_id for row in neighbours)}
-    entries = _top_entries(session, touched)
-    annotated_counts = _annotated_counts(session, touched)
+def load_inference(session: Session, *, pangenome_id: int, locus: Locus) -> dict:
+    """What this node's own genes say, per vocabulary, and the measured rate at which it propagates."""
+    entries = _top_entries(session, {locus.locus_id})
+    annotated_counts = _annotated_counts(session, {locus.locus_id})
     vocabularies = []
     for annotation_kind in SUPPORTED_KINDS:
         said = entries.get((locus.locus_id, annotation_kind), [])
@@ -338,136 +228,5 @@ def load_inference(
                     prevalence_band=locus.prevalence_band,
                 ).as_json(),
             }
-        vocabularies.append(
-            {
-                "annotation_kind": annotation_kind.value,
-                "own": own,
-                # ⚠ Only ever offered where the node has NO call of its own — a suggestion beside a
-                # real annotation would compete with it.
-                **(
-                    _walk(annotation_kind, neighbours, entries, annotated_counts, session, pangenome_id, representation)
-                    if own is None
-                    else {"walk": [], "candidate": None}
-                ),
-            }
-        )
-    return {"representation": representation.value, "vocabularies": vocabularies}
-
-
-def _walk(
-    annotation_kind: AnnotationKind,
-    neighbours,
-    entries,
-    annotated_counts,
-    session: Session,
-    pangenome_id: int,
-    representation: EmbeddingRepresentation,
-) -> dict:
-    """Outward along the ranks until one neighbour carries the vocabulary; report every step."""
-    walk, candidate = [], None
-    for row in neighbours:
-        said = entries.get((row.locus_id, annotation_kind), [])
-        term, name, support = said[0] if said else (None, None, None)
-        tier = tier_for(row.cross_similarity)
-        walk.append(
-            {
-                "rank": row.rank,
-                "cosine": row.cross_similarity,
-                "tier": tier,
-                "node_label": row.node_label,
-                "catalogue_ordinal": row.catalogue_ordinal,
-                "display_name": row.display_name,
-                "carries_annotation": term is not None,
-            }
-        )
-        if candidate is not None or term is None:
-            continue
-        #: ⛔ The first donor found ends the walk even when its tier is `NOT_CALLED`: a nearer
-        #: neighbour that carries nothing cannot be skipped over in favour of a FURTHER one that
-        #: does, or the cosine the rate is read from would no longer be the walk's own.
-        donor_annotated = annotated_counts.get(row.locus_id, {}).get(annotation_kind, 0)
-        fold_now = gene_ontology_fold(session)
-        folded = _fold(annotation_kind, [t for t, _n, _s in said], row.modal_cog_categories, fold_now)
-        ladder = calibration_for(
-            session,
-            pangenome_id=pangenome_id,
-            annotation_kind=annotation_kind,
-            representation=representation,
-        )
-        #: ⭐ **Two levels, and the difference between them is the whole floor.** `quoted` is how
-        #: deep this tier and this donor COULD be read; `level` is how deep it may actually be
-        #: SUGGESTED, which also requires the measured rate at that depth to clear `CALLING_FLOOR`.
-        #: ⛔ Where they differ the card must still name the donor and quote the rate — otherwise a
-        #: refusal at 24.3 % agreement reads as "too remote to call", which it is not: the neighbour
-        #: is at 0.929 and perfectly close. It is the *measurement* that refuses, and the reader is
-        #: owed the number that did it.
-        measurable = bool(folded) and tier != NOT_CALLED
-        quoted = quotable_rungs(annotation_kind, tier, folded) if measurable else []
-        callable_ = callable_rungs(annotation_kind, tier, folded, ladder) if measurable else []
-        called = set(callable_)
-        #: ⭐ **One entry per rung the donor can be READ at, each carrying its own verdict.** GO has
-        #: three independent claims and they do not stand or fall together: measured at 0.94-0.96,
-        #: cellular component agrees 84.2 % / 86.2 % of the time and molecular function 60.3 % /
-        #: 70.5 %. A single suggestion per vocabulary had to average those, and the average let the
-        #: weak one through on the strength of the other two.
-        #: ⛔ A rung that is quotable but NOT callable still appears, with `suggested: false` and the
-        #: cell that refused it. Dropping it would leave the reader unable to see that a claim was
-        #: considered and declined, which is the one thing the floor owes them.
-        #: ⛔ **What the donor SAYS, not the closed set it is compared by.** The closure exists so
-        #: `plasma membrane` and `membrane` stop reading as a conflict; showing its output as the
-        #: suggestion gives *"plasma membrane, membrane"*, where the second is implied by the first.
-        #: Comparison and display want different sets, and conflating them makes the card worse.
-        stated = (
-            fold_now.stated_by_namespace(t for t, _n, _s in said)
-            if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM
-            else {}
-        )
-        offers = []
-        for rung in quoted:
-            facet, depth = rung
-            if annotation_kind is AnnotationKind.GENE_ONTOLOGY_SLIM:
-                index = GENE_ONTOLOGY_FACETS.index(facet) if facet in GENE_ONTOLOGY_FACETS else None
-                classes = sorted(stated.get(index, frozenset())) if index is not None else []
-                # ⚠ The NAME, because `GO:0005886` is not a suggestion a reader can act on.
-                value = [fold_now.label(go_class) for go_class in classes]
-            else:
-                value = sorted(folded[rung])
-            cell = ladder.cell(tier, rung)
-            offers.append(
-                {
-                    "facet": facet,
-                    "level": depth,
-                    "suggested": rung in called,
-                    "value": value,
-                    "calibration": cell.as_json() if cell is not None else None,
-                }
-            )
-        candidate = {
-            "rank": row.rank,
-            "cosine": row.cross_similarity,
-            "tier": tier,
-            "donor": {
-                "node_label": row.node_label,
-                "catalogue_ordinal": row.catalogue_ordinal,
-                "display_name": row.display_name,
-                "term": term,
-                "name": name,
-                "gene_count": support,
-                "annotated_gene_count": donor_annotated,
-                "member_gene_count": row.member_gene_count,
-                "checkable": donor_annotated >= 2,
-                # ⛔ The DONOR's band, not the recipient's — what is being claimed here is that the
-                # donor's call covers the donor's node, which is a statement about that node alone.
-                "propagation": propagation_for(
-                    session,
-                    pangenome_id=pangenome_id,
-                    annotation_kind=annotation_kind,
-                    prevalence_band=row.prevalence_band,
-                ).as_json(),
-            },
-            #: ⚠ Empty where the tier is too remote to call or the donor states nothing readable.
-            #: A client should look at `suggested` on each offer, never at the list being non-empty.
-            "offers": offers,
-            "suggested_count": sum(1 for offer in offers if offer["suggested"]),
-        }
-    return {"walk": walk, "candidate": candidate}
+        vocabularies.append({"annotation_kind": annotation_kind.value, "own": own})
+    return {"vocabularies": vocabularies}

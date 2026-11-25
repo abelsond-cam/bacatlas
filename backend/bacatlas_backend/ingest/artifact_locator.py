@@ -141,10 +141,13 @@ class CatalogueArtifacts:
     #: `proc/`. `None` means no tree was named, and then nothing is read from one — the probe's loads
     #: encode the block from the GFF exactly as before.
     nseq_root: Path | None = None
+    #: ⭐ Where annotation-transfer's predictions for this catalogue are — NAMED, never derived; see
+    #: `served_annotations` for why there is no convention to fall back on.
+    served_annotations_path: Path | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data_root", Path(self.data_root).expanduser())
-        for field_name in ("gene_universe_path", "assignment_path", "nseq_root"):
+        for field_name in ("gene_universe_path", "assignment_path", "nseq_root", "served_annotations_path"):
             value = getattr(self, field_name)
             if value is not None:
                 object.__setattr__(self, field_name, Path(value).expanduser())
@@ -317,6 +320,22 @@ class CatalogueArtifacts:
     def projection_manifest(self) -> Path:
         """The search's own manifest — the assignment it searched and that file's digest."""
         return self.projection_root / "manifest.json"
+
+    # ── the annotation model's predictions ────────────────────────────────────────────────────
+    @property
+    def served_annotations(self) -> Path | None:
+        """annotation-transfer's served predictions for THIS catalogue — only ever the path an operator NAMED.
+
+        ⛔ **There is deliberately no derived default** (review of 9cfa481). A derived name existed by
+        accident or not at all — the producer wrote `ecoli_`/`kp_` files while kp-71k's set key is `kp71k` —
+        and an absent derived path was read as "none produced": an unmounted data root deleted a catalogue's
+        predictions and said the model made none. `--stage served-annotations` takes the file, or an
+        explicit `--no-served-annotations`, and never a guess.
+
+        ⛔ Not in `required()` or `optional()`, like `projection_root`: it is read by its own stage, because a
+        donor may sit in ANOTHER catalogue and the load waits for both.
+        """
+        return self.served_annotations_path
 
     # ── the oracle, which is never an input ───────────────────────────────────────────────────
     @property

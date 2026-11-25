@@ -21,10 +21,12 @@ from sqlalchemy import create_engine
 
 from bacatlas_backend.application_factory import create_application
 from bacatlas_backend.configuration import Configuration
+from bacatlas_backend.instruments.annotation_transfer import SUPPORTED_KINDS
 from bacatlas_backend.instruments.sql_cost_oracle import SqlCostOracle
-from bacatlas_backend.services.function_inference_service import (
-    clear_calibration_cache,
-    clear_propagation_cache,
+from bacatlas_backend.services.function_inference_service import clear_propagation_cache
+from bacatlas_backend.services.reference_name_service import (
+    clear_gene_ontology_fold_cache,
+    clear_reference_name_cache,
 )
 
 #: Resolving `species_key` → its published pangenome: one statement, on every route.
@@ -37,20 +39,26 @@ SPECIES_RESOLUTION = 1
 LOCUS_VIEW_MINIMUM = 10
 
 #: The Function tab on a WARM process: the locus view's own statements plus the species resolution,
-#: the function block and the inference walk. Measured on both published catalogues.
+#: the function block, the own-call block and the predictions. ⭐ Measured 2026-11-14 after
+#: annotation-transfer v0.1 replaced the ladder: 14 on ecoli 2811 / 208 / 243 / 102 and kp 722, 13 on kp
+#: 13160. The walk's neighbour read went and the predictions' one statement came, so the warm budget is
+#: unmoved.
 FUNCTION_TAB_WARM = 14
 
-#: ⭐ The Function tab on a COLD process — **measured 2026-10-26: ecoli 28, kp 26**, and the larger
-#: is the budget. The cold tab used to issue four catalogue-wide scans of `gene_functional_annotation`
-#: on top, at 0.22-1.94 s each, and a statement budget said nothing useful about that — the cost was
-#: in the rows, not the count.
-#: ⛔ **NOT every statement here is a bounded read**, whatever this said before. The agreement ladder
-#: (`compute_calibration`, two statements per vocabulary — three for one with no claim at all, where
-#: `_claims` asks for the count separately) reads the catalogue's claims
-#: and the edges between them — 23 s per worker on kp-71k before 2026-11-14, 5.75 s after — paid once
-#: per process and invisible to `_catalogue_aggregations`, which sees only GROUP BY. This budget
-#: bounds their NUMBER; nothing here bounds their rows.
-FUNCTION_TAB_COLD = 28
+#: ⭐ What a COLD process adds, each a process-cached reference read paid once — DERIVED, not sampled
+#: (review of 9cfa481: a budget of 19 taken from three loci was beaten by 22 at ecoli 208):
+#: * the EC and KEGG name tables (`reference_names`);
+REFERENCE_NAME_READS = 2
+#: * one `pangenome_propagation_rate` read per vocabulary the locus has its own call in — at most all four;
+PROPAGATION_READS = len(SUPPORTED_KINDS)
+#: * the GO fold (`gene_ontology_term` + `gene_ontology_slim_ancestor`), read where a GO prediction is named.
+GO_FOLD_READS = 2
+
+#: The worst case: every one of them at once. ⛔ It was 28 while the tab carried the agreement ladder
+#: (`compute_calibration`, a catalogue-wide read of claims and edges — 23 s per worker on kp-71k before
+#: 2026-11-14, 5.75 s after). That read is GONE; every statement left is bounded by one locus or is one of
+#: the reference reads above. ecoli 208, 243 and 102 reach it exactly: 22 cold, 14 warm.
+FUNCTION_TAB_COLD = FUNCTION_TAB_WARM + REFERENCE_NAME_READS + PROPAGATION_READS + GO_FOLD_READS
 
 #: ⚠ A genome PROJECTED onto the ecoli catalogue, if one is loaded. The projection is an optional
 #: addition to a published catalogue, so these two tests skip rather than fail where none exists —
@@ -193,7 +201,13 @@ def test_and_the_shell_DOES_aggregate_so_the_property_above_is_not_vacuous(appli
     assert len(_catalogue_aggregations(report)) == 1
 
 
-@pytest.mark.parametrize("species,label", [("ecoli", "2811"), ("kp", "722")])
+#: ⭐ The loci are chosen for what they cost: 2811 and 722 have own calls and no predictions; 13160 has GO
+#: predictions and no own call; ⛔ 208, 243 and 102 have own calls in all four vocabularies AND a GO
+#: prediction — the worst case the budget is derived from, and the reason 19 was not a bound.
+@pytest.mark.parametrize(
+    "species,label",
+    [("ecoli", "2811"), ("kp", "722"), ("kp", "13160"), ("ecoli", "208"), ("ecoli", "243"), ("ecoli", "102")],
+)
 def test_the_FUNCTION_tab_is_bounded_cold_and_warm(application, species, label):
     """⭐⭐ **The Function tab reads NO gene row at all — cold or warm.**
 
@@ -204,10 +218,13 @@ def test_the_FUNCTION_tab_is_bounded_cold_and_warm(application, species, label):
     so a gene-row read is no longer something to detect: it would raise `UndefinedTable` and
     `_measure`'s 200 assertion fails. What remains to bound is the statement count.
 
-    ⚠ Still clears both caches, so the cold half is really cold whatever order the suite runs in.
+    ⚠ Clears every cache the route reads through, so the cold half is really cold whatever order the
+    suite runs in. ⭐ kp 13160 carries annotation-transfer predictions on the probe (two GO calls), so
+    the cold case includes naming them through the GO fold; the last three are the worst case.
     """
-    clear_calibration_cache()
     clear_propagation_cache()
+    clear_gene_ontology_fold_cache()
+    clear_reference_name_cache()
     cold = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
     warm = _measure(application, f"/api/v1/species/{species}/loci/{label}/function")
     warm.assert_at_most(FUNCTION_TAB_WARM, what="a warm Function tab, at the route")

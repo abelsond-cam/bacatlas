@@ -47,7 +47,11 @@ from bacatlas_backend.models.pathogen_species import PathogenSpecies
 #: on the probe database rather than a loaded one.
 #: 6 (2026-11-14): each of the shell's `similarity_baselines` gained `estimator` ("mean" | "median").
 #: 7 (2026-11-14): and `unmeasured_views` — the card views the build did not compute, which it hides.
-EXPECTED_RESPONSE_SHAPE_VERSION = 7
+#: 8 (2026-11-14): the Function tab's ladder replaced by annotation-transfer v0.1 — `predictions` (with its
+#: `state`) added,
+#: `calibration`, `inference.representation` and each vocabulary's `walk`/`candidate` removed. Pinned in
+#: `test_the_function_tab_carries_PREDICTIONS_and_NOT_the_ladder` below.
+EXPECTED_RESPONSE_SHAPE_VERSION = 8
 
 #: Key paths whose CHILDREN are data rather than shape — walked to, never walked into.
 #: ⚠ Each is a map whose keys are values: band names, metric names, anchor source groups. Walking
@@ -151,6 +155,58 @@ def test_the_shell_carries_the_cohort_and_the_model_label_and_NOT_the_model_bloc
     # `pangenome` and not children of it.
     gone = {"pangenome.exclusivity_form", "model", "steps", "provenance_rows"}
     assert not (gone & paths), f"still served: {sorted(gone & paths)}"
+
+
+#: ⛔ The Function tab's `predictions` block, written out — on a locus that HAS calls, so the call's
+#: own shape is walked too. ⚠ `inference` and `annotations` are pinned by what they lost, below.
+FUNCTION_PREDICTIONS = {
+    "predictions",
+    "predictions.state", "predictions.annotation_model_version", "predictions.annotation_model_label",
+    "predictions.serve_cut",
+    "predictions.calls",
+    "predictions.calls.annotation_kind", "predictions.calls.gene_ontology_namespace",
+    "predictions.calls.terms", "predictions.calls.terms.value", "predictions.calls.terms.name",
+    "predictions.calls.estimated_accuracy",
+    "predictions.calls.esm_medoid_similarity", "predictions.calls.bacformer_medoid_similarity",
+    "predictions.calls.annotation_model_version",
+    "predictions.calls.donor", "predictions.calls.donor.node_label",
+    "predictions.calls.donor.display_name", "predictions.calls.donor.gene_count",
+    "predictions.calls.donor.catalogue_key", "predictions.calls.donor.species_name",
+    "predictions.calls.donor.same_catalogue",
+}  # fmt: skip
+
+
+def test_the_function_tab_carries_PREDICTIONS_and_NOT_the_ladder(client):
+    """⭐ Shape 8. Asserted in BOTH directions, like the shell's: the new block arrived AND the old went.
+
+    ⚠ Needs a locus with predictions, chosen by a query that says so, because an empty `calls` list
+    walks no call at all and this would then pin half the shape while reporting on all of it.
+    """
+    from sqlalchemy import text
+
+    url = os.environ["BACATLAS_DATABASE_URL"]
+    with Session(create_engine(url, future=True)) as session:
+        row = session.execute(
+            text(
+                "select p.catalogue_key, l.node_label from served_locus_annotation s "
+                "join locus l on l.locus_id = s.locus_id join pangenome p on p.pangenome_id = l.pangenome_id "
+                "order by s.served_locus_annotation_id limit 1"
+            )
+        ).one_or_none()
+    if row is None:
+        pytest.skip("no catalogue here carries predictions; run `ingest --stage served-annotations`")
+    paths = _key_paths(client.get(f"/api/v1/catalogues/{row.catalogue_key}/loci/{row.node_label}/function").get_json())
+    assert {path for path in paths if path.startswith("predictions")} == FUNCTION_PREDICTIONS
+    gone = {"calibration", "inference.representation", "inference.vocabularies.walk",
+            "inference.vocabularies.candidate"}  # fmt: skip
+    assert not (gone & paths), f"still served: {sorted(gone & paths)}"
+    assert {path for path in paths if path.startswith("inference")} == {
+        "inference", "inference.vocabularies", "inference.vocabularies.annotation_kind",
+        "inference.vocabularies.own",
+        # `own` is null on some vocabularies and an object on others; the first element decides, so
+        # its children may or may not be walked — they are pinned by `test_function_inference`.
+        *{path for path in paths if path.startswith("inference.vocabularies.own.")},
+    }  # fmt: skip
 
 
 def test_every_element_of_a_list_has_the_SAME_shape(client):

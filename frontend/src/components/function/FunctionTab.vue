@@ -33,7 +33,7 @@ import { prevalenceBandLabel } from "@/lib/prevalence";
 import CogCard from "./CogCard.vue";
 import EnzymeAndKeggCard from "./EnzymeAndKeggCard.vue";
 import GeneOntologyCard from "./GeneOntologyCard.vue";
-import InferredFunctionCard from "./InferredFunctionCard.vue";
+import PredictedFunctionCard from "./PredictedFunctionCard.vue";
 
 /** How each inferable vocabulary is named to a reader — never the enum value. */
 const VOCABULARY_LABELS: Readonly<Record<InferenceKind, string>> = {
@@ -60,13 +60,6 @@ const inferenceByKind = computed(() => {
   for (const entry of props.block?.inference.vocabularies ?? []) byKind.set(entry.annotation_kind, entry);
   return byKind;
 });
-
-/** The vocabularies this node has none of — the ones a neighbour can be asked about. */
-const inferable = computed(() =>
-  INFERENCE_KINDS.map((kind) => inferenceByKind.value.get(kind)).filter(
-    (entry): entry is VocabularyInference => entry !== undefined && entry.own === null,
-  ),
-);
 
 /**
  * ⭐ **One line per vocabulary this node states: that the call covers the whole syntelogue, and the
@@ -231,15 +224,11 @@ const noGeneOntologySentence = computed(() =>
         :kegg-entries="entriesOf('kegg_orthology')"
       />
 
-      <!-- ⛔ AFTER every card of real annotation, never among them. What a neighbour SUGGESTS. -->
-      <InferredFunctionCard
-        v-for="entry in inferable"
-        :key="`infer-${entry.annotation_kind}`"
-        :inference="entry"
-        :ladder="block.calibration[entry.annotation_kind]"
-        :vocabulary-label="VOCABULARY_LABELS[entry.annotation_kind]"
-        @walk="(label) => emit('walk', label)"
-      />
+      <!--
+        ⛔ AFTER every card of real annotation, never among them. What annotation-transfer PREDICTS —
+        it replaced the 5-nearest-loci ladder on 2026-11-14 (David).
+      -->
+      <PredictedFunctionCard :predictions="block.predictions" @walk="(label) => emit('walk', label)" />
 
       <!--
         ⛔ This was ONE five-line paragraph doing four jobs — provenance, independence, the GO-slim

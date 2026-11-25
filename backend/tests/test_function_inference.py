@@ -1,4 +1,9 @@
-"""The Function tab's inference block — the ladder, the walk, and the rate it quotes.
+"""The Function tab's own-call block, and the ladder INSTRUMENT the retired walk read.
+
+⛔ The 5-nearest-loci walk left the Function tab on 2026-11-14 (annotation-transfer v0.1 replaced it;
+`test_served_annotations.py` covers what replaced it). What stays here: the own-call block and its
+propagation rates, which the route still serves, and `instruments/annotation_transfer.py`'s ladder
+measurement, which other code still reads — tested by calling it directly, since no route serves it.
 
 ⚠ Runs against `BACATLAS_DATABASE_URL` with both catalogues loaded and published, like
 `test_api_endpoints.py`. The measurement is a property of the catalogue, so a fixture cannot stand in
@@ -42,8 +47,6 @@ from bacatlas_backend.models.enumerations import AnnotationKind, EmbeddingRepres
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
 from bacatlas_backend.services.function_inference_service import (
     _PROPAGATION,
-    calibration_for,
-    clear_calibration_cache,
     clear_propagation_cache,
     propagation_for,
 )
@@ -219,60 +222,6 @@ def test_the_floor_is_a_SEPARATE_decision_from_the_depth():
     assert callable_rungs(AnnotationKind.EC_NUMBER, NOT_CALLED, complete, rich) == []
 
 
-def test_gumC_is_no_longer_offered_a_KEGG_it_would_be_wrong_about(client):
-    """⭐ The worked case for the floor: `wza` is a rank-5 neighbour at **0.9293** — close, carrying
-    a KEGG — and kp KEGG agreement at that tier is **24.3 % over 481 pairs**.
-
-    ⛔ The donor is still NAMED and the rate still carried, because "too remote to call" would be
-    false here and the reader is owed the number that refused it.
-    """
-    payload = client.get("/api/v1/species/kp/loci/722/function").get_json()
-    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
-    candidate = by_kind["kegg_orthology"]["candidate"]
-
-    assert candidate is not None, "the donor is still found and still reported"
-    assert candidate["donor"]["display_name"] == "wza" and candidate["rank"] == 5
-    assert candidate["cosine"] > 0.92, "non-vacuity: this donor is CLOSE, not remote"
-    assert candidate["tier"] != NOT_CALLED
-    assert candidate["suggested_count"] == 0, "⛔ nothing is suggested"
-    assert all(not offer["suggested"] for offer in candidate["offers"])
-    # ⛔ The refused rung is still OFFERED, carrying the cell that refused it — dropping it would
-    # leave the reader unable to see that a claim was considered and declined.
-    refused = [offer for offer in candidate["offers"] if offer["calibration"] is not None]
-    assert refused, "the refusal must still carry its rate"
-    assert all(offer["calibration"]["agreement"] < CALLING_FLOOR for offer in refused), (
-        "and the measured rate that refused it travels with the refusal"
-    )
-    assert payload["calibration"]["kegg_orthology"]["calling_floor"] == CALLING_FLOOR
-
-
-def test_the_floor_is_not_vacuous_a_STRONG_neighbour_still_suggests(client, session):
-    """⛔ A floor that suppressed everything would pass every test above and serve a blank page."""
-    label = session.execute(
-        text(f"""
-            select focal.node_label
-              from locus focal
-              join pangenome p on p.pangenome_id = focal.pangenome_id
-              join locus_nearest_locus n
-                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
-              join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = '{KP_CATALOGUE}'
-               and focal.cog_distinct_id_count = 0
-               and donor.cog_distinct_id_count > 0
-               and n.cross_similarity >= 0.99
-               and n.rank = 1
-             order by focal.node_label limit 1
-        """)
-    ).scalar()
-    assert label is not None, "the catalogue has >= 0.99 COG donors, or this test is vacuous"
-    payload = client.get(f"/api/v1/species/kp/loci/{label}/function").get_json()
-    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
-    candidate = by_kind["cog_orthogroup"]["candidate"]
-    assert candidate["suggested_count"] > 0 and any(o["value"] for o in candidate["offers"]), (
-        "a >= 0.99 COG neighbour agrees 99.4 % of the time and is still quoted"
-    )
-
-
 # ── the calibration is MEASURED, and an independent oracle says so ──────────────────────────────
 def test_the_COG_calibration_matches_a_recount_done_entirely_in_SQL(session):
     """⭐ The anti-vacuity gate: an oracle that shares none of the instrument's code.
@@ -281,9 +230,9 @@ def test_the_COG_calibration_matches_a_recount_done_entirely_in_SQL(session):
     without reimplementing the level folding. If `compute_calibration` silently stopped counting —
     returning empty cells, or every pair as agreeing — this is what notices.
     """
-    clear_calibration_cache()
-    calibration = calibration_for(
-        session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP
+    calibration = compute_calibration(
+        session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP,
+        representation=EmbeddingRepresentation.ESM, fold=gene_ontology_fold(session),
     )
     for tier, low, high in TIERS:
         recounted = session.execute(
@@ -318,9 +267,9 @@ def test_chance_is_EXACT_and_not_a_sampled_null(session):
     sampled null would land near this and not on it, which is precisely why the sampled version was
     replaced — the page and the write-up disagreed in the third digit.
     """
-    clear_calibration_cache()
-    calibration = calibration_for(
-        session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP
+    calibration = compute_calibration(
+        session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP,
+        representation=EmbeddingRepresentation.ESM, fold=gene_ontology_fold(session),
     )
     tier, low, high = TIERS[0]
     expected = session.execute(
@@ -355,10 +304,12 @@ def test_chance_is_EXACT_and_not_a_sampled_null(session):
 
 def test_a_cell_below_the_pair_floor_reports_its_n_and_NO_rate(session):
     """⛔ `agreement` is `None`, never a number, below `MIN_PAIRS` — a rate off 7 pairs is not a rate."""
-    clear_calibration_cache()
     for pangenome_id in (1, 2):
         for kind in (AnnotationKind.COG_ORTHOGROUP, AnnotationKind.EC_NUMBER):
-            calibration = calibration_for(session, pangenome_id=pangenome_id, annotation_kind=kind)
+            calibration = compute_calibration(
+                session, pangenome_id=pangenome_id, annotation_kind=kind,
+                representation=EmbeddingRepresentation.ESM, fold=gene_ontology_fold(session),
+            )
             assert calibration.cells, f"{pangenome_id}/{kind} produced no cells at all"
             for cell in calibration.cells.values():
                 assert cell.pairs > 0
@@ -461,15 +412,6 @@ def test_calibration_matches_the_full_scan_it_replaced(session):
     assert compared == len(pangenome_ids) * len(SUPPORTED_KINDS) * 2
 
 
-def test_the_two_catalogues_do_not_share_a_cached_ladder(session):
-    """⚠ The cache is keyed per catalogue, so one species' rate can never answer for the other."""
-    clear_calibration_cache()
-    ecoli = calibration_for(session, pangenome_id=1, annotation_kind=AnnotationKind.COG_ORTHOGROUP)
-    kp = calibration_for(session, pangenome_id=2, annotation_kind=AnnotationKind.COG_ORTHOGROUP)
-    assert ecoli.annotated_locus_count != kp.annotated_locus_count
-    assert ecoli.cell(">= 0.99", (None, 2)).pairs != kp.cell(">= 0.99", (None, 2)).pairs
-
-
 # ── the endpoint, on the cases that teach the caveats ───────────────────────────────────────────
 def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, session):
     """⭐ The worked case, and the one the page had BACKWARDS: kp node 722, 100 members, COG3206 on
@@ -530,12 +472,13 @@ def test_gumC_says_its_ONE_COG_call_PROPAGATES_to_the_whole_syntelogue(client, s
 def test_the_two_mechanisms_PARTITION_the_catalogue_with_nothing_left_over(
     client, session, catalogue, pangenome_id
 ):
-    """⛔ Step 1 (its own genes) and step 2 (a neighbour) are DISJOINT and together exhaust the
+    """⛔ Step 1 (its own genes) and step 2 (between nodes) are DISJOINT and together exhaust the
     catalogue — the coverage statement the two-mechanism claim rests on.
 
-    David, 2026-10-04: *"1/ Impute within the node… THEN 2/ Impute between nodes."* The service runs
-    the walk only where `own is None`, so a node is served by exactly one mechanism; if these
-    populations did not sum, some nodes would be served by neither and nothing would say so.
+    David, 2026-10-04: *"1/ Impute within the node… THEN 2/ Impute between nodes."* Step 2 was the
+    5-nearest-loci walk until 2026-11-14 and is annotation-transfer v0.1 now, which predicts only for a
+    node carrying nothing for the claim. This keeps the step-1 half: a node has an `own` call exactly
+    when its genes state one, on both sides of the split.
     """
     counted = session.execute(
         text("""
@@ -579,58 +522,9 @@ def test_the_two_mechanisms_PARTITION_the_catalogue_with_nothing_left_over(
             if entry["annotation_kind"] == "cog_orthogroup"
         )
         assert (served["own"] is not None) is carries
-        assert (served["walk"] == []) is carries, (
-            "⛔ a node with its own call is never walked, and one without it always is"
-        )
-
-
-def test_a_donor_CARRIES_a_vocabulary_by_the_ANY_GENE_rule_not_by_a_medoid(client, session):
-    """⭐ A node whose COG rests on ONE of its hundred genes is a valid donor, and is used.
-
-    ⛔ **A test rather than a comment.** The medoid lookup is gone from `services/`, `api/` and
-    `annotation_transfer.py` — every remaining mention records its removal — but a removal recorded
-    only in prose is a removal that can come back. If a donor had to carry the call at its medoid, a
-    1-of-100 donor would be skipped and the walk would run on to a further neighbour, which is a
-    silent change in what the page suggests rather than an error.
-    """
-    row = session.execute(
-        text(f"""
-            select focal.node_label as focal, donor.node_label as donor,
-                   donor.cog_annotated_member_count as annotated,
-                   donor.member_gene_count as members
-              from locus focal
-              join pangenome p on p.pangenome_id = focal.pangenome_id
-              join locus_nearest_locus n
-                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
-              join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = '{KP_CATALOGUE}'
-               and focal.cog_distinct_id_count = 0
-               and donor.cog_distinct_id_count > 0
-               and donor.cog_annotated_member_count = 1
-               and donor.member_gene_count >= 10
-               and not exists (
-                     select 1 from locus_nearest_locus earlier
-                       join locus e on e.locus_id = earlier.neighbour_locus_id
-                      where earlier.locus_id = focal.locus_id
-                        and earlier.representation = 'ESM'
-                        and earlier.rank < n.rank
-                        and e.cog_distinct_id_count > 0)
-             order by focal.node_label limit 1
-        """)
-    ).first()
-    assert row is not None, "the catalogue has one-gene donors, or this test is vacuous"
-    assert row.annotated == 1 and row.members >= 10
-
-    payload = client.get(f"/api/v1/species/kp/loci/{row.focal}/function").get_json()
-    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
-    candidate = by_kind["cog_orthogroup"]["candidate"]
-    assert candidate is not None, "⛔ a 1-of-100 donor was skipped — the any-gene rule is not in force"
-    assert candidate["donor"]["node_label"] == row.donor
-    assert candidate["donor"]["annotated_gene_count"] == 1
-    assert candidate["donor"]["checkable"] is False, "and it is still marked as unchecked"
-    assert candidate["donor"]["propagation"]["rate"] is not None, (
-        "⭐ which is exactly why it is a valid donor: its call covers its node at a measured rate"
-    )
+        # ⛔ And the neighbour walk is GONE from the wire (2026-11-14): what a node without its own call
+        # can be told now comes from `predictions`, which `test_served_annotations` covers.
+        assert set(served) == {"annotation_kind", "own"}
 
 
 def test_the_band_the_propagation_names_is_the_SAME_STRING_the_locus_view_serves(client):
@@ -711,50 +605,9 @@ def test_a_RARE_node_is_told_the_rate_is_NOT_MEASURABLE_and_never_zero(client, s
     assert band["one_gene_node_count"] > 0, "non-vacuity: the band this applies to is populated"
 
 
-def test_the_DONOR_card_quotes_the_DONORS_band_and_not_the_recipients(client, session):
-    """⛔ A transferred call propagates inside the DONOR's node, so it is the donor's band that
-    governs — and the two bands differ often enough that taking the recipient's would be wrong
-    rather than merely imprecise.
-
-    Chosen by a query that says what it exercises, like the walk test below, rather than by a pinned
-    label that could quietly stop exercising it.
-    """
-    row = session.execute(
-        text(f"""
-            select focal.node_label as focal, lower(focal.prevalence_band::text) as focal_band,
-                   donor.node_label as donor, lower(donor.prevalence_band::text) as donor_band
-              from locus focal
-              join pangenome p on p.pangenome_id = focal.pangenome_id
-              join locus_nearest_locus n
-                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
-              join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = '{KP_CATALOGUE}'
-               and focal.cog_distinct_id_count = 0
-               and donor.cog_distinct_id_count > 0
-               and donor.prevalence_band <> focal.prevalence_band
-               and not exists (
-                     select 1 from locus_nearest_locus earlier
-                       join locus e on e.locus_id = earlier.neighbour_locus_id
-                      where earlier.locus_id = focal.locus_id
-                        and earlier.representation = 'ESM'
-                        and earlier.rank < n.rank
-                        and e.cog_distinct_id_count > 0)
-             order by focal.node_label limit 1
-        """)
-    ).first()
-    assert row is not None, "the catalogue has focal/donor band mismatches, or this test is vacuous"
-
-    payload = client.get(f"/api/v1/species/kp/loci/{row.focal}/function").get_json()
-    by_kind = {entry["annotation_kind"]: entry for entry in payload["inference"]["vocabularies"]}
-    candidate = by_kind["cog_orthogroup"]["candidate"]
-    assert candidate["donor"]["node_label"] == row.donor
-    assert candidate["donor"]["propagation"]["prevalence_band"] == row.donor_band
-    assert row.donor_band != row.focal_band, "non-vacuity: the two bands really do differ here"
-
-
-def test_the_propagation_cache_is_per_catalogue_like_the_ladder_above(session):
-    """⛔ The trap `clear_calibration_cache` exists for, in a second cache: one catalogue's base rate
-    answering for another's would be invisible on the page and wrong in both.
+def test_the_propagation_cache_is_per_catalogue(session):
+    """⛔ One catalogue's base rate answering for another's would be invisible on the page and wrong in
+    both — the trap every process cache in this service is keyed against.
     """
     clear_propagation_cache()
     kinds = {"pangenome_id": 2, "annotation_kind": AnnotationKind.COG_ORTHOGROUP}
@@ -788,88 +641,3 @@ def test_a_band_the_catalogue_never_measured_arrives_as_NOT_MEASURABLE_not_MISSI
     assert cell.rate is None and cell.interval is None
     assert cell.as_json()["rate"] is None
 
-
-def test_a_node_with_its_own_call_is_never_offered_a_neighbours(client):
-    """⛔ A suggestion beside a real annotation would compete with it."""
-    payload = client.get("/api/v1/species/kp/loci/722/function").get_json()
-    for entry in payload["inference"]["vocabularies"]:
-        if entry["own"] is not None:
-            assert entry["candidate"] is None and entry["walk"] == []
-
-
-def test_the_walk_shows_the_ranks_that_carried_NOTHING(client, session):
-    """⚠ For ecoli COG only 1,679 of 4,143 assignments come from rank 1, so this is the common case.
-
-    The node is chosen by a query that says what it exercises — the FIRST annotated neighbour sits
-    past rank 1 — rather than by a pinned label that could quietly stop exercising it.
-    """
-    label = session.execute(
-        text(f"""
-            select focal.node_label
-              from locus focal
-              join pangenome p on p.pangenome_id = focal.pangenome_id
-              join locus_nearest_locus n
-                   on n.locus_id = focal.locus_id and n.representation = 'ESM'
-              join locus donor on donor.locus_id = n.neighbour_locus_id
-             where p.catalogue_key = '{ECOLI_CATALOGUE}'
-               and focal.cog_distinct_id_count = 0
-               and donor.cog_distinct_id_count > 0
-               and n.cross_similarity >= 0.98
-               and not exists (
-                     select 1 from locus_nearest_locus earlier
-                       join locus e on e.locus_id = earlier.neighbour_locus_id
-                      where earlier.locus_id = focal.locus_id
-                        and earlier.representation = 'ESM'
-                        and earlier.rank < n.rank
-                        and e.cog_distinct_id_count > 0)
-               and n.rank >= 3
-             limit 1
-        """)
-    ).scalar()
-    assert label is not None, "no ecoli node has its first COG donor at rank 3+ — query is vacuous"
-
-    entry = next(
-        row for row in client.get(f"/api/v1/species/ecoli/loci/{label}/function").get_json()
-        ["inference"]["vocabularies"] if row["annotation_kind"] == "cog_orthogroup"
-    )
-    candidate = entry["candidate"]
-    assert candidate is not None and candidate["rank"] >= 3
-    assert [step["rank"] for step in entry["walk"]] == sorted(
-        step["rank"] for step in entry["walk"]
-    ), "the walk is reported in rank order, outward"
-    earlier = [step for step in entry["walk"] if step["rank"] < candidate["rank"]]
-    assert earlier and not any(step["carries_annotation"] for step in earlier), (
-        "every rank before the donor must be shown, and shown as empty"
-    )
-
-
-def test_every_candidate_carries_the_measured_rate_for_the_depth_it_quotes(client):
-    """⭐ The rate is the thing the reader judges the suggestion by, so it travels WITH it."""
-    payload = client.get("/api/v1/species/ecoli/loci/17173/function").get_json()
-    # ⚠ Keyed by (tier, facet, level) since 2026-10-06: GO has three cells per tier, one per
-    # namespace, and a key without the facet would silently keep whichever arrived last.
-    cells = {(cell["tier"], cell["facet"], cell["level"]): cell
-             for cell in payload["calibration"]["cog_orthogroup"]["cells"]}
-    assert cells, "the response ships no calibration at all"
-    checked = 0
-    for entry in payload["inference"]["vocabularies"]:
-        candidate = entry["candidate"]
-        if candidate is None:
-            continue
-        for offer in candidate["offers"]:
-            quoted = offer["calibration"]
-            if quoted is None:
-                continue
-            assert quoted["tier"] == candidate["tier"]
-            assert quoted["level"] == offer["level"] and quoted["facet"] == offer["facet"]
-            if entry["annotation_kind"] == "cog_orthogroup":
-                assert quoted == cells[(candidate["tier"], offer["facet"], offer["level"])], (
-                    "the rate beside the suggestion is the SAME cell the shipped ladder holds"
-                )
-            assert offer["value"], "a quoted rung must name what it asserts"
-            # ⛔ A SUGGESTED rung must rest on a cell with a real rate; a refused one need not.
-            if offer["suggested"]:
-                assert quoted["pairs"] >= MIN_PAIRS
-                assert quoted["agreement"] is not None and quoted["agreement"] >= CALLING_FLOOR
-            checked += 1
-    assert checked, "no offer was examined — this test would pass on an empty response"

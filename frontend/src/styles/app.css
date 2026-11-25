@@ -3769,9 +3769,10 @@ td.fam-sym {
     }
 }
 
-/* ── inferred function, 2026-10-03 ──────────────────────────────────────────────────────────────
-   A node with no COG or EC of its own can be given a candidate from its nearest ESM neighbour, at a
-   depth its similarity earns (nuna `docs/model_evaluation/function_inference.md`).
+/* ── predicted function — the ladder 2026-10-03, annotation-transfer v0.1 from 2026-11-14 ─────────
+   A node with no annotation of its own in a vocabulary can be given a prediction: first from its
+   nearest ESM neighbour at a depth its similarity earned, now from annotation-transfer's one donor at
+   the row's own calibrated accuracy.
 
    ⛔ The visual job of this block is ONE thing: a suggestion must not be mistakable for an
    annotation. So it is a dashed card — every other card on the tab has a solid rule — it carries an
@@ -3821,7 +3822,8 @@ td.fam-sym {
 }
 
 /* The donor is walkable: the suggestion is only as good as the node it came from, so the reader can
-   go and look at it. A button rather than a link because the walk is in-app history. */
+   go and look at it. A button where the donor is in THIS catalogue, because that walk is in-app
+   history; a link where it is in another, because that is a different catalogue and a fresh page. */
 .infer-walk {
     padding: 0;
     border: 0;
@@ -3874,59 +3876,28 @@ td.fam-sym {
     margin-top: 4px;
 }
 
-.infer-ladder {
-    margin-top: 12px;
+/* ⭐ annotation-transfer's predictions (2026-11-14), in the `.infer` frame the ladder used. One block per
+   claim, the term on the tinted strip, its OWN estimated accuracy directly under it, then the donor. The
+   ladder's calibration table went with the ladder. */
+.predict-model {
+    margin-bottom: 4px;
+}
+
+.predict-call + .predict-call {
+    margin-top: 14px;
+}
+
+/* What the stated GO class implies — part of what the accuracy covers, but not a second finding, so it
+   is quieter than the headline term. */
+.predict-broader {
+    color: var(--ink-2);
     font-size: 13px;
 }
 
-.infer-ladder > summary {
-    color: var(--ink-2);
-    cursor: pointer;
-}
-
-.infer-scroll {
-    overflow-x: auto;
-    margin: 8px 0 4px;
-}
-
-.infer-table {
-    width: auto;
-    max-width: 100%;
-    border-collapse: collapse;
+.predict-accuracy {
     font-variant-numeric: tabular-nums;
 }
 
-.infer-table th,
-.infer-table td {
-    padding: 3px 18px 3px 0;
-    white-space: nowrap;
-    text-align: left;
-    border-bottom: 1px solid var(--rule);
-}
-
-.infer-table th {
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
-    color: var(--ink-3);
-}
-
-.infer-table .num {
-    text-align: right;
-}
-
-.infer-table th:last-child,
-.infer-table td:last-child {
-    padding-right: 0;
-}
-
-/* The row the suggestion above was actually read from — so the rate in the sentence and the rate in
-   the table are visibly the same number, not two that happen to agree. */
-.infer-row-used {
-    font-weight: 600;
-}
-
-.infer-row-used td {
-    background: var(--panel-2);
+.predict-meaning {
+    margin-top: 12px;
 }

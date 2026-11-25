@@ -501,33 +501,23 @@ for key in $species; do
   # the checks could not pass on any host — which made this drill, the S3 exit criterion, incapable of
   # ever returning 0. A test that cannot pass reports nothing. Restore them only with the table.
 
-  # ⭐ The Function tab, once per WORKER, all at once. Its agreement ladder is computed on first use
-  # and kept for the life of the process (`function_inference_service.calibration_for`): 5.75 s per
-  # worker on the 71,435-genome catalogue on the laptop, and slower on a 2-vCPU host. A sync gunicorn
-  # worker serves one request at a time, so as many concurrent requests as there are workers land on
-  # every worker — which both proves the route answers and warms each worker before a reader arrives.
-  # ⛔ Its own, longer time limit: the 20 s the other checks use would fail a cold ladder that is
-  # merely slow. The real bounds are gunicorn's `--timeout` (backend/Dockerfile) and nginx's
-  # `proxy_read_timeout` — and on the gated instance nginx serves the BIND-MOUNTED copy of its
-  # template, which a `git pull` does not update (launching_bacatlas_org.md §7a): until that copy is
-  # re-rendered, nginx's default 60 s is what bounds this.
-  workers="${BACATLAS_API_WORKERS:-4}"
-  fn_started=$(date +%s)
-  fn_codes=$(for _ in $(seq 1 "$workers"); do
-               curl -s -o /dev/null -w '%{http_code} ' --max-time 170 ${auth[@]+"${auth[@]}"} \
-                 "$api/species/$key/loci/$landing/function" &
-             done; wait)
-  fn_seconds=$(( $(date +%s) - fn_started ))
-  fn_bad=0
-  fn_count=0
-  for code in $fn_codes; do
-    fn_count=$((fn_count + 1))
-    [ "$code" = "200" ] || fn_bad=$((fn_bad + 1))
-  done
-  if [ "$fn_bad" -eq 0 ] && [ "$fn_count" -eq "$workers" ]; then
-    pass "$key: function tab 200 on $workers concurrent requests, ${fn_seconds} s — every worker's ladder is warm"
+  # ⭐ The Function tab — that it answers, and that it answers with annotation-transfer's block.
+  # ⛔ It used to be requested once per gunicorn WORKER, concurrently, on a 170 s limit, because the
+  # 5-nearest-loci ladder was computed on first use per process (5.75 s per worker on kp-71k, slower on
+  # 2 vCPU). annotation-transfer v0.1 replaced the ladder on 2026-11-14 and the catalogue-wide read went
+  # with it: the tab now reads one locus's rows and two process-cached reference tables, so one request
+  # on the ordinary limit proves it answers and there is no cold ladder left to warm.
+  # ⚠ A 200 is not enough: the body must carry `predictions` with its `state` — loaded (and from which
+  # model), none_produced, not_loaded or unknown_model. A 200 without it is an API older than the page in
+  # front of it. The state is PRINTED, because "not_loaded" on a catalogue meant to carry predictions is a
+  # deploy fault no other check here can see.
+  fn_said=$(get "$api/species/$key/loci/$landing/function" \
+              | json '(lambda p: p["state"] + (" — " + p["annotation_model_label"] if p["annotation_model_label"] else ""))(d["predictions"])' \
+              2>/dev/null || true)
+  if [ -n "$fn_said" ]; then
+    pass "$key: function tab answers at the landing locus — predictions: $fn_said"
   else
-    fail "$key: function tab answered [${fn_codes% }] to $workers concurrent requests (${fn_seconds} s)"
+    fail "$key: function tab gave no \`predictions\` block at the landing locus (an old API, or no answer)"
   fi
 
   genome=$(get "$api/species/$key/genomes?limit=1" | json 'd["genomes"][0]["sample_id"]' 2>/dev/null || true)
