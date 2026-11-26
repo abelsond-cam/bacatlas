@@ -13,8 +13,9 @@
  * three views, so it lives with the view table in `lib/similarityViews`.
  *
  * ⛔ Three numbers were re-derived on the published page and must not be re-derived here either:
- * every percentile is a precomputed midrank over measurable loci, the Pfam verdict is the audit's
- * own (`pfam.concordance_class`), and the display name and best product are ingest columns.
+ * every percentile is a precomputed midrank over measurable loci, the Pfam facts are the audit's own
+ * (`pfam.dominant_domain_gene_count` and its kin — since 2026-11-26 numbers only, the clan verdict having
+ * left the wire), and the display name and best product are ingest columns.
  */
 
 /**

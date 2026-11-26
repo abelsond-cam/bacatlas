@@ -8,17 +8,20 @@
  * and its symbols 63/35, in different cards, and the correspondence between them had to be guessed.
  * The join ships, so a row is a statement about its own genes.
  *
- * The Pfam verdict rides here for the same reason: it is a verdict about *these families*, and it
- * had a whole card whose visible content was the accession chips this table already carries.
+ * The audit's facts ride here for the same reason: how the members hold together by sequence and what
+ * Pfam carries across them are facts about *these families*.
  *
- * ⛔ **Both verdicts are READ, never re-derived.** `app.js:3208` — the page once re-derived the Pfam
- * class by a different rule and disagreed with the audit on 2 of 22,624 loci. *"A page that quotes
- * the report must not be able to contradict it, ever."*
+ * ⛔ **The card states the audit's NUMBERS, never its verdicts (David, 2026-11-26).** One sentence for
+ * the collapse tier, built from MMseqs' grouping share, the dominant Pfam domain set's share or the ESM
+ * cosines (`lib/evidenceVocabulary`), and one line of Pfam numbers — no class chip, no red rail, and none
+ * of "no homology", "over-merge", "grouped on context alone", "conflicting" or "contested". Each number is
+ * READ from the audit and never re-derived: *"a page that quotes the report must not be able to
+ * contradict it, ever."*
  */
 import { computed } from "vue";
 
 import type { AnnotationEntry, Locus, PfamFamilyReference, UnirefFamily } from "@/api/types";
-import { collapseTierVerdict, pfamAccessionsIn, pfamVerdict } from "@/lib/evidenceVocabulary";
+import { collapseTierStatement, pfamAccessionsIn, pfamArchitectureFacts } from "@/lib/evidenceVocabulary";
 import CountTable from "@/components/shared/CountTable.vue";
 import PfamChip from "@/components/shared/PfamChip.vue";
 
@@ -107,10 +110,7 @@ const symbolVote = computed(() => {
   };
 });
 
-const tier = computed(() => collapseTierVerdict(props.locus.evidence.collapse_tier));
-const verdict = computed(() =>
-  pfamVerdict(props.locus.pfam.concordance_class, props.locus.pfam.annotated_gene_count),
-);
+const tier = computed(() => collapseTierStatement(props.locus, props.pfamReference));
 
 /** Which optional columns the table earns — an empty column is worse than an absent one. */
 const hasSymbols = computed(() => props.families.some((family) => family.modal_symbol));
@@ -181,10 +181,17 @@ function contributesPfamColumn(family: UnirefFamily): boolean {
  * ⛔ **Coverage is stated AS COVERAGE.** A gene with no Pfam domain is *missing evidence*, not
  * evidence of a different architecture, and reading the second as the first is the
  * "14 of 99 have different Pfam structures" misreading a bare domain count invites.
+ *
+ * ⭐ **Since the 2026-11-26 audit: the dominant domain set's share, the other architectures' and no
+ * Pfam — three numbers over ALL the genes** (`pfamArchitectureFacts`). The sentence below that is kept
+ * for a catalogue audited before then, which never measured the dominant set, and for a locus where no
+ * gene carries a domain at all.
  */
 const coverage = computed(() => {
   const annotated = props.locus.pfam.annotated_gene_count;
   if (annotated === null) return null;
+  const facts = pfamArchitectureFacts(props.locus, props.pfamReference);
+  if (facts !== null) return facts;
   if (annotated === 0) {
     return (
       `None of these ${size.value} genes carries a Pfam-A domain — Pfam has no coverage here, ` +
@@ -210,7 +217,7 @@ const coverage = computed(() => {
 </script>
 
 <template>
-  <div class="card" :class="verdict ? `pf-${verdict.tone}` : null">
+  <div class="card">
     <h2>Sequence diversity and Bakta annotations</h2>
 
     <p v-if="majorFamilyCount > 1" class="lede">
@@ -264,14 +271,12 @@ const coverage = computed(() => {
       <template v-else>The commonest of these names the locus.</template>
     </p>
 
-    <!-- Both verdicts on one row: how the members hold together by sequence, and what Pfam makes
-         of them. -->
-    <div v-if="tier || verdict" class="chip-row">
-      <span v-if="tier" class="chip" :class="tier.tone">{{ tier.label }}</span>
-      <span v-if="verdict" class="chip" :class="verdict.tone">{{ verdict.label }}</span>
+    <!-- How the members hold together, as the audit MEASURED it: one neutral chip and one sentence
+         built from its numbers (David, 2026-11-26). No tone — none of these is a grade. -->
+    <div v-if="tier" class="chip-row">
+      <span class="chip neutral">{{ tier.label }}</span>
     </div>
-    <p v-if="tier && tier.note" class="muted">{{ tier.note }}</p>
-    <p v-if="verdict" class="muted verdict-note">{{ verdict.note }}</p>
+    <p v-if="tier && tier.sentence" class="muted tier-sentence">{{ tier.sentence }}</p>
 
     <CountTable v-if="families.length" :headings="headings" :rows="rows" :total="size">
       <template #cells="{ row }">

@@ -232,12 +232,20 @@ class CatalogueArtifacts:
 
     @property
     def homology_waterfall(self) -> Path:
-        """⚠ **Not in `meta.audit.sources`**, and it supplied three of the payload's columns."""
+        """⚠ **Not in `meta.audit.sources`**, and it supplied three of the payload's columns.
+
+        ⭐ Since 2026-11-26 it (or the cluster table, preferred) also carries `resolved_share` and the
+        member → medoid ESM cosines `esm_member_sim_p05` / `esm_member_sim_median`.
+        """
         return self._audit("homology_waterfall.csv")
 
     @property
     def pfam_concordance(self) -> Path:
-        """One row per locus, full coverage — the `class_clan` verdict is READ from here, never re-derived."""
+        """One row per locus, full coverage — every Pfam fact is READ from here, never re-derived.
+
+        ⭐ Since 2026-11-26 the card reads its `dominant_domains`, `n_dominant_domain_genes`,
+        `n_other_arch_genes` and `pfam_shared`; `class_clan` is still stored and no longer shown.
+        """
         return self._audit("pfam_concordance.tsv")
 
     @property
@@ -419,9 +427,12 @@ class CatalogueArtifacts:
             ("assignment", self.assignment, "gene → locus, and the locus set"),
             ("run_manifest", self.run_manifest, "pangenome_step and the lineage edges"),
             ("pfam_architectures", self.pfam_architectures, "locus.pfam_annotated_member_count"),
-            ("homology_waterfall", self.homology_waterfall, "collapse_tier, resolved_threshold, the ESM pair"),
-            ("pfam_concordance", self.pfam_concordance, "pfam_architecture_count, pfam_concordance_class"),
-            ("audit_summary", self.audit_summary, "pangenome_evaluation and the model-identity guard"),
+            ("homology_waterfall", self.homology_waterfall,
+             "collapse_tier, resolved_threshold, mmseqs_group_share, the member → medoid ESM cosines"),
+            ("pfam_concordance", self.pfam_concordance,
+             "pfam_architecture_count and the dominant Pfam domain set, its counts and pfam_shared"),
+            ("audit_summary", self.audit_summary,
+             "pangenome_evaluation, the model-identity guard and the thresholds the card states"),
         ]
         for rep in REPRESENTATIONS:
             items += [

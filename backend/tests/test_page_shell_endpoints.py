@@ -19,7 +19,6 @@ from bacatlas_backend.configuration import Configuration
 from bacatlas_backend.instruments.sql_cost_oracle import SqlCostOracle
 from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
-from bacatlas_backend.services import audit_residual_service
 
 SPECIES_KEYS = ("ecoli", "kp")
 
@@ -129,25 +128,37 @@ def test_every_search_hit_carries_the_product_the_page_prints_under_its_name(cli
 
 # ── the residual lists ──────────────────────────────────────────────────────────────────────────
 @pytest.mark.parametrize("species_key", SPECIES_KEYS)
-def test_the_residual_lists_are_exactly_the_ones_the_AUDIT_counted(client, species_key):
-    """⛔ Each list's length is checked against the audit's OWN headline, read verbatim at ingest.
+def test_the_residual_lists_are_exactly_as_long_as_the_SHELL_says(client, species_key):
+    """⛔ Each list's length against the shell's `residual_locus_counts` — one route against another.
 
-    The lists are selected from per-locus tiers and the headline is a number from the audit summary —
-    two artifacts. If the vendored tiers drifted from nuna's, or the tier column were mis-loaded, the
-    footer would list a different set of loci from the one its own headline counts.
+    Both come from `audit_residual_service`'s two clauses, so a disagreement means one route stopped using
+    them. And against a direct count of the 2026-11-26 tier, so neither can agree with the other by both
+    being wrong.
+
+    ⚠ On a catalogue audited before 2026-11-26 (the probe today) every count is ZERO — its new columns are
+    NULL and nothing is `esm_only` — and that is asserted rather than left to look like a pass.
     """
     catalogue = client.get(f"/api/v1/species/{species_key}").get_json()
-    headline = catalogue["audit_headline"]
+    counts = catalogue["residual_locus_counts"]
     reply = client.get(f"/api/v1/species/{species_key}/audit/residual-loci")
     assert reply.status_code == 200
     assert reply.headers["ETag"]
     lists = reply.get_json()
-    context_alone = lists["grouped_on_context_alone"]
-    conflicts = lists["pfam_conflicts"]
-    assert len(context_alone) == headline["synteny_only_n_clusters"] + headline["no_homology_n_clusters"]
-    assert len(conflicts) == headline["pfam_conflict_n_clusters"]
-    assert context_alone and conflicts, "both lists are non-empty on both probe catalogues"
-    for row in context_alone + conflicts:
+    assert set(lists) == {"esm_only", "pfam_architecture_not_shared"}
+    assert len(lists["esm_only"]) == counts["esm_only"]
+    assert len(lists["pfam_architecture_not_shared"]) == counts["pfam_architecture_not_shared"]
+    engine = client.application.extensions["bacatlas_database"].engine
+    with Session(engine) as session:
+        measured, esm_only = session.execute(
+            select(
+                func.count().filter(Locus.pfam_architecture_shared.is_not(None)),
+                func.count().filter(Locus.collapse_tier == "esm_only"),
+            ).where(Locus.pangenome_id == _pangenome_id(client.application, species_key))
+        ).one()
+    assert counts["esm_only"] == esm_only
+    if measured == 0:
+        assert counts == {"esm_only": 0, "pfam_architecture_not_shared": 0}, "a pre-redesign catalogue lists nothing"
+    for row in lists["esm_only"] + lists["pfam_architecture_not_shared"]:
         assert row["gene_count"] >= 1
         assert row["prevalence_band"] in catalogue["prevalence_census"]
 
@@ -167,11 +178,10 @@ def test_the_residual_lists_are_ONE_statement(application):
     assert len(locus_reads) == 1, locus_reads
 
 
-def test_the_vendored_audit_policy_is_nuna_s_own():
-    """⛔ The serving side cannot import nuna, so it carries a copy — and a copy must be checked."""
-    export_payload = pytest.importorskip("nuna.tl.locus_browser.export_payload")
-    assert tuple(export_payload.POLICY["failure_tiers"]) == audit_residual_service.FAILURE_TIERS
-    assert export_payload.POLICY["contested_pfclass"] == audit_residual_service.CONTESTED_PFAM_CLASS
+# ⛔ `test_the_vendored_audit_policy_is_nuna_s_own` is DELETED with the copy it checked (2026-11-26). The
+# residual lists no longer read nuna's `failure_tiers` / `contested_pfclass` — David ruled both verdicts audit
+# bugs — so there is no vendored policy left to drift. Their clauses are this repo's own
+# (`audit_residual_service`) and are tested against hand-built loci in `test_audit_redesign_ingest`.
 
 
 # ── the anchor, across species ──────────────────────────────────────────────────────────────────

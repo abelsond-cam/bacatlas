@@ -1004,18 +1004,20 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
     });
 
     it("⛔ the footer's residual counts agree with the lists their own endpoint returns", () => {
-      const headline = recorded.species.audit_headline;
-      const count = (key: string) => (typeof headline[key] === "number" ? (headline[key] as number) : 0);
-      expect(recorded.residuals.grouped_on_context_alone).toHaveLength(
-        count("synteny_only_n_clusters") + count("no_homology_n_clusters"),
-      );
-      expect(recorded.residuals.pfam_conflicts).toHaveLength(count("pfam_conflict_n_clusters"));
+      // ⚠ Both are 0 on these recordings, and that is the point being recorded: they were dumped from the
+      // probe catalogues as audited BEFORE 2026-11-26, whose new columns are null — so each list is empty,
+      // its count is 0, and the footer draws neither. Re-dump after the re-audit and both become non-zero.
+      const counts = recorded.species.residual_locus_counts;
+      expect(recorded.residuals.esm_only).toHaveLength(counts.esm_only);
+      expect(recorded.residuals.pfam_architecture_not_shared).toHaveLength(counts.pfam_architecture_not_shared);
       const footer = mount(SiteFooter, { props: { catalogue: recorded.species } });
       const summaries = footer.findAll("summary").map((node) => node.text());
-      expect(summaries).toContain(
-        `Every locus grouped on context alone (${recorded.residuals.grouped_on_context_alone.length})`,
+      expect(summaries.some((text) => text.startsWith("Loci grouped by neither MMseqs"))).toBe(counts.esm_only > 0);
+      expect(summaries.some((text) => text.startsWith("Loci where at most 95%"))).toBe(
+        counts.pfam_architecture_not_shared > 0,
       );
-      expect(summaries).toContain(`Every Pfam conflict (${recorded.residuals.pfam_conflicts.length})`);
+      // ⛔ David, 2026-11-26: the footer never says what the retired lists and headline rows said.
+      expect(footer.text()).not.toMatch(/context alone|Pfam conflict|over-merge|no homology|synteny only/i);
     });
 
     it("⛔⛔ the footer carries the KEGG licence flag on EVERY page", () => {
@@ -1096,8 +1098,14 @@ describe.each(SPECIES_KEYS)("%s", (speciesKey) => {
     });
 
     it("⚠ a residual row's family and architecture counts are counts or null, never -1", () => {
-      for (const row of [...recorded.residuals.grouped_on_context_alone, ...recorded.residuals.pfam_conflicts]) {
+      const rows = [...recorded.residuals.esm_only, ...recorded.residuals.pfam_architecture_not_shared];
+      // ⛔ Coverage stated, not implied: on these pre-2026-11-26 recordings both lists are EMPTY, so the loop
+      // below examines nothing — and this line says how many rows it examined rather than passing silently.
+      const counts = recorded.species.residual_locus_counts;
+      expect(rows).toHaveLength(counts.esm_only + counts.pfam_architecture_not_shared);
+      for (const row of rows) {
         expect(row.pfam_architecture_count === null || row.pfam_architecture_count >= 0).toBe(true);
+        expect(row.pfam_dominant_domain_gene_count === null || row.pfam_dominant_domain_gene_count >= 0).toBe(true);
         expect(PREVALENCE_BANDS).toContain(row.prevalence_band);
       }
     });

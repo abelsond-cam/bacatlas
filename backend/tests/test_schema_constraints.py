@@ -157,3 +157,66 @@ def test_pangenome_step_rho_ceiling_can_hold_step_twos_literal_1e9(session, seed
     session.flush()
     session.expire(step)
     assert float(step.rho_ceiling) == 1e9
+
+
+# ── the 2026-11-26 audit facts ─────────────────────────────────────────────────────────────────
+# ⛔ Each CHECK is exercised in BOTH directions: a boundary value it must accept, and the value it
+# exists to refuse. The three float columns carry no `nan_guards` — the range CHECK refuses a NaN
+# because Postgres orders NaN above every number — so the NaN case is asserted here, per column.
+@pytest.mark.parametrize("value", [0.0, 0.95, 1.0])
+def test_the_mmseqs_group_share_ACCEPTS_a_share_including_both_ends(session, seeded, value):
+    session.add(make_locus(seeded, ordinal=300, label="g0", mmseqs_group_share=value))
+    session.flush()
+
+
+@pytest.mark.parametrize("value", [1.0001, -0.0001, float("nan")])
+def test_the_mmseqs_group_share_REJECTS_anything_that_is_not_a_share(session, seeded, value):
+    session.add(make_locus(seeded, ordinal=301, label="g1", mmseqs_group_share=value))
+    with pytest.raises(IntegrityError, match="mmseqs_group_share_is_a_share"):
+        session.flush()
+
+
+@pytest.mark.parametrize("value", [1.000001, -0.2, 0.0])
+@pytest.mark.parametrize("column", ["esm_member_similarity_p05", "esm_member_similarity_median"])
+def test_an_esm_member_similarity_ACCEPTS_a_cosine_with_float32_slack(session, seeded, column, value):
+    # ⚠ 1.000001 is a CORRECT float32 cosine of two L2-normalised vectors (`COSINE_BOUND`'s note).
+    session.add(make_locus(seeded, ordinal=302, label="e0", **{column: value}))
+    session.flush()
+
+
+@pytest.mark.parametrize("value", [1.01, -1.01, float("nan")])
+@pytest.mark.parametrize("column", ["esm_member_similarity_p05", "esm_member_similarity_median"])
+def test_an_esm_member_similarity_REJECTS_what_no_cosine_can_be(session, seeded, column, value):
+    session.add(make_locus(seeded, ordinal=303, label="e1", **{column: value}))
+    with pytest.raises(IntegrityError, match="esm_member_similarities_are_cosines"):
+        session.flush()
+
+
+@pytest.mark.parametrize("column", ["pfam_dominant_domain_gene_count", "pfam_other_architecture_gene_count"])
+def test_a_pfam_architecture_count_REJECTS_a_negative(session, seeded, column):
+    session.add(make_locus(seeded, ordinal=304, label="p0", **{column: -1}))
+    with pytest.raises(IntegrityError, match="pfam_architecture_counts_are_counts"):
+        session.flush()
+
+
+def test_dominant_plus_other_may_EQUAL_the_annotated_genes(session, seeded):
+    session.add(
+        make_locus(
+            seeded, ordinal=305, label="p1", pfam_annotated_member_count=90,
+            pfam_dominant_domain_gene_count=82, pfam_other_architecture_gene_count=8,
+        )
+    )  # fmt: skip
+    session.flush()
+
+
+def test_dominant_plus_other_may_NOT_exceed_the_annotated_genes(session, seeded):
+    # ⛔ An unannotated gene is "no Pfam", never "another architecture": counting it as the second
+    # would push the sum past the annotated genes, which is exactly what this refuses.
+    session.add(
+        make_locus(
+            seeded, ordinal=306, label="p2", pfam_annotated_member_count=90,
+            pfam_dominant_domain_gene_count=82, pfam_other_architecture_gene_count=9,
+        )
+    )  # fmt: skip
+    with pytest.raises(IntegrityError, match="pfam_architectures_within_annotated"):
+        session.flush()

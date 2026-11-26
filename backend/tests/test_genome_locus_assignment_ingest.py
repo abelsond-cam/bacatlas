@@ -341,6 +341,9 @@ def _loci_frame_with_every_column(member_genome_counts: dict) -> pd.DataFrame:
             "ec_annotated_member_count", "kegg_annotated_member_count", "go_annotated_member_count_any",
             "propagation_verdict_cog", "propagation_verdict_ec", "propagation_verdict_kegg",
             "propagation_verdict_go", "median_gene_length_nt", "gene_length_interquartile_range_nt",
+            "pfam_dominant_domains", "pfam_dominant_domain_gene_count", "pfam_other_architecture_gene_count",
+            "pfam_architecture_shared", "mmseqs_group_share", "esm_member_similarity_p05",
+            "esm_member_similarity_median",
         ):
             row[name] = None
         for namespace in ("molecular_function", "biological_process", "cellular_component"):
@@ -386,6 +389,53 @@ def test_the_locus_rows_carry_present_genome_ids_and_load(session, seeded):
         ).all()
     )
     assert stored == {"n0": [ids[SAMPLE_A], ids[SAMPLE_B]], "n1": [ids[SAMPLE_A], ids[SAMPLE_B]]}
+
+
+def test_the_2026_11_26_audit_facts_reach_the_table_and_a_MEASURED_empty_set_stays_apart_from_NULL(
+    session, seeded
+):
+    """⭐ The seven new columns, driven through the REAL row builder and `copy_rows` into the real table.
+
+    ⛔ The fixture's two loci differ in exactly the distinctions under test, so neither can collapse:
+    n0 carries a dominant set, a share, cosines and `True`; n1 carries `""` (no gene annotated — a
+    MEASUREMENT), zero counts, `False` and NaN cosines (no ESM medoid — NOT measured, so NULL).
+    """
+    import numpy as np
+
+    species_id = seeded["species"].pathogen_species_id
+    genome_b = Genome(
+        pathogen_species_id=species_id, sample_id=SAMPLE_B,
+        sample_id_kind=SampleIdentifierKind.BIOSAMPLE, strand_is_observed=True,
+    )
+    session.add(genome_b)
+    session.flush()
+    ids = {SAMPLE_A: seeded["genome"].genome_id, SAMPLE_B: genome_b.genome_id, SAMPLE_C: genome_b.genome_id + 10_000}
+    loci = _loci_frame_with_every_column({"n0": 2, "n1": 2})
+    loci["pfam_annotated_member_count"] = [3, 0]
+    loci["pfam_dominant_domains"] = ["PF00126,PF03466", ""]
+    loci["pfam_dominant_domain_gene_count"] = [2, 0]
+    loci["pfam_other_architecture_gene_count"] = [1, 0]
+    loci["pfam_architecture_shared"] = [np.bool_(True), np.bool_(False)]
+    loci["mmseqs_group_share"] = [0.96, np.nan]
+    loci["esm_member_similarity_p05"] = [0.912345, np.nan]
+    loci["esm_member_similarity_median"] = [0.97, np.nan]
+    frames = _frames(loci=loci)
+    rows = list(_locus_rows(frames, _derived(2), seeded["pangenome"].pangenome_id, species_id, ids))
+    copy_rows(session, Locus.__table__, LOCUS_COLUMNS, rows)
+    stored = {
+        row.node_label: tuple(row[1:])
+        for row in session.execute(
+            select(
+                Locus.node_label, Locus.pfam_dominant_domains, Locus.pfam_dominant_domain_gene_count,
+                Locus.pfam_other_architecture_gene_count, Locus.pfam_architecture_shared,
+                Locus.mmseqs_group_share, Locus.esm_member_similarity_p05, Locus.esm_member_similarity_median,
+            ).where(Locus.pangenome_id == seeded["pangenome"].pangenome_id)
+        ).all()
+    }  # fmt: skip
+    assert stored == {
+        "n0": ("PF00126,PF03466", 2, 1, True, 0.96, 0.912345, 0.97),
+        "n1": ("", 0, 0, False, None, None, None),
+    }
 
 
 def test_a_member_genome_count_the_memberships_do_not_support_refuses_by_node(seeded):
@@ -574,6 +624,9 @@ def test_the_list_is_THREADED_from_the_command_line_to_the_catalogue_load(monkey
         return SimpleNamespace(render=lambda: "catalogue")
 
     monkeypatch.setattr(cli, "CatalogueArtifacts", Artifacts)
+    # ⚠ The 2026-11-26 audit preflight is stubbed like every other stage function here — this stub has no
+    # audit files — and is exercised on its own in `test_audit_redesign_ingest`.
+    monkeypatch.setattr(cli, "refuse_unless_audit_is_redesigned", lambda artifacts: None)
     monkeypatch.setattr(cli, "ingest_pathogen_species", lambda session: {"probe": 1})
     monkeypatch.setattr(cli, "ingest_genome_collection", lambda *a, **k: (1, SimpleNamespace(
         genome_count=3, genes_in_universe=12, collection_key="c", collection_label="C")))

@@ -88,6 +88,9 @@ def test_the_pangenome_stage_with_the_launchers_flags_resolves_cohort_71k_and_ke
         raise ReachedTheRun
 
     monkeypatch.setattr(ingest_command_line, "ingest_pangenome_run", run_recorder)
+    # ⚠ This tree's audit files are empty placeholders, so the 2026-11-26 audit preflight is stubbed: it runs
+    # before the stage this test is about, and is exercised on its own in `test_audit_redesign_ingest`.
+    monkeypatch.setattr(ingest_command_line, "refuse_unless_audit_is_redesigned", lambda artifacts: None)
     monkeypatch.setenv("BACATLAS_DATABASE_URL", PROBE_URL)
     try:
         with pytest.raises(ReachedTheRun):

@@ -131,6 +131,22 @@ export BACATLAS_DATABASE_URL="postgresql+psycopg://$USER@localhost:5432/bacatlas
   --run-id kp_bacformer_clever_exploded_preclusterkp98pm3b-3b0.5-excl_k100_g100_res0.1_seed0
 ```
 
+⛔ **`--stage pangenome` REFUSES an audit from before 2026-11-26** (David's ruling that day: the locus card
+states the audit's NUMBERS, never its verdicts). The redesigned audit writes, per locus, MMseqs' grouping
+share (`resolved_share`) and the member → medoid ESM cosines (`esm_member_sim_p05`, `esm_member_sim_median`)
+into the cluster table / homology waterfall, and the dominant Pfam domain set with its counts
+(`dominant_domains`, `n_dominant_domain_genes`, `n_other_arch_genes`, `pfam_shared`) into
+`{label}_pfam_concordance.tsv`; its summary records the thresholds it used (`mmseqs_group_min_share`,
+`pfam_shared_min_share`, `esm_quoted_quantile`). A catalogue whose audit lacks ANY of them is refused —
+every missing name listed at once, and before the per-genome read — and nothing is filled in: re-audit it.
+⚠ The thresholds must be the ones the card states as literals (0.95, 0.95, 0.05 —
+`catalogue_frames.PAGE_STATED_AUDIT_THRESHOLDS`); an audit at any other value is refused until the page's
+wording moves with it. The ladder the card states, one tier per non-singleton locus: `mmseq@{t}` →
+`alignable_not_grouped` → `pfam_shared` → `esm_only`; the retired `synteny_only`, `no_homology`,
+`pfam_not_alignable` and `esm_homology` an older catalogue carries are served verbatim and shown as the raw
+token. ⭐ The showcase ranking bars nothing any more (`derive_locus_ranking.SHOWCASE_POLICY`): no
+`disjoint` Pfam class and no "failure" tier, and `pfam_shared` takes the rescue depth.
+
 Then **publish** — a separate, explicit step, because the pointer is what the service reads and a
 load that is not published changes nothing a reader can see. `--publish` runs every check in
 `verify_pangenome_is_servable` and refuses to move the pointer if any fails: locus count against the
@@ -204,6 +220,7 @@ command that clears it. Load them again after the reload.
 | `GET /api/v1/species/{key}/genomes` | `meta.genomes` + `anchorSearch` + `GENOME_N` — the anchor picker |
 | `GET …/genomes/{bs}/loci/{label}/sequence` | ⭐ `withSeq` + `decodeNseq` + `genesAtLocus` + `translate` |
 | `GET /api/v1/species/{key}/map/{rep}/scatter.png` | ⭐ `drawGlobal`'s catalogue dust — the one non-JSON response |
+| `GET /api/v1/species/{key}/audit/residual-loci` | the footer's two lists: loci grouped by neither MMseqs nor a shared Pfam architecture (`esm_only`), and loci where at most 95 % of genes share one Pfam architecture — measured facts, never verdicts (David, 2026-11-26); their lengths ride on the shell as `residual_locus_counts` |
 
 Measured on the loaded *E. coli* catalogue: the landing locus is **11.8 kB in 36 ms**, and a locus
 view is **8 statements whether it resolves 2 neighbours or 49** — the property

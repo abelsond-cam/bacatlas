@@ -194,6 +194,10 @@ def _resolve_pfam_families(session: Session, detail: LocusDetail) -> dict:
         wanted.update(pfam_accessions_in(entry.term_value))
     for family in detail.uniref_families:
         wanted.update(pfam_accessions_in(family.modal_pfam_architecture))
+    # ⭐ The dominant domain SET the card names (2026-11-26). Its accessions are almost always among the
+    # top architectures above already, but the set is order- and repeat-free and need not be spelled as
+    # any one of them — so it is asked for in its own right, in the same statement.
+    wanted.update(pfam_accessions_in(detail.locus.pfam_dominant_domains))
     if not wanted:
         # ⛔ No statement at all rather than `IN ()`. An empty IN is valid SQL and returns nothing,
         # but it still costs a round trip on every locus with no Pfam coverage — which is 22 % of

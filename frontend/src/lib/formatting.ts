@@ -24,6 +24,28 @@ export function sharePercent(share: number): string {
   return `${(100 * share).toFixed(share < 0.1 ? 1 : 0)}%`;
 }
 
+/**
+ * A share as a percentage that never lands on the wrong side of what the page says about it.
+ *
+ * ⛔ **Whole percent, unless rounding would make the number contradict its own sentence.** The audit's
+ * Pfam test is a strict `> 95 %`: 0.9496 printed as "95%" beside "no more than 95%" reads as a tie, and
+ * 0.9504 printed as "95%" beside "more than 95%" reads as false. Decimals are added — up to four — until
+ * the printed value sits on the same side of `threshold` as the true one. The same guard keeps a share short
+ * of the whole from printing "100%" (69,825 of 69,884 genes → "99.9%") and a share above nothing from
+ * printing "0%".
+ */
+export function percentKeepingSide(share: number, threshold?: number): string {
+  if (share <= 0 || share >= 1) return `${Math.round(share * 100)}%`;
+  const side = (value: number): number =>
+    threshold === undefined ? 0 : value > threshold ? 1 : value < threshold ? -1 : 0;
+  for (let digits = 0; digits < 4; digits += 1) {
+    const text = (100 * share).toFixed(digits);
+    const printed = Number.parseFloat(text) / 100;
+    if (printed > 0 && printed < 1 && side(printed) === side(share)) return `${text}%`;
+  }
+  return `${(100 * share).toFixed(4)}%`;
+}
+
 /** `n` with the singular or plural of `noun`, e.g. `1 neighbourhood` / `3 neighbourhoods`. */
 /**
  * `"a"` or `"an"`, for a noun the caller does not control.

@@ -21,6 +21,12 @@ vendored Pfam/GO/COG name tables, which are public reference metadata and not a 
 tier, the resolved threshold and the two embedding pairs. The page once re-derived the Pfam verdict
 by a different rule and disagreed with the report on 2 of 22,624 loci: *"a page that quotes the
 report must not be able to contradict it, ever."*
+
+⛔ **An audit from before 2026-11-26 is REFUSED, not filled** (David's ruling of that day: the card
+states the audit's numbers, never its verdicts). The redesigned audit writes the dominant Pfam domain
+set and its counts, MMseqs' grouping share and the member → medoid ESM cosines; a catalogue whose audit
+lacks any of them is refused by `refuse_unless_redesigned_audit`, naming every missing column, before
+the per-genome read that is the expensive half of a build.
 """
 
 from __future__ import annotations
@@ -64,6 +70,123 @@ ANNOTATION_SOURCES = (
 
 class CatalogueFrameError(RuntimeError):
     """A catalogue that cannot be assembled without inventing part of it."""
+
+
+# ── the 2026-11-26 audit facts ─────────────────────────────────────────────────────────────────
+#: Per-locus columns the redesigned audit writes into the cluster table / homology waterfall, and the
+#: `locus` column each fills: MMseqs' grouping share at the resolved identity (the largest connected
+#: component's share of the sampled members), and the 5th percentile and median of member → medoid
+#: ESM cosine. ⚠ `permissive_share` is written too and is not read: nothing on the page states it.
+REDESIGNED_EVIDENCE_COLUMNS = {
+    "resolved_share": "mmseqs_group_share",
+    "esm_member_sim_p05": "esm_member_similarity_p05",
+    "esm_member_sim_median": "esm_member_similarity_median",
+}
+#: Per-locus columns the redesigned audit writes into `{label}_pfam_concordance.tsv`, and the `locus`
+#: column each fills. ⚠ `dominant_domain_share` is written too and is not read: it is the dominant
+#: count over the locus size, which the page divides itself from the two counts it already has.
+REDESIGNED_CONCORDANCE_COLUMNS = {
+    "dominant_domains": "pfam_dominant_domains",
+    "n_dominant_domain_genes": "pfam_dominant_domain_gene_count",
+    "n_other_arch_genes": "pfam_other_architecture_gene_count",
+    "pfam_shared": "pfam_architecture_shared",
+}
+#: ⛔ **The thresholds the locus card STATES AS LITERALS** (`frontend/src/lib/evidenceVocabulary.ts`):
+#: *"at least 95 % of sampled members group"*, *"more than 95 % of its genes share one Pfam
+#: architecture"*, *"95 % of members have ESM cosine ≥ …"* (the 5th percentile). The audit summary
+#: records the values it actually used; a catalogue audited at any other value would make every one
+#: of those sentences false, so it is refused until the page's wording moves with the threshold.
+PAGE_STATED_AUDIT_THRESHOLDS = {
+    "mmseqs_group_min_share": 0.95,
+    "pfam_shared_min_share": 0.95,
+    "esm_quoted_quantile": 0.05,
+}
+
+
+def _audit_bool(value) -> bool | None:
+    """The audit's `pfam_shared` cell → a Python bool, or None where the locus has no row.
+
+    ⛔ Read, never inferred: anything that is not plainly true or false is refused by value, because
+    `bool("False")` is True and a lenient coercion would mark every locus shared.
+    """
+    if value is None or (isinstance(value, float) and value != value):
+        return None
+    if isinstance(value, str):
+        if value in ("True", "true"):
+            return True
+        if value in ("False", "false"):
+            return False
+    elif type(value).__name__ in ("bool", "bool_"):
+        return bool(value)
+    raise CatalogueFrameError(
+        f"the audit's `pfam_shared` holds {value!r}, which is neither true nor false — refused rather "
+        "than coerced, because a lenient reading would mark every locus shared"
+    )
+
+
+class PreRedesignAudit(CatalogueFrameError):
+    """An audit the page cannot quote — written before 2026-11-26, or at thresholds the page does not state."""
+
+
+def refuse_unless_redesigned_audit(
+    *,
+    evidence_columns,
+    evidence_source: str,
+    concordance_columns,
+    concordance_name: str,
+    summary: dict,
+    summary_name: str,
+) -> None:
+    """⛔ Refuse, naming EVERY problem at once, an audit the 2026-11-26 page cannot quote.
+
+    Nothing is filled in, defaulted or derived: a missing column is a fact about when the audit ran,
+    and both catalogues are to be re-audited. ``concordance_columns`` is ``None`` where the TSV is
+    absent — its four Pfam facts are then missing too, and said so.
+    """
+    import math
+
+    problems = []
+    missing = [column for column in REDESIGNED_EVIDENCE_COLUMNS if column not in set(evidence_columns)]
+    if missing:
+        note = ""
+        if evidence_source.endswith(".csv"):
+            # ⚠ The waterfall is read through nuna's `load_audit_evidence`, which keeps only
+            # `EVIDENCE_COLS` from a CSV — so a column the file HAS can still arrive missing.
+            note = (
+                " (read through nuna's `load_audit_evidence`, which keeps only its `EVIDENCE_COLS` from a "
+                "waterfall CSV — if the file carries them, that list must name them too)"
+            )
+        problems.append(f"{evidence_source} lacks {', '.join(missing)}{note}")
+    if concordance_columns is None:
+        problems.append(
+            f"{concordance_name} is absent, so {', '.join(REDESIGNED_CONCORDANCE_COLUMNS)} are too"
+        )
+    else:
+        missing = [column for column in REDESIGNED_CONCORDANCE_COLUMNS if column not in set(concordance_columns)]
+        if missing:
+            problems.append(f"{concordance_name} lacks {', '.join(missing)}")
+    missing = [key for key in PAGE_STATED_AUDIT_THRESHOLDS if key not in summary]
+    if missing:
+        problems.append(f"{summary_name} lacks {', '.join(missing)}")
+    if problems:
+        raise PreRedesignAudit(
+            "this catalogue's audit predates the 2026-11-26 redesign — the locus card now states the "
+            "audit's numbers (MMseqs' grouping share, the dominant Pfam domain set and its counts, the "
+            "member → medoid ESM cosines), and this audit never wrote them. Refused rather than filled: "
+            "re-audit the catalogue.\n  " + "\n  ".join(problems)
+        )
+    moved = [
+        f"{key} = {summary[key]!r}, where the page states {stated!r}"
+        for key, stated in PAGE_STATED_AUDIT_THRESHOLDS.items()
+        if not isinstance(summary[key], (int, float)) or not math.isclose(float(summary[key]), stated)
+    ]
+    if moved:
+        raise PreRedesignAudit(
+            f"{summary_name} was audited at thresholds the locus card does not state, so every sentence "
+            "quoting them would be false. Refused until the page's wording "
+            "(`frontend/src/lib/evidenceVocabulary.ts`) and `PAGE_STATED_AUDIT_THRESHOLDS` move with it:"
+            "\n  " + "\n  ".join(moved)
+        )
 
 
 @dataclass
@@ -304,7 +427,7 @@ def _load_source_frames(artifacts: CatalogueArtifacts, *, allow_missing_strand: 
     }
 
 
-def _load_audit_frames(artifacts: CatalogueArtifacts, omitted: dict) -> dict:
+def _load_audit_frames(artifacts: CatalogueArtifacts) -> dict:
     """The audit's own outputs — read, and recorded with WHICH artifact each came from.
 
     ⚠ The published *E. coli* export did **not** read `{label}_cluster_table.parquet` (it did not
@@ -327,21 +450,44 @@ def _load_audit_frames(artifacts: CatalogueArtifacts, omitted: dict) -> dict:
 
     concordance = None
     if artifacts.pfam_concordance.exists():
-        concordance = pandas.read_csv(artifacts.pfam_concordance, sep="\t")
+        # ⚠ `dominant_domains` is TEXT and `""` where no gene is annotated — a measured empty set.
+        # Read as a string with `keep_default_na=False` on that column alone, or pandas turns the
+        # empty field into NaN and a measured "none annotated" into "not measured".
+        concordance = pandas.read_csv(
+            artifacts.pfam_concordance,
+            sep="\t",
+            dtype={"node": str},
+            converters={"dominant_domains": lambda value: value},
+        )
         concordance["node"] = concordance["node"].astype(str)
         concordance = concordance.drop_duplicates("node").set_index("node")
-    else:
-        omitted["pfam_concordance"] = (
-            f"{artifacts.pfam_concordance.name} not found — the Pfam verdict would fall back to a "
-            "derivation over the top-5 architectures, which can differ from the audit's over all"
-        )
 
+    summary = json.loads(artifacts.audit_summary.read_text())
+    # ⛔ Before anything is built from it — see `refuse_unless_redesigned_audit`.
+    refuse_unless_redesigned_audit(
+        evidence_columns=evidence.columns,
+        evidence_source=source,
+        concordance_columns=None if concordance is None else concordance.columns,
+        concordance_name=artifacts.pfam_concordance.name,
+        summary=summary,
+        summary_name=artifacts.audit_summary.name,
+    )
     return {
         "evidence": evidence.set_index("node"),
         "evidence_source": source,
         "concordance": concordance,
-        "audit_summary": json.loads(artifacts.audit_summary.read_text()),
+        "audit_summary": summary,
     }
+
+
+def refuse_unless_audit_is_redesigned(artifacts: CatalogueArtifacts) -> None:
+    """⛔ The 2026-11-26 audit check on its own, for the CLI to run BEFORE anything is written.
+
+    It reads only the three audit files (seconds), so `--stage all` can refuse a pre-redesign audit before
+    it loads the genome layer — hours at 71,435 genomes — rather than after. The frame build makes the same
+    check again on the same files; this one only moves the refusal earlier.
+    """
+    _load_audit_frames(artifacts)
 
 
 def load_pfam_name_table() -> dict:
@@ -582,11 +728,13 @@ def build_catalogue_frames(
         )
 
     phase("start of the catalogue's frames")
+    # ⛔ The audit FIRST: a pre-2026-11-26 audit is refused here, before the per-genome read, which at
+    # 71,435 genomes is the hours-long half of a build that would otherwise be spent and discarded.
+    audit = _load_audit_frames(artifacts)
+    phase("frames: audit tables read")
     source = _load_source_frames(artifacts, allow_missing_strand=allow_missing_strand)
     omitted = source["omitted"]
     phase("frames: sources read")
-    audit = _load_audit_frames(artifacts, omitted)
-    phase("frames: audit tables read")
     samples, assign = source["samples"], source["assign"]
     n_genomes = len(samples)
     sample_position = {sample: index for index, sample in enumerate(samples)}
@@ -762,6 +910,26 @@ def build_catalogue_frames(
         None if not numpy.isfinite(float(value)) else int(value)
         for value in concordance_column("n_arch", numpy.nan)
     ]
+    # ── the 2026-11-26 facts, READ — each column's presence was refused-unless at load ───────────
+    # ⚠ A node absent from a source reads NULL (not measured), never 0 or False; the audit writes the
+    # concordance for EVERY locus and the evidence for every non-singleton, so a singleton's MMseqs
+    # share and ESM cosines are NULL by construction.
+    loci["mmseqs_group_share"] = _floats(evidence_column("resolved_share"), nd=6)
+    loci["esm_member_similarity_p05"] = _floats(evidence_column("esm_member_sim_p05"), nd=6)
+    loci["esm_member_similarity_median"] = _floats(evidence_column("esm_member_sim_median"), nd=6)
+    loci["pfam_dominant_domains"] = [
+        None if value is None or (isinstance(value, float) and value != value) else str(value)
+        for value in concordance_column("dominant_domains", None)
+    ]
+    for source_column, locus_column in (
+        ("n_dominant_domain_genes", "pfam_dominant_domain_gene_count"),
+        ("n_other_arch_genes", "pfam_other_architecture_gene_count"),
+    ):
+        loci[locus_column] = [
+            None if not numpy.isfinite(float(value)) else int(value)
+            for value in concordance_column(source_column, numpy.nan)
+        ]
+    loci["pfam_architecture_shared"] = [_audit_bool(value) for value in concordance_column("pfam_shared", None)]
     loci["cog_annotated_member_count"] = (
         cog["n_cog"].reindex(nodes).fillna(0).astype("int64").to_numpy() if len(cog) else 0
     )

@@ -31,7 +31,13 @@ from sqlalchemy import (
 
 from bacatlas_backend.instruments import catalogue_dry_run
 from bacatlas_backend.instruments.catalogue_dry_run import DrySession, NeedsDatabase, SchemaFit
-from tests.conftest import NUNA_DATA_ROOT, artifacts_for, published_catalogue, requires_artifacts
+from tests.conftest import (
+    NUNA_DATA_ROOT,
+    artifacts_for,
+    published_catalogue,
+    redesigned_audit_artifacts,
+    requires_artifacts,
+)
 
 
 class Colour(enum.Enum):
@@ -149,10 +155,13 @@ def test_a_question_only_a_database_can_answer_is_named_not_answered():
 
 
 # ── the whole thing, on the published Kp probe ──────────────────────────────────────────────────
-def _arguments(nseq_dir) -> list[str]:
+def _arguments(nseq_dir, scratch) -> list[str]:
+    """⚠ The data root is `redesigned_audit_artifacts`' copy, not the mirror: the mirrored audit predates
+    2026-11-26 and is refused as it stands, and these tests are about the dry run, not the audit facts."""
     entry = published_catalogue("kp")
+    data_root = redesigned_audit_artifacts("kp", scratch / "root").data_root
     return [
-        "--data-root", str(NUNA_DATA_ROOT), "--set-key", entry.set_key, "--species-key", entry.species_key,
+        "--data-root", str(data_root), "--set-key", entry.set_key, "--species-key", entry.species_key,
         "--model-label", entry.model_label, "--run-id", entry.run_id, "--nseq-dir", str(nseq_dir),
     ]  # fmt: skip
 
@@ -162,8 +171,8 @@ SEQ = NUNA_DATA_ROOT.parent.parent / "bacatlas" / "data" / "seq"
 
 @requires_artifacts
 @pytest.mark.skipif(not SEQ.is_dir(), reason=f"the probe's .nseq/.loci are not at {SEQ}")
-def test_the_published_kp_probe_runs_CLEAN_with_the_row_counts_its_real_load_writes(capsys):
-    assert catalogue_dry_run.main(_arguments(SEQ)) == 0
+def test_the_published_kp_probe_runs_CLEAN_with_the_row_counts_its_real_load_writes(capsys, tmp_path):
+    assert catalogue_dry_run.main(_arguments(SEQ, tmp_path)) == 0
     out = capsys.readouterr().out
     assert "DRY RUN CLEAN: 0 refusal(s), 0 column(s)" in out
     assert "the .loci oracle compared 100 genomes byte for byte; 0 have no .loci" in out
@@ -187,7 +196,7 @@ def test_ONE_wrong_ordinal_in_one_genomes_loci_ends_the_run_1_and_names_the_geno
     struct.pack_into("<i", block, 0, first + 1)
     (tmp_path / f"{sample}.loci").write_bytes(bytes(block))
 
-    code = catalogue_dry_run.main(_arguments(tmp_path))
+    code = catalogue_dry_run.main(_arguments(tmp_path, tmp_path))
     out = capsys.readouterr().out
     assert code == 1
     assert "REFUSED genome locus assignments + the .loci oracle" in out and sample in out
@@ -204,6 +213,6 @@ def test_a_loci_of_the_WRONG_LENGTH_is_refused_because_the_count_comes_from_the_
     os.symlink(SEQ / f"{sample}.nseq", tmp_path / f"{sample}.nseq")
     (tmp_path / f"{sample}.loci").write_bytes((SEQ / f"{sample}.loci").read_bytes() + struct.pack("<i", -1))
 
-    assert catalogue_dry_run.main(_arguments(tmp_path)) == 1
+    assert catalogue_dry_run.main(_arguments(tmp_path, tmp_path)) == 1
     out = capsys.readouterr().out
     assert "REFUSED genome locus assignments + the .loci oracle" in out and sample in out

@@ -119,7 +119,15 @@ CACHE_CONTROL = "public, max-age=86400"
 #:     cached body needs the list. ⚠ The block's fields moved twice more before this version left the
 #:     branch (`no_predictions_reason` → `state`; each donor gained `catalogue_published`); 8 was never
 #:     served, so no client holds an earlier draft.
-RESPONSE_SHAPE_VERSION = 8
+#: 9 — THE CARD STATES THE AUDIT'S NUMBERS, NOT ITS VERDICTS (David, 2026-11-26). On the locus response:
+#:     `pfam.concordance_class` REMOVED; `pfam.dominant_domains`, `pfam.dominant_domain_gene_count`,
+#:     `pfam.other_architecture_gene_count` and `pfam.architecture_shared` ADDED; `evidence.mmseqs_group_share`,
+#:     `evidence.esm_member_similarity_p05` and `evidence.esm_member_similarity_median` ADDED. On the shell:
+#:     `residual_locus_counts` ADDED, and `audit_headline` serves the 2026-11-26 keys (a data-keyed map, but
+#:     the footer reads it by key). On the residual lists: `grouped_on_context_alone` → `esm_only`,
+#:     `pfam_conflicts` → `pfam_architecture_not_shared`, and each row gains `pfam_dominant_domain_gene_count`
+#:     and `esm_member_similarity_p05`. Enumerated, as 4 and 8 are.
+RESPONSE_SHAPE_VERSION = 9
 
 #: Arrangements per page past the display cut.
 ARRANGEMENT_PAGE_LIMIT = 50
@@ -349,6 +357,11 @@ def get_species_catalogue(species_key: str):
                 # "per genome" line, and its three parts sum to the whole by construction.
                 "prevalence_gene_census": catalogue.prevalence_gene_census,
                 "audit_headline": catalogue.audit_headline,
+                # ⭐ How long each footer residual list is, counted inside the census statement from the
+                # SAME two clauses the list endpoint selects with — so a closed list's summary cannot
+                # promise a count its rows do not hold. ⚠ Both are 0 on a catalogue audited before
+                # 2026-11-26, whose new columns are NULL: such a catalogue lists nothing, and says so.
+                "residual_locus_counts": catalogue.residual_locus_counts,
                 # ⛔ `map_projections` was REPLACED, not renamed. It carried a UMAP over every
                 # locus's MEDOID, that fit's extent and scale, a whole-catalogue sprite descriptor,
                 # and a null baseline sampled over random pairs of MEDOIDS. All of it described a
@@ -396,10 +409,12 @@ def get_species_catalogue(species_key: str):
 @species_blueprint.get("/catalogues/<species_key>/audit/residual-loci")
 @species_blueprint.get("/species/<species_key>/audit/residual-loci")
 def get_audit_residual_loci(species_key: str):
-    """Every locus grouped on context alone, and every Pfam conflict — two lists, each clickable.
+    """Two lists of measured facts (David, 2026-11-26), each clickable.
 
-    Fetched when the footer's list is opened. ⚠ The two lists are NOT disjoint: a locus can be both,
-    and it then appears in both, exactly as the published footer listed it.
+    The loci grouped by neither MMseqs nor a shared Pfam architecture, and the loci where at most 95 %
+    of genes share one Pfam architecture. Fetched when the footer's list is opened. ⚠ The two lists are
+    NOT disjoint: a locus can be both, and it then appears in both. Their counts ride on the shell
+    (`residual_locus_counts`), from the same two clauses (`audit_residual_service`).
     """
     with _session() as session:
         try:
@@ -417,6 +432,11 @@ def get_audit_residual_loci(species_key: str):
                     "gene_count": entry.gene_count,
                     "uniref50_family_count": entry.uniref50_family_count,
                     "pfam_architecture_count": entry.pfam_architecture_count,
+                    # ⭐ The fact each list is about, so a row states its own reason: genes on the
+                    # commonest Pfam domain set (of `gene_count`, ALL genes), and the ESM number the
+                    # card quotes for a locus grouped by neither MMseqs nor a shared architecture.
+                    "pfam_dominant_domain_gene_count": entry.pfam_dominant_domain_gene_count,
+                    "esm_member_similarity_p05": entry.esm_member_similarity_p05,
                     "syntenic_a5": entry.syntenic_a5,
                     # ⚠ DISTANCES, as stored. The footer has always shown similarities; the client
                     # converts, exactly as it does for the locus card, so there is one conversion.
@@ -432,8 +452,8 @@ def get_audit_residual_loci(species_key: str):
 
         return _immutable(
             {
-                "grouped_on_context_alone": rows(residuals.grouped_on_context_alone),
-                "pfam_conflicts": rows(residuals.pfam_conflicts),
+                "esm_only": rows(residuals.esm_only),
+                "pfam_architecture_not_shared": rows(residuals.pfam_architecture_not_shared),
             },
             pangenome.pangenome_id,
         )

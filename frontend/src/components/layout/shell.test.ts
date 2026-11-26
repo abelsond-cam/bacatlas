@@ -210,38 +210,55 @@ describe("⛔ the anchor box", () => {
 });
 
 describe("⛔ the residual lists — two, never one, and fetched only when opened", () => {
-  const AUDIT = { synteny_only_n_clusters: 8, no_homology_n_clusters: 2, pfam_conflict_n_clusters: 42 };
+  // ⚠ Different numbers, so neither summary can be reading the other's count.
+  const COUNTS = { esm_only: 10, pfam_architecture_not_shared: 42 };
 
-  it("states each list's LENGTH from the audit headline before fetching anything", () => {
-    const lists = mount(AuditResidualLists, { props: { catalogueKey: asCatalogueKey("ecoli"), audit: AUDIT } });
+  it("⭐ states each list's LENGTH from the shell's counts before fetching anything — in neutral words", () => {
+    const lists = mount(AuditResidualLists, { props: { catalogueKey: asCatalogueKey("ecoli"), counts: COUNTS } });
     const summaries = lists.findAll("summary").map((node) => node.text());
-    expect(summaries).toEqual(["Every locus grouped on context alone (10)", "Every Pfam conflict (42)"]);
+    expect(summaries).toEqual([
+      "Loci grouped by neither MMseqs nor a shared Pfam architecture (10)",
+      "Loci where at most 95% of genes share one Pfam architecture (42)",
+    ]);
+    // ⛔ David, 2026-11-26: neither list is a verdict, and neither says one.
+    expect(lists.text()).not.toMatch(/context alone|conflict|over-merge|no homology|evidence against/i);
     expect(fetchAuditResiduals).not.toHaveBeenCalled();
+  });
+
+  it("draws NO list whose count is zero — a catalogue audited before 2026-11-26 lists nothing", () => {
+    const lists = mount(AuditResidualLists, {
+      props: { catalogueKey: asCatalogueKey("ecoli"), counts: { esm_only: 0, pfam_architecture_not_shared: 0 } },
+    });
+    expect(lists.findAll("details")).toHaveLength(0);
   });
 
   it("fetches on open and lists each row with the evidence to judge it", async () => {
     fetchAuditResiduals.mockResolvedValueOnce(
       success({
-        grouped_on_context_alone: [
+        esm_only: [
           {
             label: "4976", display_name: "ydcD", prevalence_band: "shell", gene_count: 32, uniref50_family_count: 3,
             // ⛔ SIMILARITIES, not the distances this row used to carry: 0.98 is what the footer
             // prints, and a surviving `1 − d` in the component would print 0.02.
-            pfam_architecture_count: null, syntenic_a5: 0.35, esm_within_similarity: 0.98, esm_nearest_similarity: 0.98,
+            pfam_architecture_count: null, pfam_dominant_domain_gene_count: 12, esm_member_similarity_p05: 0.8137,
+            syntenic_a5: 0.35, esm_within_similarity: 0.98, esm_nearest_similarity: 0.98,
           },
         ],
-        pfam_conflicts: [],
+        pfam_architecture_not_shared: [],
       }),
     );
-    const lists = mount(AuditResidualLists, { props: { catalogueKey: asCatalogueKey("ecoli"), audit: AUDIT } });
+    const lists = mount(AuditResidualLists, { props: { catalogueKey: asCatalogueKey("ecoli"), counts: COUNTS } });
     const first = lists.find("details");
     (first.element as HTMLDetailsElement).open = true;
     await first.trigger("toggle");
     await flushPromises();
     const row = lists.find(".goto-row");
     expect(row.text()).toContain("ydcD");
-    // ⚠ Pfam could not judge it: no "N architectures" at all, rather than "0 architectures".
-    expect(row.find(".goto-ev").text()).toBe("shell · 32 genes · 3 UniRef50 · A5 0.35 · ESM 0.98/0.98");
+    // ⚠ Pfam could not judge it: no "N architectures" at all, rather than "0 architectures". The dominant
+    // set's share is of ALL 32 genes (12 / 32), and the ESM bound is floored.
+    expect(row.find(".goto-ev").text()).toBe(
+      "shell · 32 genes · 3 UniRef50 · 38% on one Pfam set · 95% ESM ≥ 0.813 · A5 0.35 · ESM 0.98/0.98",
+    );
     await row.trigger("click");
     expect(lists.emitted("go")).toEqual([["4976"]]);
   });

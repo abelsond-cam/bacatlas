@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 import bacatlas_backend.models  # noqa: F401  (registers every table on the metadata)
 from bacatlas_backend.ingest.artifact_locator import DEFAULT_READ_WORKERS, CatalogueArtifacts, read_ahead_in_order
+from bacatlas_backend.ingest.catalogue_frames import PreRedesignAudit, refuse_unless_audit_is_redesigned
 from bacatlas_backend.ingest.genome_gene_alignment import GeneAlignmentError
 from bacatlas_backend.ingest.ingest_genome_collection_roster import (
     genome_id_by_ordinal,
@@ -735,6 +736,16 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, GeneTableListRefused) as error:
         print(f"--genomes-without-gene-table: {error}", file=sys.stderr)
         return 2
+
+    if args.stage in ("pangenome", "all"):
+        # ⛔ David's 2026-11-26 audit redesign, checked BEFORE anything is written: before `all` loads the
+        # genome layer (hours at 71,435 genomes) and before the pangenome stage spends its frame build. An
+        # audit that predates it is a REFUSAL (exit 1), not a misconfiguration — re-audit the catalogue.
+        try:
+            refuse_unless_audit_is_redesigned(artifacts)
+        except PreRedesignAudit as error:
+            print(f"AUDIT REFUSED: {error}", file=sys.stderr)
+            return 1
 
     engine = create_engine(args.database_url, future=True)
     report, differences, reconcilable = None, [], True

@@ -21,9 +21,18 @@ in a ranking whose top four become the published example chips. Reproducing the 
 reproducing the rounding.
 
 ⚠ **Two things about `interest_score`'s sign, both of which read wrong at a glance.** `-1e12` is a
-**sentinel** and not a score — 51 *E. coli* loci carry it, barred outright because a disjoint Pfam
-architecture is evidence *against* the merge. And `(major − 1) × 2e6` makes **942** more loci
-legitimately negative without being barred at all, so *"negative means barred"* is false.
+**sentinel** and not a score — 51 loci of the FROZEN *E. coli* page carry it, barred outright under the
+policy that page shipped. And `(major − 1) × 2e6` makes **942** more loci legitimately negative without
+being barred at all, so *"negative means barred"* is false.
+
+⭐ **Nothing is barred any more (David, 2026-11-26).** The bars stood on two audit verdicts — a `disjoint`
+Pfam clan class and a "failure" collapse tier (`synteny_only`, `no_homology`) — and at 71,435 genomes
+both were decided by stray genes: kp-71k locus 4008, Wzi on 69,825 of 69,884 genes, read "grouped on
+context alone" and "conflicting architecture". David ruled those audit bugs. The redesigned ladder has no
+failure tier, so `SHOWCASE_POLICY` below — the policy every ingest now ranks with — bars nothing:
+`pfam_shared` takes the rescue depth `pfam_not_alignable` had, and `esm_only` gets depth 0. ⚠ The barring
+branch in `interest_score` survives ONLY so the frozen pages' own `meta.policy` still reproduces their
+published landing locus and example chips (`test_derived_locus_columns`).
 """
 
 from __future__ import annotations
@@ -40,10 +49,25 @@ WEIGHT_CONCORDANCE = 1.5e6
 WEIGHT_SYNTENY = 3e5
 WEIGHT_SIZE_DIVISOR = 1e4
 
-#: ⛔ A **sentinel**, not a score. `render_page._interest` returns it for a locus the showcase bars:
-#: a contested Pfam architecture, or a collapse tier the audit grades as a failure. Such a locus stays
-#: fully reachable by search, by a neighbour and from the footer lists — demoted, never hidden.
+#: ⛔ A **sentinel**, not a score. `render_page._interest` returned it for a locus the frozen pages'
+#: policy barred: a contested Pfam architecture, or a "failure" collapse tier. ⚠ Under `SHOWCASE_POLICY`
+#: no locus earns it — see the module docstring.
 BARRED_SENTINEL = -1e12
+
+#: ⭐ **The policy every ingest ranks with — David's ruling of 2026-11-26.** No contested Pfam class and
+#: no failure tier: nothing is barred. The one rescue tier is `pfam_shared` — MMseqs groups the locus at
+#: no identity, yet more than 95 % of its genes carry one Pfam domain set — which takes the full depth
+#: weight `pfam_not_alignable` had. `esm_only` is not a rescue: its `resolved_threshold` is NULL, so it
+#: gets depth 0, as does `alignable_not_grouped`.
+#:
+#: ⛔ Owned HERE, not imported from nuna's `export_payload.POLICY`: that dict is what the frozen static
+#: pages shipped (`meta.policy`), and it still names the retired tiers and the `disjoint` bar. Ranking
+#: by it would keep barring loci on the very verdicts David ruled were bugs.
+SHOWCASE_POLICY = {
+    "failure_tiers": (),
+    "rescue_tiers": ("pfam_shared",),
+    "contested_pfclass": None,
+}
 
 #: The gene the page opens on when the catalogue has one (`render_page.LANDING_SYMBOL`).
 LANDING_SYMBOL = "fimA"
@@ -214,17 +238,22 @@ class InterestInputs:
 def interest_score(row: InterestInputs, policy: dict) -> float:
     """`render_page._interest` — how much a locus demonstrates the point.
 
-    Barred outright, not down-weighted, on two grounds, *"because the showcase is the first thing a
-    stranger sees"*: a Pfam architecture the audit calls contested, and a collapse tier the audit
-    grades as a failure.
+    ``policy`` is `SHOWCASE_POLICY` for every ingest, which bars nothing (David, 2026-11-26). A frozen
+    page's own `meta.policy` bars on its two old grounds — a contested Pfam class, a failure tier — and
+    is passed only to reproduce that page's published ranking.
+
+    ⛔ **Each key is read, never defaulted.** The old `.get("contested_pfclass", "disjoint")` meant a
+    policy that said nothing about the Pfam class still barred every `disjoint` locus — a bar nobody
+    asked for, applied by omission. `None` is how a policy says "bar nothing on the Pfam class".
     """
-    if row.pfam_concordance_class == policy.get("contested_pfclass", "disjoint"):
+    contested = policy["contested_pfclass"]
+    if contested is not None and row.pfam_concordance_class == contested:
         return BARRED_SENTINEL
     tier = row.collapse_tier or ""
-    if tier in tuple(policy.get("failure_tiers", ())):
+    if tier in tuple(policy["failure_tiers"]):
         return BARRED_SENTINEL
 
-    if tier in tuple(policy.get("rescue_tiers", ("pfam_not_alignable", "esm_homology"))):
+    if tier in tuple(policy["rescue_tiers"]):
         # Never aligns at all, yet demonstrably homologous — the strongest case.
         depth = WEIGHT_DEPTH
     elif row.resolved_threshold is not None:

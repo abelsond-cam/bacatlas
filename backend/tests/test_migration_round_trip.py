@@ -142,6 +142,37 @@ def test_the_served_annotation_constraints_autogenerate_cannot_see_exist_after_u
     assert default is not None and "NOT_LOADED" in default
 
 
+def test_the_audit_fact_constraints_autogenerate_cannot_see_exist_after_upgrade(probe_engine):
+    """⛔ Hand-added in `9601b9c2d400` (David's 2026-11-26 audit facts), and invisible to the drift check
+    below for the same reason as the served-annotation ones: Alembic compares no CHECK on an existing
+    table. A database built from migrations without them would store a share of 1.4 or a negative count.
+    """
+    _alembic("upgrade", "head")
+    with probe_engine.connect() as connection:
+        checks = dict(
+            connection.execute(
+                text(
+                    "SELECT c.conname, pg_get_constraintdef(c.oid) FROM pg_constraint c "
+                    "JOIN pg_class t ON t.oid = c.conrelid WHERE t.relname = 'locus' AND c.contype = 'c'"
+                )
+            ).all()
+        )
+    share = checks["ck_locus__mmseqs_group_share_is_a_share"]
+    assert "mmseqs_group_share >= (0)::double precision" in share
+    assert "mmseqs_group_share <= (1)::double precision" in share
+    cosines = checks["ck_locus__esm_member_similarities_are_cosines"]
+    for column in ("esm_member_similarity_p05", "esm_member_similarity_median"):
+        assert f"{column} <= (1.001)::double precision" in cosines
+        assert f"{column} >= ('-1.001'::numeric)::double precision" in cosines
+    counts = checks["ck_locus__pfam_architecture_counts_are_counts"]
+    assert "pfam_dominant_domain_gene_count >= 0" in counts
+    assert "pfam_other_architecture_gene_count >= 0" in counts
+    assert (
+        "(pfam_dominant_domain_gene_count + pfam_other_architecture_gene_count) <= pfam_annotated_member_count"
+        in checks["ck_locus__pfam_architectures_within_annotated"]
+    )
+
+
 def test_the_migration_still_matches_the_models(probe_engine):
     """Autogenerate against the migrated database must find NOTHING to do."""
     _alembic("upgrade", "head")

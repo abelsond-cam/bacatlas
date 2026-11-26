@@ -19,7 +19,7 @@ import pytest
 
 from bacatlas_backend.ingest import catalogue_frames
 from bacatlas_backend.ingest.catalogue_frames import OFFSETS, _genome_chunks, _window_frames
-from tests.conftest import artifacts_for, requires_artifacts
+from tests.conftest import artifacts_for, redesigned_audit_artifacts, requires_artifacts
 
 
 # ── the oracle: the unchunked window block, verbatim in substance ─────────────────────────────────
@@ -309,7 +309,7 @@ def _assert_catalogue_identical(got, want, where, compared):
         compared.append((where, 1, 0))
 
 
-def _build(species_key, monkeypatch, *, old: bool, drop_dbxrefs: bool, chunk_genes: str = "1"):
+def _build(artifacts, monkeypatch, *, old: bool, drop_dbxrefs: bool, chunk_genes: str = "1"):
     loader = catalogue_frames._load_source_frames
 
     def load(*args, **kwargs):
@@ -323,7 +323,7 @@ def _build(species_key, monkeypatch, *, old: bool, drop_dbxrefs: bool, chunk_gen
         patch.setenv("BACATLAS_WINDOW_CHUNK_GENES", chunk_genes)
         if old:
             patch.setattr(catalogue_frames, "_window_frames", _unchunked_window_frames)
-        return catalogue_frames.build_catalogue_frames(artifacts_for(species_key), annotation_fold=_go_fold())
+        return catalogue_frames.build_catalogue_frames(artifacts, annotation_fold=_go_fold())
 
 
 @requires_artifacts
@@ -332,13 +332,19 @@ def _build(species_key, monkeypatch, *, old: bool, drop_dbxrefs: bool, chunk_gen
     [("kp", False, "1"), ("ecoli", False, "50000"), ("kp", True, "50000")],
     ids=["kp-genome_per_chunk", "ecoli-several_genomes_per_chunk", "kp-no_dbxref_store"],
 )
-def test_the_whole_catalogue_is_the_old_builds_exactly(monkeypatch, species_key, drop_dbxrefs, chunk_genes):
+def test_the_whole_catalogue_is_the_old_builds_exactly(
+    monkeypatch, tmp_path, species_key, drop_dbxrefs, chunk_genes
+):
     """Every field of `CatalogueFrames`, against the old build reconstructed above — with the dbxref store
-    present (the release must NOT withdraw a verdict) and absent (it must not invent one)."""
+    present (the release must NOT withdraw a verdict) and absent (it must not invent one).
+
+    ⚠ Built from `redesigned_audit_artifacts`: the mirrored audit predates 2026-11-26 and is refused as it
+    stands, and this test is about the window chunking, not the audit facts."""
     import dataclasses
 
-    want = _build(species_key, monkeypatch, old=True, drop_dbxrefs=drop_dbxrefs)
-    got = _build(species_key, monkeypatch, old=False, drop_dbxrefs=drop_dbxrefs, chunk_genes=chunk_genes)
+    artifacts = redesigned_audit_artifacts(species_key, tmp_path / "root")
+    want = _build(artifacts, monkeypatch, old=True, drop_dbxrefs=drop_dbxrefs)
+    got = _build(artifacts, monkeypatch, old=False, drop_dbxrefs=drop_dbxrefs, chunk_genes=chunk_genes)
 
     # Coverage first: the fixture reaches what a wrong release would change, and every frame has rows.
     verdicts = [c for c in want.loci.columns if c.startswith("propagation_verdict_")]

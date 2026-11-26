@@ -34,20 +34,33 @@ from bacatlas_backend.models.locus import Locus
 from bacatlas_backend.models.locus_similarity import PangenomeSimilarityBaseline
 from bacatlas_backend.models.pangenome import Pangenome, PangenomeEvaluation
 from bacatlas_backend.models.pathogen_species import PathogenSpecies
+from bacatlas_backend.services.audit_residual_service import (
+    esm_only_clause,
+    pfam_architecture_not_shared_clause,
+)
 
-#: The audit headline keys the footer prints, in `export_payload.AUDIT_HEADLINE_KEYS` order.
-#: ⛔ A whitelist, and copied verbatim — *"the page quoting a lookalike it derived itself is the
-#: failure mode this exists to make impossible"*.
+#: The audit headline keys the shell serves for the footer — values read verbatim from the audit summary.
+#: ⛔ A whitelist — *"the page quoting a lookalike it derived itself is the failure mode this exists to
+#: make impossible"*.
+#:
+#: ⭐ **The 2026-11-26 keys, and only those that state a measurement (David's ruling of that day).** The
+#: tier counts of the new ladder, the shared-Pfam-architecture counts, and the three thresholds the card's
+#: sentences state. ⛔ GONE from the wire: `synteny_only_*` and `no_homology_*` (the retired tiers, which
+#: the footer labelled "no homology"), `over_merge_*` (a verdict word), `pfam_conflict_*` and
+#: `pfam_judgeable_*` / `pfam_no_coverage_*` (the clan verdict and its denominators), and
+#: `n_clusters_esm_rescued` / `esm_rescued_gene_num` (the retired `esm_homology` tier). They stay STORED in
+#: `pangenome_evaluation` — every summary key does — and the payload rebuild still reads them from there;
+#: they are simply no longer served to a page that must not say them.
 AUDIT_HEADLINE_KEYS = (
     "n_clusters_total", "n_genes_total", "n_singleton_clusters",
-    "synteny_only_n_clusters", "synteny_only_n_genes", "synteny_only_gene_rate",
-    "no_homology_n_clusters", "no_homology_n_genes", "no_homology_gene_rate",
-    "over_merge_gene_rate", "over_merge_gene_rate_num",
+    "tier_mmseq_n_clusters", "tier_mmseq_n_genes",
+    "tier_alignable_not_grouped_n_clusters", "tier_alignable_not_grouped_n_genes",
+    "tier_pfam_shared_n_clusters", "tier_pfam_shared_n_genes",
+    "tier_esm_only_n_clusters", "tier_esm_only_n_genes",
+    "pfam_shared_n_clusters", "pfam_shared_n_genes",
+    "mmseqs_group_min_share", "pfam_shared_min_share", "esm_quoted_quantile",
     "split_gene_rate", "split_gene_rate_excl_singletons",
     "family_split_across_clusters_n_families",
-    "pfam_conflict_n_clusters", "pfam_conflict_n_genes", "pfam_conflict_gene_rate",
-    "pfam_judgeable_n_clusters", "pfam_no_coverage_n_clusters",
-    "n_clusters_esm_rescued", "esm_rescued_gene_num",
 )  # fmt: skip
 
 
@@ -87,6 +100,9 @@ class SpeciesCatalogue:
     #: count a reader reasonably concludes the wrong thing about what is in a genome.
     prevalence_gene_census: dict = field(default_factory=dict)
     audit_headline: dict = field(default_factory=dict)
+    #: ⭐ The footer residual lists' lengths — `{"esm_only": n, "pfam_architecture_not_shared": n}` —
+    #: counted in the census statement from `audit_residual_service`'s own two clauses.
+    residual_locus_counts: dict = field(default_factory=dict)
     similarity_baselines: list = field(default_factory=list)
     #: ⚠ Descriptors ONLY — never the bytes. The species response is JSON and the sprite is a
     #: megabyte of PNG; they travel by different routes on purpose.
@@ -244,13 +260,25 @@ def _load_catalogue_shell(
     # it. One grouped statement over an index, not one per band.
     # ⚠ The gene sums ride in the SAME grouped statement: a second one would be a second read of the
     # same rows, and the cost oracle counts statements.
+    # ⭐ And so do the two footer residual counts, as FILTERed counts over the same rows — from the very
+    # clauses the residual endpoint lists with, so the summary and its list cannot disagree.
     counts = session.execute(
-        select(Locus.prevalence_band, func.count(), func.sum(Locus.member_gene_count))
+        select(
+            Locus.prevalence_band,
+            func.count(),
+            func.sum(Locus.member_gene_count),
+            func.count().filter(esm_only_clause()),
+            func.count().filter(pfam_architecture_not_shared_clause()),
+        )
         .where(Locus.pangenome_id == pangenome.pangenome_id)
         .group_by(Locus.prevalence_band)
     ).all()
-    catalogue.prevalence_census = {band.value: count for band, count, _ in counts}
-    catalogue.prevalence_gene_census = {band.value: int(genes or 0) for band, _, genes in counts}
+    catalogue.prevalence_census = {band.value: count for band, count, *_ in counts}
+    catalogue.prevalence_gene_census = {band.value: int(genes or 0) for band, _, genes, *_ in counts}
+    catalogue.residual_locus_counts = {
+        "esm_only": sum(int(row[3]) for row in counts),
+        "pfam_architecture_not_shared": sum(int(row[4]) for row in counts),
+    }
     for band in PrevalenceBand:
         # ⛔ A band with no loci is `0`, not absent: the page prints every band and an absent key
         # would render as a gap rather than as the measured zero it is.

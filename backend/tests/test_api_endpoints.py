@@ -81,8 +81,10 @@ def test_the_census_carries_every_band_even_the_empty_ones(client):
 def test_the_footer_quotes_the_audit_headline_it_was_given(client):
     headline = client.get("/api/v1/species/ecoli").get_json()["audit_headline"]
     assert headline["n_clusters_total"] == 17_531
-    assert headline["synteny_only_n_clusters"] == 10
-    assert "over_merge_gene_rate" in headline
+    # ⛔ David, 2026-11-26: the retired tiers' keys and the verdict words are no longer served, though the
+    # rows stay STORED (the probe's audit summary holds `synteny_only_n_clusters` 10 and `over_merge_*`).
+    assert not {key for key in headline if key.startswith(("synteny_only", "no_homology", "over_merge",
+                                                            "pfam_conflict", "n_clusters_esm_rescued"))}  # fmt: skip
 
 
 def test_both_representations_ship_with_their_own_gene_pair_floor(client):

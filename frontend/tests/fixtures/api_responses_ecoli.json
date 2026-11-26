@@ -1377,6 +1377,9 @@
      "evidence": {
       "collapse_bucket": "mmseq@0.98",
       "collapse_tier": "mmseq@0.98",
+      "esm_member_similarity_median": null,
+      "esm_member_similarity_p05": null,
+      "mmseqs_group_share": null,
       "resolved_threshold": 0.98,
       "resolved_threshold_is_capped_at_50_members": true,
       "syntenic_a5": 0.5938
@@ -1391,7 +1394,10 @@
      "pfam": {
       "annotated_gene_count": 106,
       "architecture_count": 1,
-      "concordance_class": "single"
+      "architecture_shared": null,
+      "dominant_domain_gene_count": null,
+      "dominant_domains": null,
+      "other_architecture_gene_count": null
      },
      "prevalence_band": "core",
      "similarity": {
@@ -4001,6 +4007,9 @@
      "evidence": {
       "collapse_bucket": "mmseq@0.98",
       "collapse_tier": "mmseq@0.98",
+      "esm_member_similarity_median": null,
+      "esm_member_similarity_p05": null,
+      "mmseqs_group_share": null,
       "resolved_threshold": 0.98,
       "resolved_threshold_is_capped_at_50_members": true,
       "syntenic_a5": 0.1047
@@ -4015,7 +4024,10 @@
      "pfam": {
       "annotated_gene_count": 76,
       "architecture_count": 2,
-      "concordance_class": "same_domains"
+      "architecture_shared": null,
+      "dominant_domain_gene_count": null,
+      "dominant_domains": null,
+      "other_architecture_gene_count": null
      },
      "prevalence_band": "shell",
      "similarity": {
@@ -6166,6 +6178,9 @@
      "evidence": {
       "collapse_bucket": "mmseq@0.98",
       "collapse_tier": "mmseq@0.98",
+      "esm_member_similarity_median": null,
+      "esm_member_similarity_p05": null,
+      "mmseqs_group_share": null,
       "resolved_threshold": 0.98,
       "resolved_threshold_is_capped_at_50_members": true,
       "syntenic_a5": 0.9431
@@ -6180,7 +6195,10 @@
      "pfam": {
       "annotated_gene_count": 103,
       "architecture_count": 1,
-      "concordance_class": "single"
+      "architecture_shared": null,
+      "dominant_domain_gene_count": null,
+      "dominant_domains": null,
+      "other_architecture_gene_count": null
      },
      "prevalence_band": "core",
      "similarity": {
@@ -8570,6 +8588,9 @@
      "evidence": {
       "collapse_bucket": "mmseq@0.98",
       "collapse_tier": "mmseq@0.98",
+      "esm_member_similarity_median": null,
+      "esm_member_similarity_p05": null,
+      "mmseqs_group_share": null,
       "resolved_threshold": 0.98,
       "resolved_threshold_is_capped_at_50_members": true,
       "syntenic_a5": 0.1477
@@ -8584,7 +8605,10 @@
      "pfam": {
       "annotated_gene_count": 143,
       "architecture_count": 1,
-      "concordance_class": "single"
+      "architecture_shared": null,
+      "dominant_domain_gene_count": null,
+      "dominant_domains": null,
+      "other_architecture_gene_count": null
      },
      "prevalence_band": "shell",
      "similarity": {
@@ -10206,6 +10230,9 @@
      "evidence": {
       "collapse_bucket": "mmseq@0.98",
       "collapse_tier": "mmseq@0.98",
+      "esm_member_similarity_median": null,
+      "esm_member_similarity_p05": null,
+      "mmseqs_group_share": null,
       "resolved_threshold": 0.98,
       "resolved_threshold_is_capped_at_50_members": true,
       "syntenic_a5": 1.0
@@ -10220,7 +10247,10 @@
      "pfam": {
       "annotated_gene_count": 100,
       "architecture_count": 1,
-      "concordance_class": "single"
+      "architecture_shared": null,
+      "dominant_domain_gene_count": null,
+      "dominant_domains": null,
+      "other_architecture_gene_count": null
      },
      "prevalence_band": "core",
      "similarity": {
@@ -10623,582 +10653,8 @@
  },
  "recorded_from": "the API test client",
  "residuals": {
-  "grouped_on_context_alone": [
-   {
-    "display_name": "ydcD",
-    "esm_nearest_similarity": 0.973293,
-    "esm_within_similarity": 0.980104,
-    "gene_count": 32,
-    "label": "4976",
-    "pfam_architecture_count": 0,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3523,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "spaO",
-    "esm_nearest_similarity": 0.984875,
-    "esm_within_similarity": 0.974402,
-    "gene_count": 27,
-    "label": "5169",
-    "pfam_architecture_count": 1,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.642,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 5296",
-    "esm_nearest_similarity": 0.983327,
-    "esm_within_similarity": 0.970248,
-    "gene_count": 24,
-    "label": "5296",
-    "pfam_architecture_count": 0,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7778,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 5413",
-    "esm_nearest_similarity": 0.982301,
-    "esm_within_similarity": 0.974522,
-    "gene_count": 22,
-    "label": "5413",
-    "pfam_architecture_count": 0,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.6563,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 5479",
-    "esm_nearest_similarity": 0.985026,
-    "esm_within_similarity": 0.981025,
-    "gene_count": 21,
-    "label": "5479",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.5696,
-    "uniref50_family_count": 6
-   },
-   {
-    "display_name": "yffB",
-    "esm_nearest_similarity": 0.989244,
-    "esm_within_similarity": 0.989427,
-    "gene_count": 20,
-    "label": "5580",
-    "pfam_architecture_count": 0,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3016,
-    "uniref50_family_count": 7
-   },
-   {
-    "display_name": "locus 6764",
-    "esm_nearest_similarity": 0.958058,
-    "esm_within_similarity": 0.943273,
-    "gene_count": 10,
-    "label": "6764",
-    "pfam_architecture_count": 1,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.3954,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "PrgH",
-    "esm_nearest_similarity": 0.984215,
-    "esm_within_similarity": 0.977782,
-    "gene_count": 2,
-    "label": "10252",
-    "pfam_architecture_count": 1,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.6,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 10515",
-    "esm_nearest_similarity": 0.988348,
-    "esm_within_similarity": 0.977522,
-    "gene_count": 2,
-    "label": "10515",
-    "pfam_architecture_count": 0,
-    "prevalence_band": "cloud",
-    "syntenic_a5": null,
-    "uniref50_family_count": 1
-   },
-   {
-    "display_name": "locus 17237",
-    "esm_nearest_similarity": 0.995068,
-    "esm_within_similarity": 0.992676,
-    "gene_count": 8,
-    "label": "17237",
-    "pfam_architecture_count": 1,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 1.0,
-    "uniref50_family_count": 2
-   }
-  ],
-  "pfam_conflicts": [
-   {
-    "display_name": "yjjJ",
-    "esm_nearest_similarity": 0.964511,
-    "esm_within_similarity": 0.968274,
-    "gene_count": 100,
-    "label": "1",
-    "pfam_architecture_count": 4,
-    "prevalence_band": "core",
-    "syntenic_a5": 0.5196,
-    "uniref50_family_count": 5
-   },
-   {
-    "display_name": "wzy",
-    "esm_nearest_similarity": 0.976433,
-    "esm_within_similarity": 0.984692,
-    "gene_count": 92,
-    "label": "3374",
-    "pfam_architecture_count": 4,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.1844,
-    "uniref50_family_count": 29
-   },
-   {
-    "display_name": "ybiA",
-    "esm_nearest_similarity": 0.917738,
-    "esm_within_similarity": 0.963345,
-    "gene_count": 87,
-    "label": "3433",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.9451,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "hokG",
-    "esm_nearest_similarity": 0.992132,
-    "esm_within_similarity": 1.0,
-    "gene_count": 87,
-    "label": "3435",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.6859,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 3976",
-    "esm_nearest_similarity": 0.918522,
-    "esm_within_similarity": 1.0,
-    "gene_count": 52,
-    "label": "3976",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.9099,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "gam",
-    "esm_nearest_similarity": 0.983634,
-    "esm_within_similarity": 0.999725,
-    "gene_count": 49,
-    "label": "4056",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7024,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 4064",
-    "esm_nearest_similarity": 0.976432,
-    "esm_within_similarity": 0.999543,
-    "gene_count": 48,
-    "label": "4064",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.4558,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "ymjC",
-    "esm_nearest_similarity": 0.914753,
-    "esm_within_similarity": 0.989964,
-    "gene_count": 47,
-    "label": "4105",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7049,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "waaU",
-    "esm_nearest_similarity": 0.994923,
-    "esm_within_similarity": 1.0,
-    "gene_count": 47,
-    "label": "4106",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.8822,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "nanK2",
-    "esm_nearest_similarity": 0.928523,
-    "esm_within_similarity": 1.0,
-    "gene_count": 44,
-    "label": "4193",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.641,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "yagP",
-    "esm_nearest_similarity": 0.929806,
-    "esm_within_similarity": 0.999703,
-    "gene_count": 43,
-    "label": "4220",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.529,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 4379",
-    "esm_nearest_similarity": 0.900953,
-    "esm_within_similarity": 0.947066,
-    "gene_count": 39,
-    "label": "4379",
-    "pfam_architecture_count": 4,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7042,
-    "uniref50_family_count": 7
-   },
-   {
-    "display_name": "locus 4382",
-    "esm_nearest_similarity": 0.946055,
-    "esm_within_similarity": 1.0,
-    "gene_count": 39,
-    "label": "4382",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7237,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "ylbF",
-    "esm_nearest_similarity": 0.985485,
-    "esm_within_similarity": 0.985463,
-    "gene_count": 36,
-    "label": "4567",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3989,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 4568",
-    "esm_nearest_similarity": 0.962042,
-    "esm_within_similarity": 0.990095,
-    "gene_count": 36,
-    "label": "4568",
-    "pfam_architecture_count": 5,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.561,
-    "uniref50_family_count": 8
-   },
-   {
-    "display_name": "ret",
-    "esm_nearest_similarity": 0.968155,
-    "esm_within_similarity": 1.0,
-    "gene_count": 36,
-    "label": "4571",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.9133,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 4707",
-    "esm_nearest_similarity": 0.956323,
-    "esm_within_similarity": 1.0,
-    "gene_count": 35,
-    "label": "4707",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.9713,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "papB",
-    "esm_nearest_similarity": 0.975885,
-    "esm_within_similarity": 0.97691,
-    "gene_count": 32,
-    "label": "4977",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.2288,
-    "uniref50_family_count": 7
-   },
-   {
-    "display_name": "yagA",
-    "esm_nearest_similarity": 0.979991,
-    "esm_within_similarity": 0.989927,
-    "gene_count": 29,
-    "label": "5102",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3442,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 5479",
-    "esm_nearest_similarity": 0.985026,
-    "esm_within_similarity": 0.981025,
-    "gene_count": 21,
-    "label": "5479",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.5696,
-    "uniref50_family_count": 6
-   },
-   {
-    "display_name": "kfiD",
-    "esm_nearest_similarity": 0.970359,
-    "esm_within_similarity": 0.987173,
-    "gene_count": 21,
-    "label": "5492",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.4164,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 5563",
-    "esm_nearest_similarity": 0.984382,
-    "esm_within_similarity": 0.56996,
-    "gene_count": 20,
-    "label": "5563",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.9315,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "tnp",
-    "esm_nearest_similarity": 0.947624,
-    "esm_within_similarity": 1.000001,
-    "gene_count": 20,
-    "label": "5573",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.4822,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 5583",
-    "esm_nearest_similarity": 0.986435,
-    "esm_within_similarity": 0.98725,
-    "gene_count": 20,
-    "label": "5583",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.508,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 5616",
-    "esm_nearest_similarity": 0.963806,
-    "esm_within_similarity": 0.983749,
-    "gene_count": 19,
-    "label": "5616",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.4349,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "deoR",
-    "esm_nearest_similarity": 0.935493,
-    "esm_within_similarity": 0.954448,
-    "gene_count": 18,
-    "label": "5673",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.5379,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "rloB",
-    "esm_nearest_similarity": 0.958929,
-    "esm_within_similarity": 0.977205,
-    "gene_count": 17,
-    "label": "5727",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3252,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "rfbG",
-    "esm_nearest_similarity": 0.967446,
-    "esm_within_similarity": 0.954243,
-    "gene_count": 16,
-    "label": "5839",
-    "pfam_architecture_count": 4,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.3315,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 5841",
-    "esm_nearest_similarity": 0.979376,
-    "esm_within_similarity": 0.97849,
-    "gene_count": 16,
-    "label": "5841",
-    "pfam_architecture_count": 5,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.2351,
-    "uniref50_family_count": 8
-   },
-   {
-    "display_name": "locus 5849",
-    "esm_nearest_similarity": 0.971256,
-    "esm_within_similarity": 0.985428,
-    "gene_count": 16,
-    "label": "5849",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.6109,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "finQ",
-    "esm_nearest_similarity": 0.976721,
-    "esm_within_similarity": 0.996246,
-    "gene_count": 16,
-    "label": "5858",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.7164,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "araC",
-    "esm_nearest_similarity": 0.95881,
-    "esm_within_similarity": 0.999901,
-    "gene_count": 15,
-    "label": "5988",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "shell",
-    "syntenic_a5": 0.6223,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "insB",
-    "esm_nearest_similarity": 0.936491,
-    "esm_within_similarity": 0.999001,
-    "gene_count": 14,
-    "label": "6119",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.5047,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 6269",
-    "esm_nearest_similarity": 0.959464,
-    "esm_within_similarity": 1.0,
-    "gene_count": 13,
-    "label": "6269",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.6058,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 6418",
-    "esm_nearest_similarity": 0.966768,
-    "esm_within_similarity": 0.970338,
-    "gene_count": 12,
-    "label": "6418",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.2416,
-    "uniref50_family_count": 5
-   },
-   {
-    "display_name": "mrr",
-    "esm_nearest_similarity": 0.971222,
-    "esm_within_similarity": 0.980684,
-    "gene_count": 12,
-    "label": "6449",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.2565,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "locus 6566",
-    "esm_nearest_similarity": 0.963345,
-    "esm_within_similarity": 1.0,
-    "gene_count": 11,
-    "label": "6566",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.5537,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 7058",
-    "esm_nearest_similarity": 0.981228,
-    "esm_within_similarity": 0.977009,
-    "gene_count": 9,
-    "label": "7058",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.5349,
-    "uniref50_family_count": 3
-   },
-   {
-    "display_name": "aMBF1",
-    "esm_nearest_similarity": 0.98107,
-    "esm_within_similarity": 0.987485,
-    "gene_count": 6,
-    "label": "7778",
-    "pfam_architecture_count": 3,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.3867,
-    "uniref50_family_count": 4
-   },
-   {
-    "display_name": "locus 8044",
-    "esm_nearest_similarity": 0.975611,
-    "esm_within_similarity": 0.980339,
-    "gene_count": 5,
-    "label": "8044",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.5015,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "locus 9002",
-    "esm_nearest_similarity": 0.987396,
-    "esm_within_similarity": 0.982339,
-    "gene_count": 3,
-    "label": "9002",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.5556,
-    "uniref50_family_count": 2
-   },
-   {
-    "display_name": "yeeT",
-    "esm_nearest_similarity": 0.990077,
-    "esm_within_similarity": 0.988392,
-    "gene_count": 11,
-    "label": "17308",
-    "pfam_architecture_count": 2,
-    "prevalence_band": "cloud",
-    "syntenic_a5": 0.2384,
-    "uniref50_family_count": 3
-   }
-  ]
+  "esm_only": [],
+  "pfam_architecture_not_shared": []
  },
  "search": {
   "ligase": {
@@ -11629,27 +11085,12 @@
  },
  "species": {
   "audit_headline": {
-   "esm_rescued_gene_num": 982.0,
    "family_split_across_clusters_n_families": 1810.0,
-   "n_clusters_esm_rescued": 138.0,
    "n_clusters_total": 17531.0,
    "n_genes_total": 489146.0,
    "n_singleton_clusters": 5427.0,
-   "no_homology_gene_rate": 0.0,
-   "no_homology_n_clusters": 0.0,
-   "no_homology_n_genes": 0.0,
-   "over_merge_gene_rate": 0.000343,
-   "over_merge_gene_rate_num": 168.0,
-   "pfam_conflict_gene_rate": 0.002676,
-   "pfam_conflict_n_clusters": 42.0,
-   "pfam_conflict_n_genes": 1309.0,
-   "pfam_judgeable_n_clusters": 9297.0,
-   "pfam_no_coverage_n_clusters": 5125.0,
    "split_gene_rate": 0.034988,
-   "split_gene_rate_excl_singletons": 0.032587,
-   "synteny_only_gene_rate": 0.000343,
-   "synteny_only_n_clusters": 10.0,
-   "synteny_only_n_genes": 168.0
+   "split_gene_rate_excl_singletons": 0.032587
   },
   "example_loci": [
    "5617",
@@ -11717,6 +11158,10 @@
    "rare": 5490,
    "shell": 117141,
    "soft_core": 26027
+  },
+  "residual_locus_counts": {
+   "esm_only": 0,
+   "pfam_architecture_not_shared": 0
   },
   "similarity_baselines": [
    {

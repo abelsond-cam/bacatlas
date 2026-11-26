@@ -7,6 +7,8 @@ from __future__ import annotations
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
+    CheckConstraint,
     ForeignKey,
     Index,
     Integer,
@@ -24,6 +26,7 @@ from bacatlas_backend.models.enumerations import (
     PrevalenceBand,
     PropagationVerdict,
 )
+from bacatlas_backend.models.served_locus_annotation import COSINE_BOUND
 
 
 class Locus(Base):
@@ -65,6 +68,32 @@ class Locus(Base):
             "resolved_threshold",
             "seqid_coverage",
             "interest_score",
+        ),
+        # ── the 2026-11-26 audit facts (see the block of columns they guard) ──────────────────
+        # ⚠ No `nan_guards` for these three floats, and the omission is measured rather than
+        # forgotten — the same reasoning as `served_locus_annotation`: Postgres orders NaN ABOVE every
+        # number, so `NaN BETWEEN 0 AND 1` is FALSE and each range CHECK below already refuses a NaN
+        # (`test_schema_constraints` inserts one into each and expects the refusal).
+        CheckConstraint(
+            "mmseqs_group_share IS NULL OR mmseqs_group_share BETWEEN 0 AND 1",
+            name="mmseqs_group_share_is_a_share",
+        ),
+        CheckConstraint(
+            f"(esm_member_similarity_p05 IS NULL OR esm_member_similarity_p05 BETWEEN -{COSINE_BOUND} AND "
+            f"{COSINE_BOUND}) AND (esm_member_similarity_median IS NULL OR esm_member_similarity_median "
+            f"BETWEEN -{COSINE_BOUND} AND {COSINE_BOUND})",
+            name="esm_member_similarities_are_cosines",
+        ),
+        CheckConstraint(
+            "(pfam_dominant_domain_gene_count IS NULL OR pfam_dominant_domain_gene_count >= 0) AND "
+            "(pfam_other_architecture_gene_count IS NULL OR pfam_other_architecture_gene_count >= 0)",
+            name="pfam_architecture_counts_are_counts",
+        ),
+        CheckConstraint(
+            "pfam_dominant_domain_gene_count IS NULL OR pfam_other_architecture_gene_count IS NULL "
+            "OR pfam_annotated_member_count IS NULL OR pfam_dominant_domain_gene_count + "
+            "pfam_other_architecture_gene_count <= pfam_annotated_member_count",
+            name="pfam_architectures_within_annotated",
         ),
     )
 
@@ -133,9 +162,27 @@ class Locus(Base):
     #: ⛔ The audit's own `class_clan` verdict, **read and never re-derived**. The page once
     #: re-derived it by a different rule and disagreed on 2 of 22,624 loci — *"a page that quotes
     #: the report must not be able to contradict it, ever."*
+    #:
+    #: ⚠ **Stored, and no longer shown or ranked on (David, 2026-11-26).** At 71,435 genomes a pairwise
+    #: clan verdict was decided by stray genes — kp-71k locus 4008, PF14052 on 69,825 of 69,884 genes,
+    #: read "conflicting architecture" — so the page states the four counts below instead.
     pfam_concordance_class: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    #: ⭐ **The 2026-11-26 Pfam facts — counts over ALL the locus's genes, never a verdict word.**
+    #: The commonest domain SET (accessions sorted and comma-joined; order and repeat count ignored),
+    #: and how many genes carry exactly it. `""` is MEASURED — no gene here is annotated — and is kept
+    #: apart from NULL, which is *a catalogue audited before 2026-11-26*, where none of these exist.
+    pfam_dominant_domains: Mapped[str | None] = mapped_column(Text, nullable=True)
+    pfam_dominant_domain_gene_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: Annotated genes on ANY OTHER domain set. ⛔ Not the unannotated ones: `member_gene_count −
+    #: pfam_annotated_member_count` is "no Pfam", a different fact the page states separately.
+    pfam_other_architecture_gene_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    #: The audit's own `pfam_shared` — the dominant set on MORE THAN 95 % of ALL genes
+    #: (`dominant_domain_share > 0.95`). Read, never re-derived; the page shows it as a number only.
+    pfam_architecture_shared: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
 
     # ── evidence ──────────────────────────────────────────────────────────────────────────────
+    # ⚠ **Since the 2026-11-26 audit the 50 are a UNIFORM sample, not the 50 longest**; the measured
+    # figures below are from the earlier, longest-first audit.
     # ⛔⛔ **THE THREE COLUMNS BELOW ARE COMPUTED OVER AT MOST 50 MEMBERS, NOT OVER THE LOCUS.**
     # `accessory_audit.FAMILY_MEMBER_CAP = 50`, longest-first: the within-cluster all-vs-all is
     # quadratic in members, so each cluster is capped to bound the cost. Measured on the published
@@ -146,14 +193,26 @@ class Locus(Base):
     # ⚠ `member_gene_count` above is NOT affected: it comes from the assignment via
     # `node_membership_profile`, never from the waterfall. Do not fill it from the audit.
     syntenic_a5: Mapped[float | None] = measurement()
-    #: `mmseq@0.4`, `pfam_not_alignable`, `esm_homology`, `synteny_only`, … ⚠ `synteny only` names
-    #: the EVIDENCE, not a mistake: non-homologous cargo in a genuinely conserved neighbourhood is
-    #: what an identity threshold cannot see, and the reason the method exists.
+    #: ⭐ **The 2026-11-26 ladder** — one tier per non-singleton locus, mutually exclusive, in order:
+    #: `mmseq@{t}` (at least 95 % of the sampled members in one connected component of MMseqs hits at
+    #: identity ≥ t) → `alignable_not_grouped` (at least 95 % join at MMseqs' permissive floor, E ≤ 1e-3
+    #: and coverage ≥ 0.5, but at no identity rung down to 30 %) → `pfam_shared` → `esm_only`.
+    #: Singletons have none. ⚠ Catalogues audited earlier still carry the retired tokens
+    #: (`synteny_only`, `no_homology`, `pfam_not_alignable`, `esm_homology`); they are stored verbatim
+    #: and the page renders an unknown token neutrally, as the raw token.
     collapse_tier: Mapped[str | None] = mapped_column(String(64), nullable=True)
     collapse_bucket: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    #: ⚠ Over ≤50 longest members — see the block above.
+    #: ⚠ Over the sampled members — see the block above.
     resolved_threshold: Mapped[float | None] = measurement()
+    #: ⭐ The audit's `resolved_share`: the largest component's share of the sampled members at
+    #: `resolved_threshold` — the number the page quotes beside the rung. NULL where there is no rung.
+    mmseqs_group_share: Mapped[float | None] = measurement()
     seqid_coverage: Mapped[float | None] = measurement()
+    #: ⭐ The 5th percentile and the median of member → medoid ESM cosine — what the page quotes when
+    #: neither MMseqs nor a shared Pfam architecture groups the locus ("95 % of members have ESM
+    #: cosine ≥ p05 to the locus medoid"). NULL where the locus has no ESM medoid.
+    esm_member_similarity_p05: Mapped[float | None] = measurement()
+    esm_member_similarity_median: Mapped[float | None] = measurement()
 
     # ── the representative member ─────────────────────────────────────────────────────────────
     #: ⛔ The four `*_medoid_distance` columns, `embed_within_over_nearest` and the two

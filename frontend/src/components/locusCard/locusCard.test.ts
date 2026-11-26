@@ -69,13 +69,24 @@ function locus(overrides: Partial<Locus> = {}): Locus {
       impurity: 0.12,
       coverage: 0.95,
     },
-    pfam: { annotated_gene_count: 90, architecture_count: 2, concordance_class: "nested" },
+    pfam: {
+      annotated_gene_count: 90,
+      architecture_count: 2,
+      dominant_domains: "PF00126,PF03466",
+      dominant_domain_gene_count: 82,
+      other_architecture_gene_count: 8,
+      architecture_shared: false,
+    },
     evidence: {
       syntenic_a5: 0.91,
       collapse_tier: "mmseq@0.98",
       collapse_bucket: null,
       resolved_threshold: 0.98,
       resolved_threshold_is_capped_at_50_members: false,
+      // ⚠ NOT equal to the rung: a share of 0.96 at the 98% rung, so the sentence cannot swap the two.
+      mmseqs_group_share: 0.96,
+      esm_member_similarity_p05: 0.9126,
+      esm_member_similarity_median: 0.9671,
     },
     similarity: { esm: similarity(), bacformer: similarity() },
     interest_score: 0.5,
@@ -148,10 +159,24 @@ describe("⭐ the headline — what it is, then how good it is", () => {
       evidence: { ...locus().evidence, resolved_threshold_is_capped_at_50_members: true },
     });
     const title = capped.findAll(".tile")[2]!.attributes("title")!;
+    // ⭐ A 2026-11-26 audit: the sample is UNIFORM and the rung needs 95 % of it, and the title says both.
+    expect(title).toBe(
+      "At least 95% of the sampled members — here 96% — group into one MMseqs component once the identity " +
+        "threshold falls to 98%. ⚠ A uniform sample of up to 50 member genes, not all 100.",
+    );
+    // …and it is NOT claimed where it does not apply.
+    expect(mountHeadline().findAll(".tile")[2]!.attributes("title")).not.toContain("up to 50");
+  });
+
+  it("⛔ an OLDER catalogue's rung keeps its own definition — the 50 longest, all grouping", () => {
+    // No share means the audit predates 2026-11-26, when the rung was the first 50 members grouping.
+    const older = mountHeadline({
+      evidence: { ...locus().evidence, resolved_threshold_is_capped_at_50_members: true, mmseqs_group_share: null },
+    });
+    const title = older.findAll(".tile")[2]!.attributes("title")!;
     expect(title).toContain("first 50 member genes");
     expect(title).toContain("not all 100");
-    // …and it is NOT claimed where it does not apply.
-    expect(mountHeadline().findAll(".tile")[2]!.attributes("title")).not.toContain("first 50");
+    expect(title).not.toContain("uniform sample");
   });
 
   it("⛔ tells the two NO-THRESHOLD cases apart — they are opposite findings, not one dash", () => {
@@ -166,11 +191,17 @@ describe("⭐ the headline — what it is, then how good it is", () => {
     expect(singleton.findAll(".tile")[2]!.attributes("title")).toContain("no pair to align");
 
     const unaligned = mountHeadline({
-      evidence: { ...locus().evidence, resolved_threshold: null, collapse_tier: "esm_homology" },
+      evidence: { ...locus().evidence, resolved_threshold: null, collapse_tier: "esm_only" },
     });
-    const title = unaligned.findAll(".tile")[2]!.attributes("title")!;
-    expect(title).toContain("never grouped these members at any threshold");
-    expect(title).toContain("esm_homology");
+    expect(unaligned.findAll(".tile")[2]!.attributes("title")).toBe(
+      "MMseqs grouped these members at no identity threshold on the ladder — see the evidence card: grouped " +
+        "by neither MMseqs nor Pfam.",
+    );
+    // ⛔ A retired token is named as itself, never described (David, 2026-11-26).
+    const older = mountHeadline({
+      evidence: { ...locus().evidence, resolved_threshold: null, collapse_tier: "synteny_only" },
+    });
+    expect(older.findAll(".tile")[2]!.attributes("title")).toContain("see the evidence card: synteny_only.");
   });
 
   it("⛔ prints `—` where a number was never measured, never 0", () => {
@@ -498,35 +529,89 @@ describe("the naming line", () => {
   });
 });
 
-describe("⛔ the two verdicts, both READ and neither re-derived", () => {
-  it("chips the collapse tier and the Pfam class side by side", () => {
-    const chips = mountDiversity().findAll(".chip-row .chip");
-    expect(chips.map((n) => n.text())).toEqual([
-      "holds together at 98% identity",
-      "partial annotation",
-    ]);
-  });
+/** The pre-2026-11-26 Pfam block: no dominant set was ever measured, so all four facts are null. */
+const OLDER_PFAM = {
+  dominant_domains: null,
+  dominant_domain_gene_count: null,
+  other_architecture_gene_count: null,
+  architecture_shared: null,
+} as const;
 
-  it("⚠ calls `nested` partial annotation and says so under the chip", () => {
-    expect(mountDiversity().find(".verdict-note").text()).toContain(
-      "Absent evidence, not conflicting evidence",
+/** ⛔ Every sentence the page must never say again (David, 2026-11-26). */
+const RETIRED_WORDING = /no homology|over-merge|grouped on context alone|conflicting|contested|evidence against/i;
+
+describe("⭐ the audit's numbers, never its verdicts (David, 2026-11-26)", () => {
+  it("one neutral chip and ONE sentence for the tier — the share and the rung, each in its place", () => {
+    const card = mountDiversity();
+    const chips = card.findAll(".chip-row .chip");
+    expect(chips.map((n) => n.text())).toEqual(["groups at 98% identity"]);
+    expect(chips[0]!.classes()).toContain("neutral");
+    expect(card.find(".tier-sentence").text()).toBe(
+      "96% of sampled members (a uniform sample of up to 50) group at 98% identity by MMseqs.",
     );
   });
 
-  it("⛔ shows NO Pfam chip where no gene carries a domain — a verdict needs coverage", () => {
-    const card = mountDiversity({
-      locus: { pfam: { annotated_gene_count: 0, architecture_count: 0, concordance_class: "single" } },
-    });
-    expect(card.findAll(".chip-row .chip").map((n) => n.text())).toEqual([
-      "holds together at 98% identity",
-    ]);
+  it("⛔ NO Pfam class chip, no note under it, and no coloured rail on the card", () => {
+    const card = mountDiversity();
+    expect(card.findAll(".chip-row .chip")).toHaveLength(1);
     expect(card.find(".verdict-note").exists()).toBe(false);
+    expect(card.classes().filter((name) => name.startsWith("pf-"))).toEqual([]);
+  });
+
+  it("pfam_shared names the domain set by its family and quotes its share of ALL genes", () => {
+    const card = mountDiversity({
+      locus: {
+        evidence: { ...locus().evidence, collapse_tier: "pfam_shared", resolved_threshold: null, mmseqs_group_share: null },
+        pfam: { annotated_gene_count: 99, architecture_count: 2, dominant_domains: "PF00126,PF03466",
+                dominant_domain_gene_count: 97, other_architecture_gene_count: 2, architecture_shared: true },
+      },
+    });
+    expect(card.find(".tier-sentence").text()).toBe(
+      "Cannot be grouped by MMseqs at any sequence identity; 97% of its genes share one Pfam architecture: " +
+        `PF00126 (${PFAM_REFERENCE["PF00126"]!.short_name}) + PF03466 (${PFAM_REFERENCE["PF03466"]!.short_name}).`,
+    );
+  });
+
+  it("esm_only quotes the ESM bound and its median", () => {
+    const card = mountDiversity({
+      locus: { evidence: { ...locus().evidence, collapse_tier: "esm_only", resolved_threshold: null, mmseqs_group_share: null } },
+    });
+    expect(card.find(".tier-sentence").text()).toBe(
+      "Cannot be grouped by MMseqs at any sequence identity, and no more than 95% of its genes share one Pfam " +
+        "architecture. ESM: 95% of members have cosine ≥ 0.912 to the locus medoid (median 0.967).",
+    );
+  });
+
+  it("⛔ an UNKNOWN or retired tier is a neutral chip of its raw token, with no sentence at all", () => {
+    const card = mountDiversity({ locus: { evidence: { ...locus().evidence, collapse_tier: "synteny_only" } } });
+    expect(card.findAll(".chip-row .chip").map((n) => n.text())).toEqual(["synteny_only"]);
+    expect(card.find(".tier-sentence").exists()).toBe(false);
+  });
+
+  it("⛔ no tier, old or new, puts a retired sentence anywhere on the card", () => {
+    for (const tier of ["mmseq@0.3", "alignable_not_grouped", "pfam_shared", "esm_only", "synteny_only",
+                        "no_homology", "pfam_not_alignable", "esm_homology"]) {
+      for (const pfam of [locus().pfam, { ...locus().pfam, ...OLDER_PFAM }]) {
+        const card = mountDiversity({ locus: { pfam, evidence: { ...locus().evidence, collapse_tier: tier } } });
+        expect(card.text()).not.toMatch(RETIRED_WORDING);
+      }
+    }
   });
 });
 
 describe("⛔ Pfam coverage is stated AS COVERAGE", () => {
-  it("says the unannotated remainder is absent evidence, not a competing architecture", () => {
+  it("⭐ states the dominant set, the other architectures and no Pfam — numbers over ALL genes", () => {
     expect(mountDiversity().findAll(".muted").at(-1)!.text()).toBe(
+      `Pfam: 82% of genes carry PF00126 (${PFAM_REFERENCE["PF00126"]!.short_name}) + PF03466 ` +
+        `(${PFAM_REFERENCE["PF03466"]!.short_name}) · 8% other architectures · 10% no Pfam domain.`,
+    );
+  });
+
+  it("⚠ an OLDER catalogue keeps its coverage sentence — absent evidence, not a competing architecture", () => {
+    const card = mountDiversity({
+      locus: { pfam: { annotated_gene_count: 90, architecture_count: 2, ...OLDER_PFAM } },
+    });
+    expect(card.findAll(".muted").at(-1)!.text()).toBe(
       "90 of 100 genes carry a Pfam-A domain; the other 10 carry none at all — absent annotation, " +
         "not a competing architecture · 2 architectures across the locus.",
     );
@@ -534,7 +619,8 @@ describe("⛔ Pfam coverage is stated AS COVERAGE", () => {
 
   it("says Pfam can neither support nor contradict where it has no coverage", () => {
     const card = mountDiversity({
-      locus: { pfam: { annotated_gene_count: 0, architecture_count: 0, concordance_class: null } },
+      locus: { pfam: { annotated_gene_count: 0, architecture_count: 0, dominant_domains: "",
+                       dominant_domain_gene_count: 0, other_architecture_gene_count: 0, architecture_shared: false } },
     });
     expect(card.findAll(".muted").at(-1)!.text()).toBe(
       "None of these 100 genes carries a Pfam-A domain — Pfam has no coverage here, so it can " +
@@ -542,9 +628,9 @@ describe("⛔ Pfam coverage is stated AS COVERAGE", () => {
     );
   });
 
-  it("⚠ names how many architectures are LISTED when the locus has more", () => {
+  it("⚠ names how many architectures are LISTED when the locus has more (an older catalogue)", () => {
     const card = mountDiversity({
-      locus: { pfam: { annotated_gene_count: 100, architecture_count: 9, concordance_class: "nested" } },
+      locus: { pfam: { annotated_gene_count: 100, architecture_count: 9, ...OLDER_PFAM } },
       listedArchitectureCount: 5,
     });
     expect(card.findAll(".muted").at(-1)!.text()).toBe(

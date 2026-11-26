@@ -322,16 +322,33 @@ export interface Locus {
     /** ⛔ `gene_count − this` is MISSING COVERAGE, not a competing architecture. */
     readonly annotated_gene_count: number;
     readonly architecture_count: number;
-    /** ⛔ The audit's own verdict, READ and never re-derived — the page once disagreed on 2 of 22,624. */
-    readonly concordance_class: string | null;
+    /*
+     * ⛔ `concordance_class` LEFT THE WIRE (shape 9, David's 2026-11-26 ruling): the clan verdict was decided
+     * by stray genes at 71,435 genomes. The four facts below replace it — numbers, never a verdict word —
+     * and all four are `null` on a catalogue audited before 2026-11-26.
+     */
+    /** The commonest domain SET, accessions sorted and comma-joined. ⚠ `""` = no gene annotated (measured). */
+    readonly dominant_domains: string | null;
+    /** Genes carrying exactly that set — over ALL the locus's genes, not the annotated ones. */
+    readonly dominant_domain_gene_count: number | null;
+    /** Annotated genes on any OTHER set. ⛔ Not the unannotated ones: those are "no Pfam". */
+    readonly other_architecture_gene_count: number | null;
+    /** The audit's own "more than 95 % of genes carry the dominant set". Shown as a number, never a chip. */
+    readonly architecture_shared: boolean | null;
   };
   readonly evidence: {
     readonly syntenic_a5: number | null;
+    /** The 2026-11-26 ladder: `mmseq@{t}` → `alignable_not_grouped` → `pfam_shared` → `esm_only`. */
     readonly collapse_tier: string | null;
     readonly collapse_bucket: string | null;
-    /** ⚠ "the identity at which the 50 LONGEST members first group" — weaker than the whole locus. */
+    /** ⚠ "the identity at which at least 95 % of the SAMPLED members group" — weaker than the whole locus. */
     readonly resolved_threshold: number | null;
     readonly resolved_threshold_is_capped_at_50_members: boolean;
+    /** That rung's own share of the sampled members. `null` before 2026-11-26, and where there is no rung. */
+    readonly mmseqs_group_share: number | null;
+    /** The 5th percentile / median of member → medoid ESM cosine. `null` where there is no ESM medoid. */
+    readonly esm_member_similarity_p05: number | null;
+    readonly esm_member_similarity_median: number | null;
   };
   /**
    * ⛔ **`null` for a representation with no row at all**, which is not the same absence as a row
@@ -835,6 +852,8 @@ export interface SpeciesCatalogueResponse {
   readonly prevalence_gene_census: Readonly<Record<PrevalenceBand, number>>;
   /** Read verbatim from the audit summary at ingest. Keys absent from an older summary are absent here. */
   readonly audit_headline: Readonly<Record<string, number | string | null>>;
+  /** ⭐ How long each footer residual list is — `0` on a catalogue audited before 2026-11-26. */
+  readonly residual_locus_counts: ResidualLocusCounts;
   readonly similarity_baselines: readonly SimilarityBaseline[];
   readonly landing_locus: string | null;
   readonly example_loci: readonly string[];
@@ -1011,6 +1030,10 @@ export interface ResidualLocusRow {
   readonly uniref50_family_count: number | null;
   /** `null` where Pfam could not judge the locus — not "no architectures". */
   readonly pfam_architecture_count: number | null;
+  /** Genes on the commonest Pfam domain set, of `gene_count` — `null` before the 2026-11-26 audit. */
+  readonly pfam_dominant_domain_gene_count: number | null;
+  /** The ESM number the card quotes for an `esm_only` locus — `null` where there is no ESM medoid. */
+  readonly esm_member_similarity_p05: number | null;
   readonly syntenic_a5: number | null;
   /**
    * ⛔ **SIMILARITIES, and nothing is left to convert.** These were medoid DISTANCES and the footer
@@ -1023,11 +1046,18 @@ export interface ResidualLocusRow {
 }
 
 /**
- * `GET /species/{key}/audit/residual-loci` — ⛔ TWO lists, never merged: grouped on context alone is
- * a statement about the evidence, a Pfam conflict is evidence against the merge, and neither is a
- * verdict. A locus can be in both, and then appears in both.
+ * `GET /species/{key}/audit/residual-loci` — ⛔ TWO lists of measured facts (David, 2026-11-26), never
+ * merged and never a verdict: the loci grouped by neither MMseqs nor a shared Pfam architecture
+ * (`esm_only`), and the loci with members and Pfam where at most 95 % of genes share one architecture. A
+ * locus can be in both, and then appears in both. Their lengths ride on the shell as `residual_locus_counts`.
  */
 export interface AuditResidualsResponse {
-  readonly grouped_on_context_alone: readonly ResidualLocusRow[];
-  readonly pfam_conflicts: readonly ResidualLocusRow[];
+  readonly esm_only: readonly ResidualLocusRow[];
+  readonly pfam_architecture_not_shared: readonly ResidualLocusRow[];
+}
+
+/** The shell's count of each residual list, from the same clauses the list endpoint selects with. */
+export interface ResidualLocusCounts {
+  readonly esm_only: number;
+  readonly pfam_architecture_not_shared: number;
 }

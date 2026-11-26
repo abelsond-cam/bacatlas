@@ -1,189 +1,195 @@
 /**
- * The two verdict vocabularies the locus card chips: the **collapse tier** (how the members hold
- * together by sequence) and the **Pfam concordance class** (what Pfam makes of them).
+ * What the locus card says about how a locus holds together — **the audit's numbers, never its verdicts.**
  *
- * ⛔ **Both are READ, never re-derived.** `app.js:3208` records that the page once re-derived the
- * Pfam verdict by a different rule — every architecture against the first, where the audit's
- * `worst_relation` compares all PAIRS and drops non-maximal sets — and the two disagreed on 2 of
- * 22,624 loci. *"A page that quotes the report must not be able to contradict it, ever."* What is
- * here is the **vocabulary**: what each class is called and how loudly to say it. The class itself
- * arrives in the response.
+ * ⭐ **David's ruling of 2026-11-26.** At 71,435 genomes the audit's per-locus verdicts were decided by
+ * stray genes: kp-71k locus 4008 (Wzi — PF14052 on 69,825 of 69,884 genes) was shown as *"grouped on
+ * context alone — Unalignable, no Pfam, no ESM homology … the over-merge the audit exists to count"* and
+ * *"conflicting architecture … evidence AGAINST this merge"*. Those were audit bugs. The page now never
+ * says "no homology", "over-merge", "grouped on context alone", "conflicting" or "contested"; it states
+ * three measured facts instead, one sentence per tier of the redesigned ladder:
  *
- * ⚠ Only `disjoint` is the §6.2 conflict. `nested` is the signature of PARTIAL annotation, which is
- * absent evidence and must never be dressed as disagreement.
+ * 1. **MMseqs** — a locus *groups at t % identity* when at least 95 % of its sampled members (a uniform
+ *    sample of up to 50) fall in one connected component of MMseqs hits at identity ≥ t.
+ * 2. **Pfam** — *one Pfam architecture is shared* when MORE THAN 95 % of ALL the locus's genes carry the
+ *    same domain set (order and repeat count ignored). Under that, numbers only — no verdict word.
+ * 3. **ESM** — when neither groups it, the 5th percentile of member → medoid ESM cosine, median beside it.
+ *
+ * The ladder, one tier per non-singleton locus, in order: `mmseq@{t}` → `alignable_not_grouped` →
+ * `pfam_shared` → `esm_only`. ⛔ An UNKNOWN token — including the retired `synteny_only`, `no_homology`,
+ * `pfam_not_alignable` and `esm_homology` an older catalogue still carries — renders as itself, neutrally,
+ * with no sentence: the token is a real record, and no wording here describes it any more.
+ *
+ * ⛔ **SUPERSEDED (David, 2026-11-26).** This file used to carry a "SETTLED, do not re-raise (David,
+ * 2026-09-13)" note keeping the published page's `synteny_only` wording — *"the over-merge the audit exists
+ * to count"*. The 2026-11-26 ruling replaces it: that wording, the tier vocabulary it belonged to and the
+ * Pfam class chips (`PFAM_VERDICTS`) are gone from the card.
  */
-
-/** How loudly a chip speaks. `neutral` is a real value — it is not "no verdict". */
-export type VerdictTone = "win" | "neutral" | "warn" | "bad";
-
-export interface Verdict {
-  readonly tone: VerdictTone;
-  /** The chip's own words. */
-  readonly label: string;
-  /** The sentence under it. Empty where the chip says everything there is to say. */
-  readonly note: string;
-}
+import type { Locus, PfamFamilyReference } from "@/api/types";
+import { percentKeepingSide } from "@/lib/formatting";
 
 /**
- * ⚠ **`synteny_only`'s wording is the published page's, and stays that way — SETTLED, do not
- * re-raise (David, 2026-09-13).**
- *
- * Its note calls the tier *"the over-merge the audit exists to count"*, which reads against
- * `CLAUDE.md`'s later position that *"`synteny only` names the evidence, NOT a mistake"* (David,
- * 2026-08-18). Asked directly, David ruled: **not relevant to the backend rebuild, not a porting
- * decision, and not a major discrepancy — leave it.** The rebuild's job here is to carry the page
- * across faithfully; re-wording the science it states is a separate piece of work on a separate
- * day. This note exists so the next reader who spots the tension finds the answer rather than
- * re-opening it.
+ * ⛔ **The thresholds the sentences state, as literals** — and the ingest refuses any catalogue whose audit
+ * summary records other values (`catalogue_frames.PAGE_STATED_AUDIT_THRESHOLDS`), so these words cannot go
+ * on stating a number the audit did not use.
  */
-export const COLLAPSE_TIERS: Readonly<Record<string, Verdict>> = {
-  pfam_not_alignable: {
-    tone: "win",
-    label: "never aligns · shared Pfam architecture",
-    note:
-      "MMseqs cannot align these members at all, yet they share a Pfam domain architecture — " +
-      "homologous, not an over-merge.",
-  },
-  esm_homology: {
-    tone: "win",
-    label: "never aligns · ESM homology",
-    note:
-      "No alignment and no shared Pfam, but ESM (sequence-only, and blind to the context signal " +
-      "that built this locus) finds them homologous — the short proteins alignment cannot bridge.",
-  },
-  synteny_only: {
-    tone: "bad",
-    label: "grouped on context alone",
-    note:
-      "Unalignable, no Pfam, no ESM homology: grouped on genomic context only. This is the " +
-      "over-merge the audit exists to count.",
-  },
-  /**
-   * ⚠ **RETIRED as a category** — `CLAUDE.md`: *"`no_homology` is retired — it meant not measured,
-   * not nothing found."* Kept in the vocabulary because catalogues graded before the retirement
-   * still carry the token, and a tier with no entry would render as a bare unstyled string.
-   */
-  no_homology: {
-    tone: "bad",
-    label: "no evidence at all",
-    note: "Unalignable with no supporting evidence of any kind — the worst residual.",
-  },
-  alignable_not_grouped: {
-    tone: "warn",
-    label: "aligns, but never as one group",
-    note:
-      "Members align pairwise at the permissive floor but never resolve into a single group on " +
-      "the identity ladder.",
-  },
-};
+export const MMSEQS_GROUP_MIN_SHARE = 0.95;
+export const PFAM_SHARED_MIN_SHARE = 0.95;
+export const ESM_QUOTED_QUANTILE = 0.05;
 
-/** `mmseq@0.98` — the tier that names the identity at which the members first group. */
+/** How a locus holds together, as the card states it: a short neutral chip and one sentence. */
+export interface TierStatement {
+  /** The chip's words — a description, never a grade. An unknown tier's chip is its raw token. */
+  readonly label: string;
+  /** The one sentence, built from the numbers. Empty for an unknown token, which has no wording. */
+  readonly sentence: string;
+}
+
+/** `mmseq@0.98` — the tier that names the identity at which the members group. */
 const MMSEQS_TIER = /^mmseq@([0-9.]+)$/;
 
-/**
- * A collapse tier as a chip.
- *
- * ⚠ The `mmseq@…` tiers are **parametric**, not a fixed list, so they are parsed rather than looked
- * up — and the cut at 0.5 is where the sentence changes from *"ordinary sequence homology"* to a
- * threshold far below any pangenome tool's floor (Panaroo 70 %, Roary 95 %).
- *
- * ⛔ An unknown tier returns a `neutral` chip carrying the raw token rather than `null`: the token
- * is a real measurement, and dropping it would say the evidence was never looked at.
- */
-export function collapseTierVerdict(tier: string | null): Verdict | null {
-  if (tier === null || tier === "") return null;
-  const known = COLLAPSE_TIERS[tier];
-  if (known !== undefined) return known;
+const NO_MMSEQS = "Cannot be grouped by MMseqs at any sequence identity";
 
-  const match = MMSEQS_TIER.exec(tier);
-  if (match !== null) {
-    const identity = Number.parseFloat(match[1] as string);
-    const percent = Math.round(identity * 100);
-    return identity <= 0.5
-      ? {
-          tone: "warn",
-          label: `holds together at ${percent}% identity`,
-          note:
-            `Sequence alignment only joins these members once the identity threshold drops to ` +
-            `${percent}% — far below any pangenome tool's floor (Panaroo 70%, Roary 95%).`,
-        }
-      : {
-          tone: "neutral",
-          label: `holds together at ${percent}% identity`,
-          note:
-            `Ordinary sequence homology: the members group on the identity ladder at ${percent}%.`,
-        };
-  }
-  return { tone: "neutral", label: tier, note: "" };
+/** A whole-percent identity rung: `0.98` → `98%`. Rungs are whole percents by construction. */
+function rung(identity: number): string {
+  return `${Math.round(identity * 100)}%`;
 }
 
 /**
- * What each Pfam concordance class means, and how loudly to say it.
+ * A cosine quoted as a LOWER bound, floored rather than rounded to 3 dp.
  *
- * ⛔ `no_coverage` is deliberately absent from this map. Fewer than one annotated gene is neither
- * agreement nor disagreement, and giving it a chip would put a verdict on screen where none was
- * reached — the card states coverage in words instead.
+ * ⛔ "95 % of members have cosine ≥ X" is a bound: rounding 0.9126 up to 0.913 would state a bound the data
+ * does not reach. The epsilon keeps a value stored as 0.912 (= 911.9999… × 10⁻³ in binary) from flooring
+ * to 0.911.
  */
-export const PFAM_VERDICTS: Readonly<Record<string, Verdict>> = {
-  single: {
-    tone: "win",
-    label: "one architecture",
-    note:
-      "Every annotated gene here carries the same domain architecture — nothing discordant to " +
-      "weigh against the merge.",
-  },
-  same_domains: {
-    tone: "win",
-    label: "one architecture",
-    note:
-      "The annotated genes carry the same domains, differing only in repeat count or order — the " +
-      "same protein, not a different one.",
-  },
-  nested: {
-    tone: "neutral",
-    label: "partial annotation",
-    note:
-      "The architectures are nested: some members carry a domain the others do not, which is a " +
-      "weaker Pfam hit rather than a competing architecture. Absent evidence, not conflicting " +
-      "evidence.",
-  },
-  overlapping: {
-    tone: "warn",
-    label: "architectures overlap",
-    note:
-      "The architectures share a domain but neither contains the other. Weigh this against the " +
-      "sequence and context evidence.",
-  },
-  // ⛔ The reader-facing note cited `nuna_structural_syntology.md §6.2` until 2026-10-03. That file
-  // exists and §6.2 ("Pfam domain architecture — structural evidence") is the argument behind this
-  // chip — but it lives in the PRIVATE nuna repo, so to everyone reading BacAtlas the citation named
-  // a document they cannot open. Provenance belongs in the source, where it can be followed; the note
-  // keeps the claim and drops the dead reference.
-  disjoint: {
-    tone: "bad",
-    label: "conflicting architecture",
-    note:
-      "The minor architecture shares NO domain family or clan with the dominant one — different " +
-      "folds at the same locus. A discordant architecture is evidence AGAINST this merge, and this " +
-      "locus should be treated as contested until the sequence and context evidence is weighed.",
-  },
-};
+export function cosineLowerBound(value: number): string {
+  return (Math.floor(value * 1000 + 1e-9) / 1000).toFixed(3);
+}
 
 /**
- * The Pfam verdict chip, or `null` where none may be shown.
+ * The dominant domain set, named where the Pfam reference can: `PF00126 (HTH_1) + PF03466 (LysR_substrate)`.
  *
- * ⛔ **Two separate reasons to show nothing, and both must hold before a chip appears**: the audit
- * reached no class, or no gene here carries a Pfam-A domain at all. A verdict issued without
- * coverage behind it is the exact failure `no_coverage` exists to prevent — see T7.
+ * ⚠ An empty `short_name` is what the vendored table HAD, not a missing key, so the accession stands alone.
  */
-export function pfamVerdict(
-  concordanceClass: string | null,
-  annotatedGeneCount: number | null,
-): Verdict | null {
-  if (concordanceClass === null || annotatedGeneCount === null || annotatedGeneCount === 0) {
-    return null;
+export function dominantDomainsText(
+  domains: string,
+  reference: Readonly<Record<string, PfamFamilyReference>>,
+): string {
+  return pfamAccessionsIn(domains)
+    .map((accession) => {
+      const name = reference[accession]?.short_name ?? "";
+      return name === "" ? accession : `${accession} (${name})`;
+    })
+    .join(" + ");
+}
+
+/**
+ * The dominant domain set's share of ALL the locus's genes — `null` where the audit never measured it.
+ *
+ * ⛔ Over `gene_count`, never over the annotated genes: a set on 40 of 40 annotated genes in a locus of 100
+ * is on 40 % of the locus, and a share over the annotated subset would print 100 %.
+ */
+export function dominantDomainShare(locus: Locus): number | null {
+  const count = locus.pfam.dominant_domain_gene_count;
+  return count === null || locus.gene_count === 0 ? null : count / locus.gene_count;
+}
+
+/**
+ * The tier as the card states it, or `null` where there is no tier (a singleton).
+ *
+ * ⚠ `mmseq@…` is parametric, so it is parsed rather than looked up. On a catalogue audited before
+ * 2026-11-26 the share is `null` and the rung's DEFINITION was different (the 50 longest members, not a
+ * sample at 95 %), so the sentence then states only the rung, which is true under either definition.
+ */
+export function collapseTierStatement(
+  locus: Locus,
+  reference: Readonly<Record<string, PfamFamilyReference>>,
+): TierStatement | null {
+  const tier = locus.evidence.collapse_tier;
+  if (tier === null || tier === "") return null;
+
+  const mmseqs = MMSEQS_TIER.exec(tier);
+  if (mmseqs !== null) {
+    const identity = rung(Number.parseFloat(mmseqs[1] as string));
+    const share = locus.evidence.mmseqs_group_share;
+    return {
+      label: `groups at ${identity} identity`,
+      sentence:
+        share === null
+          ? `MMseqs groups these members at ${identity} identity.`
+          : `${percentKeepingSide(share, MMSEQS_GROUP_MIN_SHARE)} of sampled members (a uniform sample of up ` +
+            `to 50) group at ${identity} identity by MMseqs.`,
+    };
   }
-  return PFAM_VERDICTS[concordanceClass] ?? null;
+
+  switch (tier) {
+    case "alignable_not_grouped":
+      return {
+        label: "aligns · groups at no identity",
+        sentence:
+          `${NO_MMSEQS} down to 30%, although at least ${rung(MMSEQS_GROUP_MIN_SHARE)} of sampled members ` +
+          "join at its permissive floor (E ≤ 1e-3, coverage ≥ 50%).",
+      };
+    case "pfam_shared": {
+      const share = dominantDomainShare(locus);
+      const domains = locus.pfam.dominant_domains;
+      // ⚠ After a colon, not in parentheses: a named family is already `PF14052 (Wzi)`, and nesting it in a
+      // second pair reads as a typo.
+      const named = domains ? `: ${dominantDomainsText(domains, reference)}` : "";
+      return {
+        label: "one Pfam architecture",
+        sentence:
+          share === null
+            ? `${NO_MMSEQS}; more than ${rung(PFAM_SHARED_MIN_SHARE)} of its genes share one Pfam ` +
+              `architecture${named}.`
+            : `${NO_MMSEQS}; ${percentKeepingSide(share, PFAM_SHARED_MIN_SHARE)} of its genes share one ` +
+              `Pfam architecture${named}.`,
+      };
+    }
+    case "esm_only": {
+      const p05 = locus.evidence.esm_member_similarity_p05;
+      const median = locus.evidence.esm_member_similarity_median;
+      // ⚠ "no more than", not "fewer than": `pfam_shared` is a STRICT `> 95 %`, so 19 of 20 genes (exactly
+      // 95 %) is not shared — and "fewer than 95 %" would be false of it.
+      const head =
+        `${NO_MMSEQS}, and no more than ${rung(PFAM_SHARED_MIN_SHARE)} of its genes share one Pfam ` +
+        "architecture.";
+      const esm =
+        p05 === null
+          ? " ESM: no member → medoid cosine was measured for this locus."
+          : ` ESM: ${rung(1 - ESM_QUOTED_QUANTILE)} of members have cosine ≥ ${cosineLowerBound(p05)} to ` +
+            `the locus medoid${median === null ? "" : ` (median ${median.toFixed(3)})`}.`;
+      return { label: "grouped by neither MMseqs nor Pfam", sentence: head + esm };
+    }
+    default:
+      // ⛔ Carried through rather than dropped: the token is a real record. No sentence — none fits it.
+      return { label: tier, sentence: "" };
+  }
+}
+
+/**
+ * The Pfam block's numbers — the dominant set's share, the other architectures', and no Pfam at all — each
+ * over ALL the locus's genes. `null` where the audit never measured them (a catalogue audited before
+ * 2026-11-26), and for a locus where no gene carries a domain, which the card says in words instead.
+ *
+ * ⛔ **No verdict word, whatever the share** (David, 2026-11-26): "82% carry PF00126 · 6% other
+ * architectures · 12% no Pfam" is the whole statement. A part that is exactly zero is left out.
+ */
+export function pfamArchitectureFacts(
+  locus: Locus,
+  reference: Readonly<Record<string, PfamFamilyReference>>,
+): string | null {
+  const { dominant_domains: domains, dominant_domain_gene_count: dominant } = locus.pfam;
+  const other = locus.pfam.other_architecture_gene_count;
+  const annotated = locus.pfam.annotated_gene_count;
+  const size = locus.gene_count;
+  if (domains === null || dominant === null || other === null || annotated === 0 || size === 0) return null;
+  const parts = [
+    `${percentKeepingSide(dominant / size, PFAM_SHARED_MIN_SHARE)} of genes carry ${dominantDomainsText(domains, reference)}`,
+  ];
+  if (other > 0) parts.push(`${percentKeepingSide(other / size)} other architectures`);
+  const unannotated = size - annotated;
+  if (unannotated > 0) parts.push(`${percentKeepingSide(unannotated / size)} no Pfam domain`);
+  return `Pfam: ${parts.join(" · ")}.`;
 }
 
 /**

@@ -48,6 +48,7 @@ from bacatlas_backend.ingest.catalogue_frames import (
 from bacatlas_backend.ingest.derive_locus_display import best_product, display_name, search_text
 from bacatlas_backend.ingest.derive_locus_propagation import PROPAGATION_VOCABULARIES
 from bacatlas_backend.ingest.derive_locus_ranking import (
+    SHOWCASE_POLICY,
     build_interest_inputs,
     interest_score,
     landing_index,
@@ -330,11 +331,18 @@ LOCUS_COLUMNS = (
     "pfam_annotated_member_count",
     "pfam_architecture_count",
     "pfam_concordance_class",
+    "pfam_dominant_domains",
+    "pfam_dominant_domain_gene_count",
+    "pfam_other_architecture_gene_count",
+    "pfam_architecture_shared",
     "syntenic_a5",
     "collapse_tier",
     "collapse_bucket",
     "resolved_threshold",
+    "mmseqs_group_share",
     "seqid_coverage",
+    "esm_member_similarity_p05",
+    "esm_member_similarity_median",
     "uniref50_impurity",
     "uniref50_coverage",
     "medoid_genome_id",
@@ -506,11 +514,20 @@ def _locus_rows(
             "pfam_annotated_member_count": _int_or_none(row["pfam_annotated_member_count"]),
             "pfam_architecture_count": _int_or_none(row["pfam_architecture_count"]),
             "pfam_concordance_class": _clean(row["pfam_concordance_class"]),
+            # ⚠ `""` is a MEASURED empty set (no gene annotated) and survives `_clean`, which maps
+            # only None/NaN to None — so it stays apart from "audited before 2026-11-26".
+            "pfam_dominant_domains": _clean(row["pfam_dominant_domains"]),
+            "pfam_dominant_domain_gene_count": _int_or_none(row["pfam_dominant_domain_gene_count"]),
+            "pfam_other_architecture_gene_count": _int_or_none(row["pfam_other_architecture_gene_count"]),
+            "pfam_architecture_shared": _clean(row["pfam_architecture_shared"]),
             "syntenic_a5": _clean(row["syntenic_a5"]),
             "collapse_tier": _clean(row["collapse_tier"]),
             "collapse_bucket": _clean(row["collapse_bucket"]),
             "resolved_threshold": _clean(row["resolved_threshold"]),
+            "mmseqs_group_share": _clean(row["mmseqs_group_share"]),
             "seqid_coverage": _clean(row["seqid_coverage"]),
+            "esm_member_similarity_p05": _clean(row["esm_member_similarity_p05"]),
+            "esm_member_similarity_median": _clean(row["esm_member_similarity_median"]),
             "uniref50_impurity": _clean(row["uniref50_impurity"]),
             "uniref50_coverage": _clean(row["uniref50_coverage"]),
             "medoid_genome_id": genome_id_by_sample.get(str(_clean(row["medoid_sample_id"]) or "")),
@@ -858,10 +875,12 @@ def _refuse_unless_named_set_matches(named: frozenset[str], omitted_reasons: dic
 
 
 def _policy() -> dict:
-    """`export_payload.POLICY` — the failure/rescue tiers and the contested Pfam verdict."""
-    from nuna.tl.locus_browser.export_payload import POLICY
+    """The showcase ranking's policy — `derive_locus_ranking.SHOWCASE_POLICY`, which bars nothing.
 
-    return POLICY
+    ⛔ No longer nuna's `export_payload.POLICY` (David, 2026-11-26): that is the frozen pages' policy, and it
+    bars loci on the `disjoint` Pfam class and the retired failure tiers — the verdicts ruled audit bugs.
+    """
+    return SHOWCASE_POLICY
 
 
 # ── the per-table loaders ──────────────────────────────────────────────────────────────────────

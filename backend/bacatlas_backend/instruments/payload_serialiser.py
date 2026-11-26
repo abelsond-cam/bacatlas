@@ -63,17 +63,51 @@ from bacatlas_backend.models.locus import Locus
 #: what separated them, and it failed immediately — `assert 16 == 14`.
 INGESTED_PAYLOAD_SCHEMA = 16
 
+#: ⛔ **The `meta.policy` block of the frozen pages this rebuild reproduces — pinned, for the reason the
+#: schema above is pinned.** A rebuild reproduces a SPECIFIC published artifact, and its `meta.audit.failures`
+#: / `contested` lists are that artifact's: the loci its policy listed under the retired failure tiers and the
+#: `disjoint` Pfam class. It used to be nuna's `export_payload.POLICY`, read live — and David's 2026-11-26
+#: ruling retires those verdicts in the producer, so a live read would start rebuilding a payload the frozen
+#: pages never shipped, with the byte-identity test as the sole signal.
+#:
+#: ⚠ **This bars and lists nothing on the served page.** The service ranks with
+#: `derive_locus_ranking.SHOWCASE_POLICY` (no bar at all) and its footer lists what the 2026-11-26 audit
+#: measured (`audit_residual_service`); this dict is only the frozen pages' own record of themselves.
+INGESTED_PAYLOAD_POLICY = {
+    "over_merge_tiers": ["synteny_only"],
+    "failure_tiers": ["synteny_only", "no_homology"],
+    "rescue_tiers": ["pfam_not_alignable", "esm_homology"],
+    "contested_pfclass": "disjoint",
+    "product_is_evidence": False,
+}
+
+#: ⛔ **The `meta.audit.headline` keys of the frozen pages this rebuild reproduces — pinned, for the reason the
+#: policy above is pinned.** It used to be nuna's `export_payload.AUDIT_HEADLINE_KEYS`, read live; the
+#: 2026-11-26 redesign moves that list onto the new tier keys, so a live read would rebuild a headline the frozen
+#: pages never shipped. A key absent from a pangenome's evaluation rows is simply absent, as before.
+INGESTED_PAYLOAD_HEADLINE_KEYS = (
+    "n_clusters_total", "n_genes_total", "n_singleton_clusters",
+    "synteny_only_n_clusters", "synteny_only_n_genes", "synteny_only_gene_rate",
+    "no_homology_n_clusters", "no_homology_n_genes", "no_homology_gene_rate",
+    "over_merge_gene_rate", "over_merge_gene_rate_num",
+    "split_gene_rate", "split_gene_rate_excl_singletons",
+    "family_split_across_clusters_n_families",
+    "pfam_conflict_n_clusters", "pfam_conflict_n_genes", "pfam_conflict_gene_rate",
+    "pfam_judgeable_n_clusters", "pfam_no_coverage_n_clusters",
+    "n_clusters_esm_rescued", "esm_rescued_gene_num",
+)  # fmt: skip
+
 
 def _payload_constants():
     """The constants `build_payload` itself used, imported rather than copied — code, not a memory.
 
-    ⚠ ``SCHEMA_VERSION`` is deliberately NOT among them — see ``INGESTED_PAYLOAD_SCHEMA`` above. The rest
-    are genuinely shared vocabulary (band order, offsets, the policy block) and would be a second thing to
-    keep in step if copied.
+    ⚠ ``SCHEMA_VERSION`` and ``POLICY`` are deliberately NOT among them — see ``INGESTED_PAYLOAD_SCHEMA``
+    and ``INGESTED_PAYLOAD_POLICY`` above: each belongs to the artifact a rebuild reproduces. The rest are
+    genuinely shared vocabulary (band order, offsets) and would be a second thing to keep in step if copied.
     """
-    from nuna.tl.locus_browser.export_payload import BAND_ORDER, NS_CODE, OFFSETS, POLICY
+    from nuna.tl.locus_browser.export_payload import BAND_ORDER, NS_CODE, OFFSETS
 
-    return INGESTED_PAYLOAD_SCHEMA, tuple(OFFSETS), tuple(BAND_ORDER), dict(NS_CODE), POLICY
+    return INGESTED_PAYLOAD_SCHEMA, tuple(OFFSETS), tuple(BAND_ORDER), dict(NS_CODE), INGESTED_PAYLOAD_POLICY
 
 
 @dataclass
@@ -772,7 +806,6 @@ def meta_block(
     collection is built in any other order.
     """
     from nuna.tl.locus_browser.export_payload import (
-        AUDIT_HEADLINE_KEYS,
         SEQ_FLANK,
         TOP_NEIGHBOURS,
     )
@@ -824,13 +857,13 @@ def meta_block(
         )
     headline = {
         key: _headline_value(key, headline_rows[key])
-        for key in AUDIT_HEADLINE_KEYS
+        for key in INGESTED_PAYLOAD_HEADLINE_KEYS
         if key in headline_rows
     }
 
-    # ⚠ Derived from the tier the audit assigned, so the lists cannot drift from the counts in the
-    # report — and kept as TWO lists, because a Pfam conflict is weaker evidence than an over-merge
-    # and merging them would state a conflict as a grade.
+    # ⚠ The FROZEN pages' two lists, rebuilt under their own pinned policy (`INGESTED_PAYLOAD_POLICY`) so
+    # a rebuild still matches them byte for byte. Nothing served reads them: the service's footer lists
+    # what the 2026-11-26 audit measured, and it bars nothing (David's ruling of that day).
     failure_tiers = set(policy["failure_tiers"])
     contested = policy["contested_pfclass"]
     return {

@@ -42,6 +42,12 @@
        constraint that set the ceiling on L, since `.block.pale` only takes over below 0.45 penetrance. */
     --ramp-hi: #1657d5;
     --ramp-lo: #8630b7;
+    /* ⛔ `--win` was `--teal` and was green until 2026-08-24; it is now the mark's sail orange, the same value
+       as `--anchor` (David: *"change the green beside the sequence diversity and bakta annotations to same
+       orange"*). Renamed with it, because a token called `--teal` holding an orange is a lie the next reader
+       has to discover. Checked before swapping, since win/warn/bad all become warm: they sit at OKLab dE 11.6
+       (win vs warn), 10.9 (win vs bad) and 10.6 (warn vs bad), and the orange is the lightest of the three
+       (L 0.608 against 0.519 and 0.503). (Moved here on 2026-11-26 from the Pfam-verdict rail it sat beside.) */
     --win: #c3643b;
     --gold: #8a5f10;
     --rust: #a83a2a;
@@ -2002,39 +2008,11 @@ td.fam-sym {
     color: var(--ink-2);
 }
 
-/* The concordance verdict colours the whole card, because a conflicting architecture is evidence AGAINST the
-   merge and must not read as one more neutral fact. Only `disjoint` gets the red rail. */
-.card.pf-bad {
-    border-color: color-mix(in oklab, var(--rust) 55%, var(--rule));
-    border-left: 4px solid var(--rust);
-    background: linear-gradient(
-        color-mix(in oklab, var(--rust) 6%, transparent) 0 0 /
-        100% 100% no-repeat,
-        var(--panel)
-    );
-}
-
-.card.pf-bad > h2 {
-    color: var(--rust);
-}
-
-.card.pf-warn {
-    border-left: 4px solid var(--gold);
-}
-
-/* ⛔ `--win` was `--teal` and was green until 2026-08-24; it is now the mark's sail orange, the same value as
-   `--anchor` (David: *"change the green beside the sequence diversity and bakta annotations to same orange"*).
-   Renamed with it, because a token called `--teal` holding an orange is a lie the next reader has to discover.
-
-   Checked before swapping, since win/warn/bad all become warm: the three verdicts sit at OKLab dE 11.6 (win vs
-   warn), 10.9 (win vs bad) and 10.6 (warn vs bad) — MORE evenly spaced than the green set they replace
-   (15.4 / 22.5 / 10.6), and the orange is the lightest of the three (L 0.608 against 0.519 and 0.503), so
-   lightness reinforces hue rather than leaving the distinction to hue alone. */
-.card.pf-win {
-    border-left: 4px solid color-mix(in oklab, var(--win) 60%, transparent);
-}
-
-.verdict-note {
+/* ⛔ The `.card.pf-bad` / `pf-warn` / `pf-win` rails and `.verdict-note` went on 2026-11-26 with the Pfam class
+   chips they coloured: the red rail said a `disjoint` architecture was "evidence AGAINST the merge", and David
+   ruled that verdict an audit bug at scale. The card states the audit's numbers now (`tier-sentence` below).
+   ⚠ `--win` itself stays — other chips still use it — and its note on the warm palette moved to the token. */
+.tier-sentence {
     margin-top: var(--s2);
 }
 

@@ -230,6 +230,68 @@ def artifacts_for(species_key: str) -> "CatalogueArtifacts":
     )
 
 
+def redesigned_audit_artifacts(species_key: str, root: Path) -> "CatalogueArtifacts":
+    """⛔ A copy of a published catalogue's artifacts whose AUDIT carries the 2026-11-26 columns — test-only.
+
+    The mirrored probe audits predate David's 2026-11-26 redesign, so the ingest now REFUSES them
+    (`catalogue_frames.refuse_unless_redesigned_audit`), and every test that builds a whole catalogue from the
+    mirror would stop at that refusal. Those tests are about something else — the window chunking, the lean
+    similarity, the dry run's row counts — so they build from this copy instead: every input is a SYMLINK to
+    the mirror except the three audit files, which are rewritten with the new columns added.
+
+    ⚠ **The added values are PLACEHOLDERS that state nothing about any locus**: no dominant domain set (`""`,
+    zero counts, not shared), a grouping share of 1.0 wherever the old audit resolved a threshold, and no ESM
+    medoid (NaN). They satisfy every CHECK and nothing reads them as a finding. A test about the new facts
+    themselves builds its own frames (`test_audit_redesign_ingest`).
+    """
+    import pandas
+
+    from bacatlas_backend.ingest.catalogue_frames import PAGE_STATED_AUDIT_THRESHOLDS
+
+    real = artifacts_for(species_key)
+    audit_dir = real.analysis_root / "accessory_audit"
+    rewritten = {real.cluster_table.name, real.homology_waterfall.name, real.pfam_concordance.name,
+                 real.audit_summary.name}  # fmt: skip
+
+    def mirror(source: Path, target: Path, keep_real: set[str]) -> None:
+        target.mkdir(parents=True, exist_ok=True)
+        for entry in source.iterdir():
+            if entry.name not in keep_real:
+                os.symlink(entry, target / entry.name)
+
+    mirror(NUNA_DATA_ROOT, root, {"proc"})
+    mirror(NUNA_DATA_ROOT / "proc", root / "proc", {"analysis"})
+    mirror(NUNA_DATA_ROOT / "proc" / "analysis", root / "proc" / "analysis", {"accessory_audit"})
+    mirror(audit_dir, root / "proc" / "analysis" / "accessory_audit", rewritten)
+    copy = CatalogueArtifacts(
+        data_root=root, set_key=real.set_key, model_label=real.model_label, run_id=real.run_id,
+        species_key=real.species_key,
+    )  # fmt: skip
+
+    def with_evidence(frame):
+        frame["resolved_share"] = frame["resolved_threshold"].notna().map({True: 1.0, False: float("nan")})
+        frame["permissive_share"] = frame["resolved_share"]
+        frame["esm_member_sim_p05"] = float("nan")
+        frame["esm_member_sim_median"] = float("nan")
+        return frame
+
+    if real.cluster_table.exists():
+        with_evidence(pandas.read_parquet(real.cluster_table)).to_parquet(copy.cluster_table)
+    with_evidence(pandas.read_csv(real.homology_waterfall, dtype={"node": str})).to_csv(
+        copy.homology_waterfall, index=False
+    )
+    concordance = pandas.read_csv(real.pfam_concordance, sep="\t", dtype={"node": str})
+    concordance["dominant_domains"] = ""
+    concordance["n_dominant_domain_genes"] = 0
+    concordance["n_other_arch_genes"] = 0
+    concordance["dominant_domain_share"] = 0.0
+    concordance["pfam_shared"] = False
+    concordance.to_csv(copy.pfam_concordance, sep="\t", index=False)
+    summary = json.loads(real.audit_summary.read_text())
+    copy.audit_summary.write_text(json.dumps({**summary, **PAGE_STATED_AUDIT_THRESHOLDS}))
+    return copy
+
+
 @pytest.fixture(scope="session")
 def ecoli_artifacts():
     if not (NUNA_DATA_ROOT / "proc" / "embeddings" / "meta").is_dir():

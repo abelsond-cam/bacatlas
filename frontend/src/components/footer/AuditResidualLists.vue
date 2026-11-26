@@ -1,27 +1,36 @@
 <script setup lang="ts">
 /**
- * Every locus grouped on context alone, and every Pfam conflict — a model's own residuals, on its
- * own page, each one click away.
+ * Two lists of what the audit MEASURED, each locus one click away — the model's own residuals, on its own
+ * page.
  *
- * ⛔ **Two lists, never one** (`render_page._failures`). They are different kinds of evidence and
- * neither is a verdict: *grouped on context alone* says no sequence, Pfam or ESM method could join
- * the members; a Pfam conflict says their domain architectures share no clan, which an HMM can get
- * wrong by missing homology ESM sees. One list would state a conflict as a grade.
+ * ⭐ **What they list (David, 2026-11-26).** These were *"Every locus grouped on context alone"* and
+ * *"Every Pfam conflict"*. At 71,435 genomes both were decided by stray genes — kp-71k locus 4008, Wzi on
+ * 69,825 of 69,884 genes, sat in both — and David ruled them audit bugs. The lists now name facts, never a
+ * verdict:
  *
- * ⚠ **Fetched when a list is first opened.** The COUNTS in each summary come from the audit headline
- * the species response already carries, so a closed list still says how long it is; the rows arrive
- * only if the reader asks for them.
+ * 1. **Loci grouped by neither MMseqs nor a shared Pfam architecture** — the ladder's last rung, `esm_only`.
+ * 2. **Loci where at most 95 % of genes share one Pfam architecture** — among loci with members and with
+ *    Pfam. ⚠ "at most", not "fewer than": the audit's test is a strict `> 95 %`, so a locus at exactly
+ *    95 % (19 of 20 genes) is listed, and "fewer than" would be false of it.
+ *
+ * ⛔ **Two lists, never one, and they overlap.** A locus in both appears in both.
+ *
+ * ⚠ **Fetched when a list is first opened.** The COUNTS come from the shell (`residual_locus_counts`),
+ * counted from the same clauses the list endpoint selects with — so a closed list still says how long it
+ * is, and the number cannot disagree with the rows it opens to.
  */
 import { computed, ref } from "vue";
 
 import { fetchAuditResiduals } from "@/api/client";
 import type { Failure } from "@/api/result";
-import type { AuditResidualsResponse, CatalogueKey, ResidualLocusRow } from "@/api/types";
+import type { AuditResidualsResponse, CatalogueKey, ResidualLocusCounts, ResidualLocusRow } from "@/api/types";
+import { cosineLowerBound } from "@/lib/evidenceVocabulary";
+import { percentKeepingSide } from "@/lib/formatting";
 import { prevalenceBandLabel } from "@/lib/prevalence";
 
 const props = defineProps<{
   catalogueKey: CatalogueKey;
-  audit: Readonly<Record<string, number | string | null>>;
+  counts: ResidualLocusCounts;
 }>();
 
 const emit = defineEmits<{ go: [locusLabel: string] }>();
@@ -30,20 +39,12 @@ const lists = ref<AuditResidualsResponse | null>(null);
 const failed = ref<Failure | null>(null);
 const isLoading = ref(false);
 
-function count(key: string): number {
-  const value = props.audit[key];
-  return typeof value === "number" ? value : 0;
-}
-
-/** `failure_tiers` is synteny_only + no_homology; both are counted here, as the audit counts them. */
-// ⚠ The headline's count until the rows arrive, then the rows' OWN count — the published footer
-// printed `len(list)`, and a summary must never promise ten over a list of nine.
-const contextAloneCount = computed(
-  () =>
-    lists.value?.grouped_on_context_alone.length ??
-    count("synteny_only_n_clusters") + count("no_homology_n_clusters"),
+// ⚠ The shell's count until the rows arrive, then the rows' OWN count — a summary must never promise ten
+// over a list of nine, even if the two were somehow read a deploy apart.
+const esmOnlyCount = computed(() => lists.value?.esm_only.length ?? props.counts.esm_only);
+const notSharedCount = computed(
+  () => lists.value?.pfam_architecture_not_shared.length ?? props.counts.pfam_architecture_not_shared,
 );
-const conflictCount = computed(() => lists.value?.pfam_conflicts.length ?? count("pfam_conflict_n_clusters"));
 
 async function load(event: Event): Promise<void> {
   if (!(event.target as HTMLDetailsElement).open || lists.value !== null || isLoading.value) return;
@@ -64,6 +65,13 @@ function evidence(row: ResidualLocusRow): string {
   // ⚠ Omitted when not measured — `?? 0` would have printed a measurement nobody made.
   if (row.uniref50_family_count !== null) bits.push(`${row.uniref50_family_count} UniRef50`);
   if (row.pfam_architecture_count !== null) bits.push(`${row.pfam_architecture_count} architectures`);
+  // ⭐ The two facts the lists are ABOUT, so each row states its own reason. The share is over ALL genes.
+  if (row.pfam_dominant_domain_gene_count !== null && row.gene_count > 0) {
+    bits.push(`${percentKeepingSide(row.pfam_dominant_domain_gene_count / row.gene_count, 0.95)} on one Pfam set`);
+  }
+  if (row.esm_member_similarity_p05 !== null) {
+    bits.push(`95% ESM ≥ ${cosineLowerBound(row.esm_member_similarity_p05)}`);
+  }
   if (row.syntenic_a5 !== null) bits.push(`A5 ${row.syntenic_a5.toFixed(2)}`);
   // ⛔ SIMILARITIES on the wire now, and there is nothing left to convert. These were medoid
   // DISTANCES and this line turned each into `1 − d`; they are the same set-to-set numbers the
@@ -77,18 +85,18 @@ function evidence(row: ResidualLocusRow): string {
 </script>
 
 <template>
-  <details v-if="contextAloneCount > 0" class="foot-detail" @toggle="load">
-    <summary>Every locus grouped on context alone ({{ contextAloneCount.toLocaleString() }})</summary>
+  <details v-if="esmOnlyCount > 0" class="foot-detail" @toggle="load">
+    <summary>Loci grouped by neither MMseqs nor a shared Pfam architecture ({{ esmOnlyCount.toLocaleString() }})</summary>
     <p class="muted">
-      No sequence, Pfam or ESM homology behind the grouping — genomic context is all there was. Worth
-      looking at every one: this is where the model is doing something an identity threshold cannot, and
-      also where it would go wrong. Each is one click away.
+      MMseqs groups none of these at any sequence identity, and no Pfam domain set is carried by more than
+      95% of any one's genes. The locus card quotes each one's ESM similarity to its own medoid instead. Each
+      is one click away.
     </p>
     <p v-if="failed !== null" class="pop-error" role="alert">The list did not load — {{ failed.detail }}.</p>
     <p v-else-if="lists === null" class="muted">Loading…</p>
     <div v-else class="goto-list">
       <button
-        v-for="row in lists.grouped_on_context_alone"
+        v-for="row in lists.esm_only"
         :key="row.label"
         type="button"
         class="goto-row"
@@ -99,19 +107,18 @@ function evidence(row: ResidualLocusRow): string {
       </button>
     </div>
   </details>
-  <details v-if="conflictCount > 0" class="foot-detail" @toggle="load">
-    <summary>Every Pfam conflict ({{ conflictCount.toLocaleString() }})</summary>
+  <details v-if="notSharedCount > 0" class="foot-detail" @toggle="load">
+    <summary>Loci where at most 95% of genes share one Pfam architecture ({{ notSharedCount.toLocaleString() }})</summary>
     <p class="muted">
-      The annotated members carry domain architectures with no clan in common — evidence against the
-      merge, but not a verdict: an HMM can miss homology ESM sees, and a locus whose members are all phage
-      targets or all pilus variants is <em>expected</em> to look varied. A different domain order and a
-      missing domain are both excluded before this count. Judge each against its synteny and its ESM pair.
+      Loci with more than one gene and at least one Pfam domain, where the commonest domain set — order and
+      repeat count ignored — is carried by 95% of the genes or fewer. Genes with no Pfam domain count in the
+      denominator. Each is one click away.
     </p>
     <p v-if="failed !== null" class="pop-error" role="alert">The list did not load — {{ failed.detail }}.</p>
     <p v-else-if="lists === null" class="muted">Loading…</p>
     <div v-else class="goto-list">
       <button
-        v-for="row in lists.pfam_conflicts"
+        v-for="row in lists.pfam_architecture_not_shared"
         :key="row.label"
         type="button"
         class="goto-row"

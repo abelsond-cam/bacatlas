@@ -288,18 +288,39 @@ def serialise_locus_detail(detail: LocusDetail, names: ReferenceNames | None = N
                 # architecture. Without this denominator the page cannot tell the two apart.
                 "annotated_gene_count": locus.pfam_annotated_member_count,
                 "architecture_count": locus.pfam_architecture_count,
-                # ⛔ The audit's own verdict, read and never re-derived.
-                "concordance_class": locus.pfam_concordance_class,
+                # ⛔ `concordance_class` LEFT THE WIRE on 2026-11-26 (shape 9). David ruled the clan
+                # verdict an audit bug at scale — kp-71k 4008, Wzi on 69,825 of 69,884 genes, read
+                # "conflicting architecture" — and the card states the four numbers below instead. It is
+                # still STORED (`locus.pfam_concordance_class`); a served verdict nothing renders is one
+                # a later component would put back on the page.
+                #
+                # ⭐ The 2026-11-26 Pfam facts, each over ALL the locus's genes. `dominant_domains` is the
+                # commonest domain SET, accessions sorted and comma-joined (`""` = no gene annotated, a
+                # measurement); `architecture_shared` is the audit's own "more than 95 % of genes carry
+                # it". All four are `null` on a catalogue audited before 2026-11-26.
+                "dominant_domains": locus.pfam_dominant_domains,
+                "dominant_domain_gene_count": locus.pfam_dominant_domain_gene_count,
+                "other_architecture_gene_count": locus.pfam_other_architecture_gene_count,
+                "architecture_shared": locus.pfam_architecture_shared,
             },
             "evidence": {
                 "syntenic_a5": locus.syntenic_a5,
+                # ⭐ The 2026-11-26 ladder: `mmseq@{t}` → `alignable_not_grouped` → `pfam_shared` →
+                # `esm_only`. An older catalogue's retired token is served verbatim.
                 "collapse_tier": locus.collapse_tier,
                 "collapse_bucket": locus.collapse_bucket,
-                # ⚠ Over at most 50 members, longest-first (`FAMILY_MEMBER_CAP`) — 4,138 of 12,104
-                # ecoli loci sit at that cap, so this is "the identity at which the 50 longest
-                # members first group", a different and weaker claim than the whole locus.
+                # ⚠ Over at most 50 members (`FAMILY_MEMBER_CAP`) — a uniform sample since the
+                # 2026-11-26 audit, the 50 longest before it — so this is "the identity at which at least
+                # 95 % of the sampled members group", a different and weaker claim than the whole locus.
                 "resolved_threshold": locus.resolved_threshold,
                 "resolved_threshold_is_capped_at_50_members": True,
+                # ⭐ That rung's own share: the largest MMseqs component's share of the sampled members.
+                "mmseqs_group_share": locus.mmseqs_group_share,
+                # ⭐ What the card quotes when neither MMseqs nor a shared Pfam architecture groups the
+                # locus: the 5th percentile and median of member → medoid ESM cosine. `null` where the
+                # locus has no ESM medoid, and on a catalogue audited before 2026-11-26.
+                "esm_member_similarity_p05": locus.esm_member_similarity_p05,
+                "esm_member_similarity_median": locus.esm_member_similarity_median,
             },
             # ⛔ `geometry` was REPLACED, not renamed. Every field it carried measured a locus by
             # reducing it to its MEDOID — `within_medoid_distance` was its members' distance to that

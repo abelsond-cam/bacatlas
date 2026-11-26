@@ -17,7 +17,8 @@
  *
  * ⭐ **The sixth tile is SEQUENCE IDENTITY** (David, 2026-10-03): *"this is effectively a minimum for
  * the identity across all members of the set … but currently buried in text."* It was — the
- * `holds together at 60% identity` chip on the card below. It is `evidence.resolved_threshold`.
+ * identity chip on the card below (`groups at 60% identity` since 2026-11-26). It is
+ * `evidence.resolved_threshold`.
  *
  * ⛔ **NOT `seqid_coverage`.** That column is populated on 0 of 17,531 ecoli-nuna4 loci; tiling it
  * would print a dash on every locus in both catalogues.
@@ -25,7 +26,8 @@
 import { computed } from "vue";
 
 import type { Locus, Representation } from "@/api/types";
-import { sharePercent } from "@/lib/formatting";
+import { MMSEQS_GROUP_MIN_SHARE, collapseTierStatement } from "@/lib/evidenceVocabulary";
+import { percentKeepingSide, sharePercent } from "@/lib/formatting";
 import { copiesPerGenome } from "@/lib/locusStatistics";
 import { prevalenceBandLabel, prevalenceBandShade } from "@/lib/prevalence";
 
@@ -67,31 +69,47 @@ function withinTile(representation: Representation): { value: string; valueClass
 /**
  * ⚠ **Two different absences, and the tooltip must say which.** Measured on ecoli-nuna4: 5,896 loci
  * carry no `resolved_threshold`, of which **5,427 are singletons** (one gene — there is no pair to
- * align) and **469 are multi-member loci MMseqs never grouped at any rung of the ladder**, held
- * together by other evidence instead — `esm_homology` 290, `alignable_not_grouped` 113,
- * `pfam_not_alignable` 56, `synteny_only` 10. Printing one dash for both would merge "does not
- * arise" with "alignment found nothing", which are opposite findings.
+ * align) and **469 are multi-member loci MMseqs never grouped at any rung of the ladder**. Printing one
+ * dash for both would merge "does not arise" with "alignment found nothing", which are opposite findings.
+ * The second names its tier the way the evidence card does (`collapseTierStatement`'s chip) — never as
+ * a verdict (David, 2026-11-26).
  *
  * ⛔ **The 50-member cap is stated, never implied.** `resolved_threshold` is computed over at most
  * `FAMILY_MEMBER_CAP = 50` members, and 4,092 of 11,635 ecoli-nuna4 loci that have one sit at that
  * cap — 35 %. A threshold read as if it covered all 100 members would be wrong more than a third of
  * the time, so the flag the serialiser already ships goes in the title.
+ *
+ * ⚠ **The rung's DEFINITION changed on 2026-11-26** — at least 95 % of a UNIFORM sample of up to 50
+ * group, where it was the 50 longest. `mmseqs_group_share` is present exactly on a catalogue audited
+ * under the new definition, so it decides which sentence is true.
  */
 const identityTitle = computed(() => {
   const evidence = props.locus.evidence;
   if (evidence.resolved_threshold === null) {
-    return props.locus.gene_count === 1
-      ? "One member gene, so there is no pair to align — an identity threshold does not arise here."
-      : "Sequence alignment never grouped these members at any threshold on the ladder" +
-          `${evidence.collapse_tier ? `; they are held together by ${evidence.collapse_tier}` : ""}.`;
+    if (props.locus.gene_count === 1) {
+      return "One member gene, so there is no pair to align — an identity threshold does not arise here.";
+    }
+    const statement = collapseTierStatement(props.locus, {});
+    return (
+      "MMseqs grouped these members at no identity threshold on the ladder" +
+      `${statement ? ` — see the evidence card: ${statement.label}` : ""}.`
+    );
   }
   const capped = evidence.resolved_threshold_is_capped_at_50_members;
+  const threshold = sharePercent(evidence.resolved_threshold);
+  const genes = props.locus.gene_count.toLocaleString();
+  if (evidence.mmseqs_group_share !== null) {
+    return (
+      `At least ${sharePercent(MMSEQS_GROUP_MIN_SHARE)} of the sampled members — here ` +
+      `${percentKeepingSide(evidence.mmseqs_group_share, MMSEQS_GROUP_MIN_SHARE)} — group into one MMseqs ` +
+      `component once the identity threshold falls to ${threshold}.` +
+      (capped ? ` ⚠ A uniform sample of up to 50 member genes, not all ${genes}.` : "")
+    );
+  }
   return (
     `The members group into one family once the identity threshold falls to ` +
-    `${sharePercent(evidence.resolved_threshold)} — effectively a floor for identity across the set.` +
-    (capped
-      ? ` ⚠ Measured over the first 50 member genes, not all ${props.locus.gene_count.toLocaleString()}.`
-      : "")
+    `${threshold} — effectively a floor for identity across the set.` +
+    (capped ? ` ⚠ Measured over the first 50 member genes, not all ${genes}.` : "")
   );
 });
 

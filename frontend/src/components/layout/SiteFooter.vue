@@ -20,19 +20,25 @@ const props = defineProps<{ catalogue: SpeciesCatalogueResponse }>();
 const emit = defineEmits<{ go: [locusLabel: string] }>();
 
 /**
- * The graded headline in the order a reader needs it (`render_page._HEADLINE_ROWS`): how big, what was
- * found against it, what was rescued. Each is formatted exactly as the published footer formatted it.
+ * The audit's headline in the order a reader needs it: how big, then where each locus sits on the
+ * 2026-11-26 ladder, then the shared-architecture count over every locus.
+ *
+ * ⛔ **Counts, never verdicts (David, 2026-11-26).** The rows that said "synteny only — no homology by
+ * mmseqs", "Pfam conflict" and "rescued by ESM homology" quoted the retired tiers and the clan verdict;
+ * the server no longer serves those keys (`species_catalogue_service.AUDIT_HEADLINE_KEYS`), and a row
+ * whose key a catalogue lacks is simply not drawn — so an older catalogue's footer shows its size alone.
  */
+const clusters = (value: number) => `${value.toLocaleString()} clusters`;
 const HEADLINE_ROWS: readonly (readonly [string, string, (value: number) => string])[] = [
   ["clusters graded", "n_clusters_total", (value) => value.toLocaleString()],
   ["genes", "n_genes_total", (value) => value.toLocaleString()],
-  ["synteny only — no homology by mmseqs", "synteny_only_n_clusters", (value) => `${value.toLocaleString()} clusters`],
-  ["synteny only, as a gene rate", "synteny_only_gene_rate", (value) => `${(value * 100).toFixed(4)}%`],
-  ["Pfam conflict", "pfam_conflict_n_clusters", (value) => `${value.toLocaleString()} clusters`],
-  // NOT "of which": the denominator is different — Pfam judges only loci with ≥ 2 annotated members.
-  ["loci Pfam can judge (≥2 annotated members)", "pfam_judgeable_n_clusters", (value) => `${value.toLocaleString()} clusters`],
+  ["MMseqs groups at some identity", "tier_mmseq_n_clusters", clusters],
+  ["align at MMseqs' permissive floor, group at no identity", "tier_alignable_not_grouped_n_clusters", clusters],
+  ["no MMseqs grouping · >95% of genes share one Pfam architecture", "tier_pfam_shared_n_clusters", clusters],
+  ["grouped by neither — ESM similarity quoted", "tier_esm_only_n_clusters", clusters],
+  // NOT "of which": this one counts over EVERY locus, the MMseqs-grouped ones included.
+  [">95% of genes share one Pfam architecture (any rung)", "pfam_shared_n_clusters", clusters],
   ["UniRef50 family split across loci", "split_gene_rate_excl_singletons", (value) => `${(value * 100).toFixed(2)}% of genes`],
-  ["rescued by ESM homology", "n_clusters_esm_rescued", (value) => `${value.toLocaleString()} clusters`],
 ];
 
 /**
@@ -121,7 +127,7 @@ const omitted = computed(() => {
         </div>
       </dl>
       <details v-if="headline.length" class="foot-detail">
-        <summary>Accessory-fidelity audit — what was counted against this model</summary>
+        <summary>Accessory-fidelity audit — what was measured of this model</summary>
         <dl>
           <div v-for="[label, value] in headline" :key="label">
             <dt>{{ label }}</dt>
@@ -129,10 +135,12 @@ const omitted = computed(() => {
           </div>
         </dl>
         <p class="muted">
-          Read verbatim from the accessory audit. <b>Synteny only</b> means no homology mmseqs, Pfam or ESM
-          could find — the members were grouped on genomic context. That names the evidence, not a mistake:
-          many are good calls, and the way to tell is the evidence beside each one. Clusters rescued by Pfam
-          or by ESM are homologous and are not counted here.
+          Read verbatim from the accessory audit. Every locus with more than one gene sits on exactly one rung,
+          taken in order: <b>MMseqs groups it</b> at some identity (at least 95% of a uniform sample of up to 50
+          members fall in one component of hits at that identity); it <b>aligns</b> at MMseqs' permissive floor
+          but groups at no identity down to 30%; more than 95% of its genes <b>share one Pfam architecture</b>;
+          or <b>neither</b>, and the locus card quotes its ESM similarity to the locus medoid. Each is a
+          measurement, not a grade.
         </p>
       </details>
       <!-- ⛔ The CATALOGUE's key below, not the species'. This block's whole claim is "a model's own
@@ -140,7 +148,7 @@ const omitted = computed(() => {
            residuals and print them under another model's name. -->
       <AuditResidualLists
         :catalogue-key="catalogue.pangenome.catalogue_key"
-        :audit="catalogue.audit_headline"
+        :counts="catalogue.residual_locus_counts"
         @go="emit('go', $event)"
       />
       <p v-if="omitted" class="muted">{{ omitted }}</p>

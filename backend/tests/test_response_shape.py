@@ -51,7 +51,10 @@ from bacatlas_backend.models.pathogen_species import PathogenSpecies
 #: `state`, and each donor's `catalogue_published`) added,
 #: `calibration`, `inference.representation` and each vocabulary's `walk`/`candidate` removed. Pinned in
 #: `test_the_function_tab_carries_PREDICTIONS_and_NOT_the_ladder` below.
-EXPECTED_RESPONSE_SHAPE_VERSION = 8
+#: 9 (2026-11-26): the card states the audit's numbers, not its verdicts — `pfam.concordance_class` removed,
+#: the four Pfam facts and the three evidence numbers added, the shell's `residual_locus_counts` added and the
+#: residual lists renamed. Pinned in `test_the_locus_card_carries_the_2026_11_26_FACTS_and_NOT_the_verdict`.
+EXPECTED_RESPONSE_SHAPE_VERSION = 9
 
 #: Key paths whose CHILDREN are data rather than shape — walked to, never walked into.
 #: ⚠ Each is a map whose keys are values: band names, metric names, anchor source groups. Walking
@@ -207,6 +210,33 @@ def test_the_function_tab_carries_PREDICTIONS_and_NOT_the_ladder(client):
         # its children may or may not be walked — they are pinned by `test_function_inference`.
         *{path for path in paths if path.startswith("inference.vocabularies.own.")},
     }  # fmt: skip
+
+
+def test_the_locus_card_carries_the_2026_11_26_FACTS_and_NOT_the_verdict(client):
+    """⭐ Shape 9, asserted in BOTH directions: the seven facts arrived AND the clan verdict went.
+
+    ⚠ Holds on a catalogue audited before 2026-11-26 too — the keys are present with `null` values, which
+    is how such a catalogue says it never measured them.
+    """
+    landing = client.get("/api/v1/species/ecoli").get_json()["landing_locus"]
+    paths = _key_paths(client.get(f"/api/v1/species/ecoli/loci/{landing}").get_json())
+    assert {path for path in paths if path.startswith("locus.pfam")} == {
+        "locus.pfam", "locus.pfam.annotated_gene_count", "locus.pfam.architecture_count",
+        "locus.pfam.dominant_domains", "locus.pfam.dominant_domain_gene_count",
+        "locus.pfam.other_architecture_gene_count", "locus.pfam.architecture_shared",
+    }  # fmt: skip
+    assert {path for path in paths if path.startswith("locus.evidence")} == {
+        "locus.evidence", "locus.evidence.syntenic_a5", "locus.evidence.collapse_tier",
+        "locus.evidence.collapse_bucket", "locus.evidence.resolved_threshold",
+        "locus.evidence.resolved_threshold_is_capped_at_50_members", "locus.evidence.mmseqs_group_share",
+        "locus.evidence.esm_member_similarity_p05", "locus.evidence.esm_member_similarity_median",
+    }  # fmt: skip
+    shell = _key_paths(client.get("/api/v1/species/ecoli").get_json())
+    assert {"residual_locus_counts", "residual_locus_counts.esm_only",
+            "residual_locus_counts.pfam_architecture_not_shared"} <= shell  # fmt: skip
+    residuals = _key_paths(client.get("/api/v1/species/ecoli/audit/residual-loci").get_json())
+    assert {"esm_only", "pfam_architecture_not_shared"} <= residuals
+    assert not ({"grouped_on_context_alone", "pfam_conflicts"} & residuals)
 
 
 def test_every_element_of_a_list_has_the_SAME_shape(client):

@@ -229,15 +229,27 @@ def test_a_gap_variance_of_zero_is_a_MEASURED_zero_and_the_majority_case(loaded_
 
 
 def test_interest_score_negatives_are_a_sentinel_AND_a_real_term_and_the_two_differ(loaded_session):
-    """⚠ *"Negative means barred"* is wrong: `(major − 1) × 2e6` makes loci negative without barring."""
+    """⚠ *"Negative means barred"* is wrong: `(major − 1) × 2e6` makes loci negative without barring.
+
+    ⭐ **And since David's 2026-11-26 ruling nothing is barred** (`derive_locus_ranking.SHOWCASE_POLICY`): a
+    catalogue ingested since carries NO sentinel at all. Such a catalogue is told apart by its audit facts —
+    only that ingest writes `pfam_architecture_shared` — so the sentinel is allowed only on catalogues loaded
+    before it, which ranked under the old policy.
+    """
     sentinel = loaded_session.execute(
         select(func.count()).select_from(Locus).where(Locus.interest_score == -1e12)
     ).scalar_one()
     negative = loaded_session.execute(
         select(func.count()).select_from(Locus).where(Locus.interest_score < 0)
     ).scalar_one()
-    assert sentinel > 0
     assert negative > sentinel, "every negative score is the sentinel — the second term is untested"
+    redesigned = select(Locus.pangenome_id).where(Locus.pfam_architecture_shared.is_not(None)).distinct()
+    barred_since = loaded_session.execute(
+        select(func.count())
+        .select_from(Locus)
+        .where(Locus.interest_score == -1e12, Locus.pangenome_id.in_(redesigned))
+    ).scalar_one()
+    assert barred_since == 0, f"{barred_since:,} loci barred in a catalogue ranked under SHOWCASE_POLICY"
 
 
 # ── the instrument itself ──────────────────────────────────────────────────────────────────────

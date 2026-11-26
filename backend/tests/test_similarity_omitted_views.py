@@ -25,7 +25,7 @@ from bacatlas_backend.ingest.catalogue_frames import (
     build_catalogue_frames,
 )
 from bacatlas_backend.ingest.derive_locus_ranking import similarity_index
-from tests.conftest import NUNA_DATA_ROOT, artifacts_for, requires_artifacts
+from tests.conftest import redesigned_audit_artifacts, requires_artifacts
 
 LEAN = "weak_intra,weak_inter,nn_own_frac"
 BOTH = ("weak_margin", "own_fraction")
@@ -154,19 +154,23 @@ def test_declared_omitted_columns_that_are_present_but_EMPTY_are_the_same_omissi
 # ── the whole catalogue: the omission changes the similarity block and NOTHING else ─────────────
 @requires_artifacts
 def test_a_lean_shaped_copy_of_the_published_kp_similarity_changes_no_other_frame(tmp_path):
-    """The real Kp probe artifacts with the similarity CSVs rewritten the way the lean producer writes them."""
-    real = artifacts_for("kp")
-    proc = tmp_path / "proc"
+    """The real Kp probe artifacts with the similarity CSVs rewritten the way the lean producer writes them.
+
+    ⚠ From `redesigned_audit_artifacts`, not the mirror itself: the mirrored audit predates 2026-11-26 and is
+    refused as it stands, and this test is about the similarity block, not the audit facts."""
+    real = redesigned_audit_artifacts("kp", tmp_path / "real")
+    root = tmp_path / "lean"
+    proc = root / "proc"
     (proc / "analysis").mkdir(parents=True)
-    for entry in (NUNA_DATA_ROOT / "proc").iterdir():
+    for entry in (real.data_root / "proc").iterdir():
         if entry.name != "analysis":
             os.symlink(entry, proc / entry.name)
-    for entry in (NUNA_DATA_ROOT / "proc" / "analysis").iterdir():
+    for entry in (real.data_root / "proc" / "analysis").iterdir():
         if entry.name != "locus_browser":
             os.symlink(entry, proc / "analysis" / entry.name)
     (proc / "analysis" / "locus_browser").mkdir()
     lean = CatalogueArtifacts(
-        data_root=tmp_path, set_key=real.set_key, model_label=real.model_label, run_id=real.run_id,
+        data_root=root, set_key=real.set_key, model_label=real.model_label, run_id=real.run_id,
         species_key=real.species_key,
     )  # fmt: skip
     for representation in REPRESENTATIONS:
@@ -271,5 +275,5 @@ def test_the_views_the_api_hides_are_read_back_from_the_note_the_ingest_writes()
 
 @requires_artifacts
 def test_the_published_probe_catalogue_carries_no_estimator_note(tmp_path):
-    frames = build_catalogue_frames(artifacts_for("kp"))
+    frames = build_catalogue_frames(redesigned_audit_artifacts("kp", tmp_path / "root"))
     assert not [key for key in frames.omitted if key.startswith("similarity_")], frames.omitted
